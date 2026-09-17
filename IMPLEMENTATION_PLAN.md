@@ -39,3 +39,33 @@
 - [ ] 证书剩余 <30 天自动续期
 - [ ] launchd 常驻（plist 生成 + `install` / `uninstall` 命令）
 - [ ] README 补充部署与域名配置说明
+
+---
+
+二期目标：对齐 ChatGPT App 的 Codex 远程控制体验（差距分析见 2026-09-18 讨论）。连接方式仍是局域网/VPN，不做自建中继。Stage 6–9 按价值排序，6 和 7 不依赖 Stage 5，8 依赖 Stage 5 的证书部分。
+
+## Stage 6: 实时性与可见性
+**Goal**: 把 app-server 已有但 PWA 未接的通知接上，让手机端不再"静默"。线程列表订阅 `thread/started` / `thread/status/changed` / `thread/name/updated` / `thread/archived` 实时更新，不再依赖手动刷新；线程页接 `turn/plan/updated`（结构化待办）、`thread/tokenUsage/updated`（上下文占比）、`error` / `warning` / `model/rerouted`（顶部提示条）；`account/rateLimits/read` + `account/rateLimits/updated` 在列表页显示额度；新增 `item/tool/requestUserInput` 弹层，让模型的提问能在手机上回答；列表行显示 `ConversationGitInfo` 的分支名。
+**Success Criteria**: 桌面新建/重命名线程 2 秒内出现在手机列表；模型提问时手机能作答且桌面同步收到；turn 出错时手机有可见提示。
+**Tests**: reducer 对新增通知的归一化；列表 store 的增量更新（新增/改名/归档/去重）；requestUserInput 到 UI 状态映射。
+**Status**: Not Started
+
+## Stage 7: 输入增强
+**Goal**: 输入框支持图片附件（相册/拍照 → `localImage` 或 base64 `image`，多张）；turn 进行中输入改为 `turn/steer`（追加指令而非新起 turn），并显示 `thread/queue/changed` 的排队状态；`@` 触发 `fuzzyFileSearch` 补全为 `mention`；`skills/list` 驱动 `/` 技能选择。
+**Success Criteria**: 手机截图发给 Codex 并被正确识别；运行中追加一句指令能被当前 turn 采纳；`@` 能补全出项目内文件。
+**Tests**: 输入内容到 `UserInput[]` 的组装（文本 + 图片 + mention 混排）；steer 与 start 的分流逻辑；fuzzy search 结果的防抖与取消。
+**Status**: Not Started
+
+## Stage 8: Web Push 通知
+**Goal**: host 实现 Web Push（VAPID 密钥持久化在 `~/.codex-pocket/`，`web-push` 发送），订阅信息按设备存入 `devices.json`；在 `turn/completed`、三种 `requestApproval`、`item/tool/requestUserInput`、`error` 时推送，PWA 前台且正在看该线程时不推；`sw.js` 处理 `push` 与 `notificationclick`，点击跳到对应线程。依赖 Stage 5 的 HTTPS 证书（iOS 要求 HTTPS + 添加到主屏幕）。
+**Success Criteria**: 手机锁屏状态下，桌面 Codex 需要审批时收到系统通知，点开直接进入审批弹层。
+**Tests**: 推送触发规则（哪些通知、前台抑制、按设备去重）；订阅失效（410）时自动清理；VAPID 密钥的生成与复用。
+**Status**: Not Started
+
+## Stage 9: Diff、线程管理与审批策略
+**Goal**: `fileChange` 支持展开查看 diff（`item/fileChange/patchUpdated` / `turn/diff/updated`，手机友好的按文件折叠视图）；线程重命名（`thread/name/set`）、归档（`thread/archive` / `thread/unarchive`）、fork（`thread/fork`）；新建线程支持目录浏览（`fs/readDirectory`）；审批弹层增加"本次会话一直允许"（`acceptForSession`）；线程页可切换审批策略/沙箱（`permissionProfile/list`）；`review/start` 入口。
+**Success Criteria**: 手机上能看清一次改动的 diff 并批准；能整理线程列表；同类命令不用反复批准。
+**Tests**: diff 解析与按文件分组；审批决策到响应体的映射；归档后列表过滤。
+**Status**: Not Started
+
+**外网可达（不设 Stage）**：一期在 README 里记录 Tailscale / WireGuard 方案，host `--host` 绑定 tailnet IP 即可；自建中继不在本计划内。
