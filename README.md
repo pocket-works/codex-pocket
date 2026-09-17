@@ -9,6 +9,10 @@
 - [x] Stage 3：PWA 线程列表 / 对话 / 流式
 - [x] Stage 4：审批 / 中断 / 新建线程 / 模型切换
 - [ ] Stage 5：ACME 证书 + DNS 自动维护 + launchd 常驻（暂缓，TODO 见实施计划）
+- [ ] Stage 6：实时性与可见性（列表实时更新 / 计划与用量 / 错误提示 / 模型提问）
+- [ ] Stage 7：输入增强（图片附件 / turn/steer / @文件 / 技能）
+- [ ] Stage 8：Web Push 通知（依赖 Stage 5 证书）
+- [ ] Stage 9：Diff 视图 / 线程管理 / 审批策略 / review
 
 详见 [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)。
 
