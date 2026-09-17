@@ -10,6 +10,7 @@ export function App({ session }: { session: Session }) {
   const route = useRoute();
   const connection = useStore(session.store, (s) => s.connection);
   const upstream = useStore(session.store, (s) => s.upstreamConnected);
+  const notices = useStore(session.store, (s) => s.notices);
 
   // Keep the open thread in sync with the URL.
   useEffect(() => {
@@ -23,6 +24,14 @@ export function App({ session }: { session: Session }) {
   return (
     <div className="app">
       {banner && <div className="banner">{banner}</div>}
+      {notices.map((n) => (
+        <div key={n.id} className="alert warning">
+          <span>{n.message}</span>
+          <button className="icon-btn" aria-label="Dismiss" onClick={() => session.dismissNotice(n.id)}>
+            ×
+          </button>
+        </div>
+      ))}
       {route.name === "list" && <ThreadList session={session} />}
       {route.name === "new" && <NewThread session={session} />}
       {route.name === "thread" && <ThreadView session={session} />}

@@ -4,21 +4,32 @@ import { createStore, type Store } from "./store.js";
 import {
   applyNotification,
   applyServerRequest,
+  dismissAlert,
   initialThreadState,
   prependHistory,
   removeApproval,
   type ThreadViewState,
 } from "./thread-reducer.js";
+import { applyThreadListNotification, mergeThreadList, type ThreadSummary } from "./thread-list.js";
 
-export type ThreadStatus = "idle" | "active" | "unknown";
+export type { ThreadStatus, ThreadSummary } from "./thread-list.js";
 
-export interface ThreadSummary {
-  id: string;
-  cwd: string;
-  title: string;
-  updatedAt: number;
-  model: string | null;
-  status: ThreadStatus;
+export interface RateLimitWindow {
+  usedPercent: number;
+  /** Window length in minutes, e.g. 300 for the 5h window. */
+  durationMins: number | null;
+  resetsAt: number | null;
+}
+
+export interface RateLimits {
+  /** Short window (e.g. 5h) and long window (e.g. weekly); either may be absent. */
+  primary: RateLimitWindow | null;
+  secondary: RateLimitWindow | null;
+}
+
+export interface Notice {
+  id: number;
+  message: string;
 }
 
 export type OpenState = "loading" | "ready" | "locked" | "error";
@@ -45,19 +56,22 @@ export interface SessionState {
   threadsError: string | null;
   models: v2.Model[];
   open: OpenThread | null;
+  /** Account-wide usage, null until read. */
+  rateLimits: RateLimits | null;
+  /** Warnings not tied to a thread; shown app-wide until dismissed. */
+  notices: Notice[];
 }
 
 const HISTORY_PAGE = 40;
 
-function summarize(t: v2.Thread): ThreadSummary {
-  return {
-    id: t.id,
-    cwd: t.cwd,
-    title: (t.name ?? t.preview ?? "").replace(/\s+/g, " ").trim() || "(untitled)",
-    updatedAt: t.updatedAt * 1000,
-    model: t.model,
-    status: t.status.type === "active" ? "active" : t.status.type === "idle" ? "idle" : "unknown",
-  };
+let nextNoticeId = 1;
+
+function rateLimitWindow(w: v2.RateLimitWindow | null): RateLimitWindow | null {
+  return w ? { usedPercent: w.usedPercent, durationMins: w.windowDurationMins, resetsAt: w.resetsAt } : null;
+}
+
+function rateLimits(snapshot: v2.RateLimitSnapshot): RateLimits {
+  return { primary: rateLimitWindow(snapshot.primary), secondary: rateLimitWindow(snapshot.secondary) };
 }
 
 function isLockedError(err: unknown): boolean {
@@ -80,6 +94,8 @@ export class Session {
       threadsError: null,
       models: [],
       open: null,
+      rateLimits: null,
+      notices: [],
     });
     rpc.onStateChange((connection) => {
       this.store.set((s) => ({ ...s, connection, upstreamConnected: connection === "open" ? s.upstreamConnected : false }));
@@ -99,12 +115,27 @@ export class Session {
     this.store.set((s) => ({ ...s, threadsLoading: true, threadsError: null }));
     try {
       const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "updated_at" });
-      const seen = new Set<string>();
-      const threads = res.data.filter((t) => !seen.has(t.id) && seen.add(t.id)).map(summarize);
-      this.store.set((s) => ({ ...s, threads, threadsLoading: false }));
+      this.store.set((s) => ({ ...s, threads: mergeThreadList(s.threads, res.data), threadsLoading: false }));
     } catch (err) {
       this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: describe(err) }));
     }
+  }
+
+  async loadRateLimits(): Promise<void> {
+    try {
+      const res = await this.rpc.request<v2.GetAccountRateLimitsResponse>("account/rateLimits/read", {});
+      this.store.set((s) => ({ ...s, rateLimits: rateLimits(res.rateLimits) }));
+    } catch {
+      // Not signed in with ChatGPT, or an older Codex: the badge just stays hidden.
+    }
+  }
+
+  dismissNotice(id: number): void {
+    this.store.set((s) => ({ ...s, notices: s.notices.filter((n) => n.id !== id) }));
+  }
+
+  dismissAlert(id: number): void {
+    this.store.set((s) => (s.open ? { ...s, open: { ...s.open, view: dismissAlert(s.open.view, id) } } : s));
   }
 
   /** Distinct working directories from recent threads, most recent first. */
@@ -284,11 +315,19 @@ export class Session {
     this.store.set((s) => (s.open ? { ...s, open: { ...s.open, view: removeApproval(s.open.view, id) } } : s));
   }
 
+  /** Answer an `item/tool/requestUserInput`: one list of answers per question id. */
+  answerUserInput(id: JsonRpcRequest["id"], answers: Record<string, string[]>): void {
+    const response: v2.ToolRequestUserInputResponse = { answers: {} };
+    for (const [questionId, list] of Object.entries(answers)) response.answers[questionId] = { answers: list };
+    this.answerApproval(id, response);
+  }
+
   // --- incoming -----------------------------------------------------------
 
   private onReconnected(): void {
     const open = this.store.get().open;
     if (open) void this.openThread(open.view.threadId, { force: true });
+    void this.loadRateLimits();
   }
 
   private onNotification(n: JsonRpcNotification): void {
@@ -297,12 +336,20 @@ export class Session {
       this.store.set((s) => ({ ...s, upstreamConnected: connected }));
       return;
     }
-    if (n.method === "thread/status/changed") {
-      const { threadId, status } = n.params as v2.ThreadStatusChangedNotification;
-      const next: ThreadStatus = status.type === "active" ? "active" : status.type === "idle" ? "idle" : "unknown";
-      this.store.set((s) => ({ ...s, threads: s.threads.map((t) => (t.id === threadId ? { ...t, status: next } : t)) }));
+    if (n.method === "account/rateLimits/updated") {
+      const { rateLimits: snapshot } = n.params as v2.AccountRateLimitsUpdatedNotification;
+      this.store.set((s) => ({ ...s, rateLimits: rateLimits(snapshot) }));
       return;
     }
+    if (n.method === "warning" && (n.params as v2.WarningNotification).threadId === null) {
+      const { message } = n.params as v2.WarningNotification;
+      this.store.set((s) => ({ ...s, notices: [...s.notices, { id: nextNoticeId++, message }] }));
+      return;
+    }
+    this.store.set((s) => {
+      const threads = applyThreadListNotification(s.threads, n, Date.now());
+      return threads === s.threads ? s : { ...s, threads };
+    });
     this.store.set((s) => {
       if (!s.open) return s;
       const view = applyNotification(s.open.view, n);

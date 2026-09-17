@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyNotification,
   applyServerRequest,
+  dismissAlert,
   initialThreadState,
   prependHistory,
   removeApproval,
@@ -60,7 +61,64 @@ describe("applyNotification", () => {
   });
 });
 
+describe("turn plan, token usage and alerts", () => {
+  it("replaces the plan on every update and clears it on the next turn", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "turn/plan/updated", params: { threadId: T, turnId: "t", explanation: null, plan: [{ step: "a", status: "completed" }, { step: "b", status: "inProgress" }] } });
+    expect(s.plan?.steps.map((p) => p.step)).toEqual(["a", "b"]);
+    s = applyNotification(s, { method: "turn/plan/updated", params: { threadId: T, turnId: "t", explanation: "why", plan: [{ step: "b", status: "completed" }] } });
+    expect(s.plan).toEqual({ explanation: "why", steps: [{ step: "b", status: "completed" }] });
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "t2" } } });
+    expect(s.plan).toBeNull();
+  });
+
+  it("tracks context usage from the last turn", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, {
+      method: "thread/tokenUsage/updated",
+      params: { threadId: T, turnId: "t", tokenUsage: { total: { totalTokens: 9000 }, last: { totalTokens: 4000 }, modelContextWindow: 16000 } },
+    });
+    expect(s.tokenUsage).toEqual({ contextTokens: 4000, contextWindow: 16000 });
+  });
+
+  it("surfaces warnings, reroutes and retrying errors as alerts and clears them on the next turn", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "warning", params: { threadId: T, message: "low disk" } });
+    s = applyNotification(s, { method: "model/rerouted", params: { threadId: T, turnId: "t", fromModel: "a", toModel: "b", reason: "highRiskCyberActivity" } });
+    s = applyNotification(s, { method: "error", params: { threadId: T, turnId: "t", error: { message: "429" }, willRetry: true } });
+    expect(s.alerts.map((a) => [a.kind, a.message])).toEqual([
+      ["warning", "low disk"],
+      ["info", "Model switched from a to b (highRiskCyberActivity)"],
+      ["warning", "429 — retrying"],
+    ]);
+    expect(s.lastTurnError).toBeNull();
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "t2" } } });
+    expect(s.alerts).toEqual([]);
+  });
+
+  it("treats a non-retrying error as the turn error", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "error", params: { threadId: T, turnId: "t", error: { message: "boom" }, willRetry: false } });
+    expect(s.lastTurnError).toBe("boom");
+    expect(s.alerts).toEqual([]);
+  });
+
+  it("ignores warnings for other threads and dismisses alerts by id", () => {
+    let s = initialThreadState(T);
+    expect(applyNotification(s, { method: "warning", params: { threadId: "other", message: "x" } })).toBe(s);
+    s = applyNotification(s, { method: "warning", params: { threadId: T, message: "x" } });
+    expect(dismissAlert(s, s.alerts[0].id).alerts).toEqual([]);
+  });
+});
+
 describe("approvals", () => {
+  it("queues user-input requests alongside approvals", () => {
+    let s = initialThreadState(T);
+    const questions = [{ id: "q1", header: "Pick", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "" }] }];
+    s = applyServerRequest(s, { id: "srv-7", method: "item/tool/requestUserInput", params: { threadId: T, turnId: "t", itemId: "i", questions, isBlocking: true, autoResolutionMs: null } });
+    expect(s.approvals).toEqual([{ id: "srv-7", method: "item/tool/requestUserInput", params: expect.objectContaining({ questions }) }]);
+  });
+
   it("collects approval requests for this thread and drops them when resolved", () => {
     let s = initialThreadState(T);
     s = applyServerRequest(s, { id: "srv-1", method: "item/commandExecution/requestApproval", params: { threadId: T, command: "rm -rf x" } });

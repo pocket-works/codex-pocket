@@ -8,6 +8,23 @@ export interface PendingApproval {
   params: Record<string, unknown>;
 }
 
+export interface TurnPlan {
+  explanation: string | null;
+  steps: v2.TurnPlanStep[];
+}
+
+export interface TokenUsage {
+  /** Tokens the last turn carried in context, i.e. how full the window is. */
+  contextTokens: number;
+  contextWindow: number | null;
+}
+
+export interface Alert {
+  id: number;
+  kind: "info" | "warning";
+  message: string;
+}
+
 export interface ThreadViewState {
   threadId: string;
   /** Items in display order (oldest first). */
@@ -15,10 +32,25 @@ export interface ThreadViewState {
   activeTurnId: string | null;
   lastTurnError: string | null;
   approvals: PendingApproval[];
+  /** Structured todo list for the current turn. */
+  plan: TurnPlan | null;
+  tokenUsage: TokenUsage | null;
+  /** Transient notices for the current turn (warnings, reroutes, retries). */
+  alerts: Alert[];
 }
 
 export function initialThreadState(threadId: string): ThreadViewState {
-  return { threadId, items: [], activeTurnId: null, lastTurnError: null, approvals: [] };
+  return { threadId, items: [], activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [] };
+}
+
+let nextAlertId = 1;
+
+function addAlert(state: ThreadViewState, kind: Alert["kind"], message: string): ThreadViewState {
+  return { ...state, alerts: [...state.alerts, { id: nextAlertId++, kind, message }] };
+}
+
+export function dismissAlert(state: ThreadViewState, id: number): ThreadViewState {
+  return { ...state, alerts: state.alerts.filter((a) => a.id !== id) };
 }
 
 function upsert(items: ThreadItem[], item: ThreadItem): ThreadItem[] {
@@ -57,7 +89,27 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
   switch (n.method) {
     case "turn/started": {
       const turn = (p as unknown as v2.TurnStartedNotification).turn;
-      return { ...state, activeTurnId: turn.id, lastTurnError: null };
+      return { ...state, activeTurnId: turn.id, lastTurnError: null, plan: null, alerts: [] };
+    }
+    case "turn/plan/updated": {
+      const { explanation, plan } = p as unknown as v2.TurnPlanUpdatedNotification;
+      return { ...state, plan: { explanation, steps: plan } };
+    }
+    case "thread/tokenUsage/updated": {
+      const { tokenUsage } = p as unknown as v2.ThreadTokenUsageUpdatedNotification;
+      return { ...state, tokenUsage: { contextTokens: tokenUsage.last.totalTokens, contextWindow: tokenUsage.modelContextWindow } };
+    }
+    case "error": {
+      const { error, willRetry } = p as unknown as v2.ErrorNotification;
+      return willRetry ? addAlert(state, "warning", `${error.message} — retrying`) : { ...state, lastTurnError: error.message };
+    }
+    case "warning": {
+      const { message } = p as unknown as v2.WarningNotification;
+      return addAlert(state, "warning", message);
+    }
+    case "model/rerouted": {
+      const { fromModel, toModel, reason } = p as unknown as v2.ModelReroutedNotification;
+      return addAlert(state, "info", `Model switched from ${fromModel} to ${toModel} (${reason})`);
     }
     case "turn/completed": {
       const turn = (p as unknown as v2.TurnCompletedNotification).turn;
@@ -118,10 +170,12 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
 
 // Server-initiated requests that need a human decision. Anything else the
 // phone cannot answer is left for other clients (or the host's timeout).
+export const USER_INPUT_METHOD = "item/tool/requestUserInput";
 const APPROVAL_METHODS = new Set([
   "item/commandExecution/requestApproval",
   "item/fileChange/requestApproval",
   "item/permissions/requestApproval",
+  USER_INPUT_METHOD,
 ]);
 
 export function applyServerRequest(state: ThreadViewState, req: JsonRpcRequest): ThreadViewState {
