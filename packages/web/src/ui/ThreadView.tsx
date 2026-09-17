@@ -4,7 +4,10 @@ import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
 import { ItemView } from "./ItemView.js";
 import { ModelPicker } from "./ModelPicker.js";
+import { PlanView } from "./PlanView.js";
 import { navigate } from "./route.js";
+import { UserInputSheet } from "./UserInputSheet.js";
+import { USER_INPUT_METHOD } from "../state/thread-reducer.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
@@ -38,6 +41,9 @@ export function ThreadView({ session }: { session: Session }) {
 
   if (!open) return null;
   const busy = open.view.activeTurnId !== null;
+  const pending = open.view.approvals[0];
+  const usage = open.view.tokenUsage;
+  const contextPct = usage?.contextWindow ? Math.min(100, Math.round((usage.contextTokens / usage.contextWindow) * 100)) : null;
 
   return (
     <main className="screen thread">
@@ -47,7 +53,14 @@ export function ThreadView({ session }: { session: Session }) {
         </button>
         <div className="topbar-title">
           <h1>{open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
-          <ModelPicker session={session} />
+          <div className="topbar-meta">
+            <ModelPicker session={session} />
+            {contextPct !== null && (
+              <span className={`context-pct ${contextPct >= 80 ? "high" : ""}`} title="Context window used">
+                {contextPct}%
+              </span>
+            )}
+          </div>
         </div>
         {busy && (
           <button className="danger" onClick={() => void session.interrupt()}>
@@ -68,6 +81,14 @@ export function ThreadView({ session }: { session: Session }) {
           <button onClick={() => void session.openThread(open.view.threadId, { force: true })}>Retry</button>
         </div>
       )}
+      {open.view.alerts.map((a) => (
+        <div key={a.id} className={`alert ${a.kind}`}>
+          <span>{a.message}</span>
+          <button className="icon-btn" aria-label="Dismiss" onClick={() => session.dismissAlert(a.id)}>
+            ×
+          </button>
+        </div>
+      ))}
 
       <div className="items" ref={listRef} onScroll={onScroll}>
         {open.loadingOlder && <p className="muted center">Loading…</p>}
@@ -75,11 +96,13 @@ export function ThreadView({ session }: { session: Session }) {
         {items.map((item) => (
           <ItemView key={item.id} item={item} />
         ))}
+        {open.view.plan && <PlanView plan={open.view.plan} />}
         {busy && <div className="thinking" aria-label="Working" />}
         {open.view.lastTurnError && <p className="error">{open.view.lastTurnError}</p>}
       </div>
 
-      {open.view.approvals.length > 0 && <ApprovalSheet session={session} approval={open.view.approvals[0]} />}
+      {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
+      {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} />}
 
       <Composer session={session} disabled={open.state !== "ready"} />
     </main>

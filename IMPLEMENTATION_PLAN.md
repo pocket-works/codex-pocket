@@ -48,7 +48,7 @@
 **Goal**: 把 app-server 已有但 PWA 未接的通知接上，让手机端不再"静默"。线程列表订阅 `thread/started` / `thread/status/changed` / `thread/name/updated` / `thread/archived` 实时更新，不再依赖手动刷新；线程页接 `turn/plan/updated`（结构化待办）、`thread/tokenUsage/updated`（上下文占比）、`error` / `warning` / `model/rerouted`（顶部提示条）；`account/rateLimits/read` + `account/rateLimits/updated` 在列表页显示额度；新增 `item/tool/requestUserInput` 弹层，让模型的提问能在手机上回答；列表行显示 `ConversationGitInfo` 的分支名。
 **Success Criteria**: 桌面新建/重命名线程 2 秒内出现在手机列表；模型提问时手机能作答且桌面同步收到；turn 出错时手机有可见提示。
 **Tests**: reducer 对新增通知的归一化；列表 store 的增量更新（新增/改名/归档/去重）；requestUserInput 到 UI 状态映射。
-**Status**: Not Started
+**Status**: Complete（列表实时更新、额度、分支已真机链路验证；提问弹层与错误提示仅单测，待真机遇到时验证）
 
 ## Stage 7: 输入增强
 **Goal**: 输入框支持图片附件（相册/拍照 → `localImage` 或 base64 `image`，多张）；turn 进行中输入改为 `turn/steer`（追加指令而非新起 turn），并显示 `thread/queue/changed` 的排队状态；`@` 触发 `fuzzyFileSearch` 补全为 `mention`；`skills/list` 驱动 `/` 技能选择。

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { Session, ThreadSummary } from "../state/session.js";
+import type { RateLimits, RateLimitWindow, Session, ThreadSummary } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
 
@@ -19,11 +19,32 @@ function projectName(cwd: string): string {
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
 }
 
+function windowLabel(w: RateLimitWindow): string {
+  if (w.durationMins === null) return "";
+  return w.durationMins >= 1440 ? `${Math.round(w.durationMins / 1440)}d` : `${Math.round(w.durationMins / 60)}h`;
+}
+
+// "5h 32% · 7d 12%": how much of each usage window is spent.
+function RateLimitsBadge({ limits }: { limits: RateLimits }) {
+  const windows = [limits.primary, limits.secondary].filter((w): w is RateLimitWindow => w !== null);
+  if (windows.length === 0) return null;
+  return (
+    <p className="rate-limits muted small">
+      {windows.map((w, i) => (
+        <span key={i} className={w.usedPercent >= 90 ? "high" : ""}>
+          {windowLabel(w)} {Math.round(w.usedPercent)}%
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export function ThreadList({ session }: { session: Session }) {
   const threads = useStore(session.store, (s) => s.threads);
   const loading = useStore(session.store, (s) => s.threadsLoading);
   const error = useStore(session.store, (s) => s.threadsError);
   const connection = useStore(session.store, (s) => s.connection);
+  const rateLimits = useStore(session.store, (s) => s.rateLimits);
 
   useEffect(() => {
     if (connection === "open") void session.loadThreads();
@@ -32,7 +53,10 @@ export function ThreadList({ session }: { session: Session }) {
   return (
     <main className="screen">
       <header className="topbar">
-        <h1>Threads</h1>
+        <div className="topbar-title">
+          <h1>Threads</h1>
+          {rateLimits && <RateLimitsBadge limits={rateLimits} />}
+        </div>
         <div className="topbar-actions">
           <button className="icon-btn" aria-label="Refresh" onClick={() => void session.loadThreads()} disabled={loading}>
             ↻
@@ -59,6 +83,7 @@ function ThreadRow({ thread }: { thread: ThreadSummary }) {
       <button className="thread-row" onClick={() => navigate({ name: "thread", id: thread.id })}>
         <div className="thread-row-top">
           <span className="thread-project">{projectName(thread.cwd)}</span>
+          {thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
           {thread.status === "active" && <span className="dot active" title="Running" />}
           <span className="thread-time">{relativeTime(thread.updatedAt)}</span>
         </div>
