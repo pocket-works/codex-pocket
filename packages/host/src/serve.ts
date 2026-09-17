@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
-import { adminToken, devicesFile, findCertFiles, writeRuntimeInfo } from "./config/paths.js";
+import { adminToken, devicesFile, findCertFiles, uploadsDir, writeRuntimeInfo } from "./config/paths.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
 import { CodexProxy } from "./proxy/codex-proxy.js";
@@ -42,6 +42,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     host: opts.host,
     tls,
     staticDir: opts.staticDir ?? defaultStaticDir(),
+    uploadsDir: uploadsDir(),
     deviceStore,
     proxy,
     adminToken: adminToken(),

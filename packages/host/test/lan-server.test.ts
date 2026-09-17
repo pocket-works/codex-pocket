@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ describe("LanServer", () => {
   let server: LanServer;
   let base: string;
   let store: DeviceStore;
+  let uploadsDir: string;
 
   beforeEach(async () => {
     fake = await startFakeAppServer();
@@ -31,12 +32,15 @@ describe("LanServer", () => {
       });
     });
     proxy = new CodexProxy({ connect: () => CodexClient.connect({ socketPath: fake.socketPath }), backoffMs: [10] });
-    store = new DeviceStore(join(mkdtempSync(join(tmpdir(), "cp-ls-")), "devices.json"));
+    const home = mkdtempSync(join(tmpdir(), "cp-ls-"));
+    store = new DeviceStore(join(home, "devices.json"));
+    uploadsDir = join(home, "uploads");
     server = createLanServer({
       port: 0,
       host: "127.0.0.1",
       deviceStore: store,
       proxy,
+      uploadsDir,
       adminToken: ADMIN,
       pairingUrl: (code) => `http://example.test/#pair=${code}`,
     });
@@ -122,5 +126,49 @@ describe("LanServer", () => {
     const del = await fetch(`${base}/api/admin/devices/${list.devices[0].id}`, { method: "DELETE", headers: { Authorization: `Bearer ${ADMIN}` } });
     expect(del.status).toBe(200);
     expect((await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${token}` } })).status).toBe(401);
+  });
+
+  describe("uploads", () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+    it("stores an image for a paired phone and returns its path on the Mac", async () => {
+      const token = await pair();
+      const res = await fetch(`${base}/api/uploads`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/png" },
+        body: png,
+      });
+      expect(res.status).toBe(200);
+      const { path } = (await res.json()) as { path: string };
+      expect(path.startsWith(uploadsDir)).toBe(true);
+      expect(path.endsWith(".png")).toBe(true);
+      expect(existsSync(path)).toBe(true);
+      expect(readFileSync(path).equals(png)).toBe(true);
+    });
+
+    it("requires a device token", async () => {
+      const res = await fetch(`${base}/api/uploads`, { method: "POST", headers: { "Content-Type": "image/png" }, body: png });
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects non-image bodies", async () => {
+      const token = await pair();
+      const res = await fetch(`${base}/api/uploads`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+        body: png,
+      });
+      expect(res.status).toBe(415);
+    });
+
+    it("rejects bodies over the size limit", async () => {
+      const token = await pair();
+      const res = await fetch(`${base}/api/uploads`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/jpeg" },
+        body: Buffer.alloc(11 * 1024 * 1024),
+      });
+      expect(res.status).toBe(413);
+    });
   });
 });

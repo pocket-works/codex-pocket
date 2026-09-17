@@ -10,7 +10,7 @@
 - [x] Stage 4：审批 / 中断 / 新建线程 / 模型切换
 - [ ] Stage 5：ACME 证书 + DNS 自动维护 + launchd 常驻（暂缓，TODO 见实施计划）
 - [x] Stage 6：实时性与可见性（列表实时更新 / 计划与用量 / 错误提示 / 模型提问）
-- [ ] Stage 7：输入增强（图片附件 / turn/steer / @文件 / 技能）
+- [x] Stage 7：输入增强（图片附件 / turn/steer / @文件 / 技能）
 - [ ] Stage 8：Web Push 通知（依赖 Stage 5 证书）
 - [ ] Stage 9：Diff 视图 / 线程管理 / 审批策略 / review
 
@@ -29,7 +29,7 @@ pnpm dev:host devices   # 已配对设备
 pnpm dev:host revoke <id>
 ```
 
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（只存 token 哈希）、`admin.token`、`runtime.json`、`certs/`。
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（只存 token 哈希）、`admin.token`、`runtime.json`、`certs/`、`uploads/`（手机发来的图片附件）。
 
 构建 PWA 后 `serve` 会自动从 `packages/web/dist` 提供页面：
 

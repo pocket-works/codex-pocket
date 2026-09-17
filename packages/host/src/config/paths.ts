@@ -16,6 +16,10 @@ export function certsDir(): string {
   return join(pocketHome(), "certs");
 }
 
+export function uploadsDir(): string {
+  return join(pocketHome(), "uploads");
+}
+
 export interface CertFiles {
   key: string;
   cert: string;
