@@ -35,6 +35,8 @@ export interface LanServerOptions {
 export interface LanServer {
   listen(): Promise<AddressInfo>;
   close(): Promise<void>;
+  /** Swap the certificate without dropping the listener (renewals). No-op on plain HTTP. */
+  setTls(material: TlsMaterial): void;
   readonly tls: boolean;
 }
 
@@ -64,7 +66,8 @@ export function createLanServer(opts: LanServerOptions): LanServer {
       else res.end();
     });
   };
-  const server: Server = opts.tls ? createHttpsServer({ key: opts.tls.key, cert: opts.tls.cert }, handler) : createHttpServer(handler);
+  const httpsServer = opts.tls ? createHttpsServer({ key: opts.tls.key, cert: opts.tls.cert }, handler) : null;
+  const server: Server = httpsServer ?? createHttpServer(handler);
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, handleProtocols: selectProtocol });
 
   server.on("upgrade", (req, socket, head) => {
@@ -112,6 +115,9 @@ export function createLanServer(opts: LanServerOptions): LanServer {
         for (const client of wss.clients) client.terminate();
         wss.close(() => server.close(() => resolve()));
       });
+    },
+    setTls(material) {
+      httpsServer?.setSecureContext({ key: material.key, cert: material.cert });
     },
   };
 }

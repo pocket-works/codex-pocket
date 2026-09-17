@@ -2,8 +2,14 @@
 import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
+import { certsDir } from "./config/paths.js";
+import { parseTlsSettings, readSettings, writeSettings } from "./config/settings.js";
+import { CloudflareDns } from "./dns/cloudflare.js";
+import { installLaunchAgent, uninstallLaunchAgent } from "./launchd.js";
 import { renderQrTerminal } from "./pairing/qr.js";
 import { DEFAULT_PORT, serve } from "./serve.js";
+import { issueCertificate, wildcardFor } from "./tls/acme.js";
+import { certificateExpiry, TlsManager } from "./tls/manager.js";
 
 const USAGE = `Usage: codex-pocket <command> [options]
 
@@ -19,6 +25,12 @@ Commands:
   revoke <id>       Remove a paired phone
   threads           List recent threads from the Codex desktop app-server
   info              Show app-server connection details
+  tls setup         Store domain settings for automatic HTTPS (Let's Encrypt via Cloudflare DNS)
+    --zone <zone> --hostname <name> --email <addr> --token <cloudflare-token> [--staging]
+  tls issue         Request/renew the certificate now
+  tls status        Show certificate expiry and settings
+  install           Install a launchd agent so serve runs at login
+  uninstall         Remove the launchd agent
 `;
 
 interface Flags {
@@ -37,7 +49,7 @@ function parseFlags(argv: string[]): Flags {
     }
     const key = a.slice(2);
     const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith("--") && key !== "no-tls") {
+    if (next !== undefined && !next.startsWith("--") && key !== "no-tls" && key !== "staging") {
       values.set(key, next);
       i++;
     } else {
@@ -50,6 +62,56 @@ function parseFlags(argv: string[]): Flags {
 function str(flags: Flags, key: string): string | undefined {
   const v = flags.values.get(key);
   return typeof v === "string" ? v : undefined;
+}
+
+async function tlsCommand(flags: Flags): Promise<number> {
+  const sub = flags.positional[1];
+  const log = (m: string) => console.log(`[tls] ${m}`);
+  switch (sub) {
+    case "setup": {
+      const tls = parseTlsSettings({
+        zone: str(flags, "zone"),
+        hostname: str(flags, "hostname"),
+        email: str(flags, "email"),
+        cloudflareToken: str(flags, "token"),
+        staging: flags.values.has("staging"),
+      });
+      const file = writeSettings({ ...readSettings(), tls });
+      console.log(`saved ${file}\ncertificate will cover ${wildcardFor(tls.hostname)}; run \`codex-pocket tls issue\` or just \`serve\``);
+      return 0;
+    }
+    case "issue": {
+      const settings = readSettings().tls;
+      if (!settings) throw new Error("no tls settings; run `codex-pocket tls setup` first");
+      const dns = new CloudflareDns(settings.cloudflareToken);
+      const manager = new TlsManager({
+        settings,
+        certsDir: certsDir(),
+        dns,
+        issue: () => issueCertificate({ settings, dns, certsDir: certsDir(), log }),
+        lanIp: () => null,
+        now: () => Number.MAX_SAFE_INTEGER, // force renewal
+        log,
+      });
+      const material = await manager.ensure();
+      if (!material) return 1;
+      console.log(`certificate valid until ${certificateExpiry(material.cert).toISOString()}`);
+      return 0;
+    }
+    case "status": {
+      const settings = readSettings().tls;
+      console.log(settings ? `hostname: ${settings.hostname} (zone ${settings.zone}, ${settings.staging ? "staging" : "production"})` : "no tls settings");
+      const manager = settings
+        ? new TlsManager({ settings, certsDir: certsDir(), dns: { upsertRecord: async () => false, deleteRecord: async () => false }, issue: async () => { throw new Error("n/a"); }, lanIp: () => null })
+        : null;
+      const material = manager?.current();
+      console.log(material ? `certificate: valid until ${certificateExpiry(material.cert).toISOString()}` : `certificate: none in ${certsDir()}`);
+      return 0;
+    }
+    default:
+      process.stderr.write(`usage: codex-pocket tls <setup|issue|status>\n`);
+      return 1;
+  }
 }
 
 async function main(argv: string[]): Promise<number> {
@@ -94,6 +156,16 @@ async function main(argv: string[]): Promise<number> {
       console.log(`revoked ${id}`);
       return 0;
     }
+    case "tls":
+      return tlsCommand(flags);
+    case "install": {
+      const file = installLaunchAgent();
+      console.log(`installed ${file}\nlogs: ~/.codex-pocket/host.log`);
+      return 0;
+    }
+    case "uninstall":
+      console.log(uninstallLaunchAgent() ? "launchd agent removed" : "no launchd agent installed");
+      return 0;
     case "info":
       return withClient(async (client) => {
         console.log(`socket:     ${client.socketPath}`);

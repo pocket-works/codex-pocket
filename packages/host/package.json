@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "acme-client": "^5.4.0",
     "qrcode": "^1.5.4",
     "ws": "^8.18.3"
   },
