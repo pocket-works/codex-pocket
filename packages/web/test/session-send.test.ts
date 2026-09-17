@@ -45,6 +45,8 @@ function readySession(rpc: RpcClient, activeTurnId: string | null): Session {
       olderCursor: null,
       loadingOlder: false,
       queued: [],
+      permissions: null,
+      permissionOverride: null,
     },
   }));
   return session;
@@ -99,5 +101,64 @@ describe("Session.searchFiles", () => {
     expect(await second).toEqual([{ name: "b.ts", path: "/proj/src/b.ts", relative: "src/b.ts" }]);
     expect(await first).toEqual([]);
     expect(calls[0].params).toMatchObject({ query: "a", roots: ["/proj"] });
+  });
+});
+
+describe("thread management", () => {
+  it("renames the open thread and updates the list optimistically", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "old", preview: "old", updatedAt: 1, model: null, status: "idle", branch: null }] }));
+    await session.renameThread("t1", "  New name ");
+    expect(calls).toEqual([{ method: "thread/name/set", params: { threadId: "t1", name: "New name" } }]);
+    expect(session.store.get().threads[0].title).toBe("New name");
+  });
+
+  it("archives a thread, drops it from the list and closes it if open", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "x", preview: "x", updatedAt: 1, model: null, status: "idle", branch: null }] }));
+    await session.archiveThread("t1");
+    expect(calls.map((c) => c.method)).toEqual(["thread/archive", "thread/unsubscribe"]);
+    expect(session.store.get().threads).toEqual([]);
+    expect(session.store.get().open).toBeNull();
+  });
+
+  it("forks the open thread and opens the copy", async () => {
+    const { rpc, calls } = stubRpc(() => ({ thread: { id: "t2" }, model: "m", reasoningEffort: null, cwd: "/proj", approvalPolicy: "on-request", sandbox: { type: "readOnly", networkAccess: false } }));
+    const session = readySession(rpc, null);
+    const id = await session.forkThread("t1");
+    expect(id).toBe("t2");
+    expect(calls[0]).toEqual({ method: "thread/fork", params: { threadId: "t1" } });
+    expect(session.store.get().open?.view.threadId).toBe("t2");
+  });
+
+  it("starts a review of uncommitted changes on the open thread", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "r" }, reviewThreadId: "t1" }));
+    await readySession(rpc, null).startReview();
+    expect(calls).toEqual([{ method: "review/start", params: { threadId: "t1", target: { type: "uncommittedChanges" }, delivery: "inline" } }]);
+  });
+
+  it("applies approval and sandbox overrides on the next turn", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
+    const session = readySession(rpc, null);
+    session.setPermissions("never", "workspace-write");
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[0].params).toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "workspaceWrite" } });
+    expect(session.store.get().open?.permissionOverride).toBeNull();
+  });
+});
+
+describe("Session.listDirectory", () => {
+  it("returns child directories sorted, hiding dotfiles", async () => {
+    const { rpc } = stubRpc(() => ({
+      entries: [
+        { fileName: "zeta", isDirectory: true, isFile: false },
+        { fileName: ".git", isDirectory: true, isFile: false },
+        { fileName: "README.md", isDirectory: false, isFile: true },
+        { fileName: "alpha", isDirectory: true, isFile: false },
+      ],
+    }));
+    expect(await readySession(rpc, null).listDirectory("/proj")).toEqual(["alpha", "zeta"]);
   });
 });

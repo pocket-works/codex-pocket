@@ -150,6 +150,10 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
         items: patch(state.items, itemId, (i) => (i.type === "reasoning" ? { ...i, content: appendAt(i.content, contentIndex, delta) } : i)),
       };
     }
+    case "item/fileChange/patchUpdated": {
+      const { itemId, changes } = p as unknown as v2.FileChangePatchUpdatedNotification;
+      return { ...state, items: patch(state.items, itemId, (i) => (i.type === "fileChange" ? { ...i, changes } : i)) };
+    }
     case "item/commandExecution/outputDelta": {
       const { itemId, delta } = p as unknown as v2.CommandExecutionOutputDeltaNotification;
       return {

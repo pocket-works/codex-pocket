@@ -1,10 +1,11 @@
 import type { Session } from "../state/session.js";
-import type { PendingApproval } from "../state/thread-reducer.js";
+import type { PendingApproval, ThreadItem } from "../state/thread-reducer.js";
+import { FileDiff } from "./DiffView.js";
 
 // One approval at a time, newest-first is not what we want: the oldest
 // blocks Codex, so ThreadView passes approvals[0].
-export function ApprovalSheet({ session, approval }: { session: Session; approval: PendingApproval }) {
-  const p = approval.params as { command?: string; cwd?: string; reason?: string; changes?: unknown; grantRoot?: string };
+export function ApprovalSheet({ session, approval, items, cwd }: { session: Session; approval: PendingApproval; items: ThreadItem[]; cwd?: string }) {
+  const p = approval.params as { command?: string; cwd?: string; reason?: string; itemId?: string; grantRoot?: string };
   const isCommand = approval.method === "item/commandExecution/requestApproval";
   const isFile = approval.method === "item/fileChange/requestApproval";
   const isPermissions = approval.method === "item/permissions/requestApproval";
@@ -29,6 +30,7 @@ export function ApprovalSheet({ session, approval }: { session: Session; approva
         {isCommand && <pre className="mono">{p.command}</pre>}
         {p.cwd && <p className="muted small">{p.cwd}</p>}
         {isFile && p.grantRoot && <p className="muted small">Grant write access to {p.grantRoot}</p>}
+        {isFile && <FileChanges items={items} itemId={p.itemId} cwd={cwd} />}
         {isPermissions && (
           <pre className="mono small">{JSON.stringify((approval.params as { permissions?: unknown }).permissions, null, 2)}</pre>
         )}
@@ -42,6 +44,20 @@ export function ApprovalSheet({ session, approval }: { session: Session; approva
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// The approval request only names the item; the patch itself arrived with
+// item/started, so look it up in the thread.
+function FileChanges({ items, itemId, cwd }: { items: ThreadItem[]; itemId?: string; cwd?: string }) {
+  const item = items.find((i) => i.id === itemId);
+  if (!item || item.type !== "fileChange") return null;
+  return (
+    <div className="approval-diff">
+      {item.changes.map((c) => (
+        <FileDiff key={c.path} change={c} cwd={cwd} open={item.changes.length === 1} />
+      ))}
     </div>
   );
 }

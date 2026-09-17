@@ -6,6 +6,7 @@ import { Composer } from "./Composer.js";
 import { ItemView } from "./ItemView.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { PlanView } from "./PlanView.js";
+import { ThreadMenu } from "./ThreadMenu.js";
 import { navigate } from "./route.js";
 import { UserInputSheet } from "./UserInputSheet.js";
 import { USER_INPUT_METHOD } from "../state/thread-reducer.js";
@@ -68,6 +69,7 @@ export function ThreadView({ session }: { session: Session }) {
             Stop
           </button>
         )}
+        <ThreadMenu session={session} />
       </header>
 
       {open.state === "locked" && (
@@ -95,7 +97,7 @@ export function ThreadView({ session }: { session: Session }) {
         {open.loadingOlder && <p className="muted center">Loading…</p>}
         {open.state === "loading" && items.length === 0 && <p className="muted center">Loading…</p>}
         {items.map((item) => (
-          <ItemView key={item.id} item={item} />
+          <ItemView key={item.id} item={item} cwd={open.cwd} />
         ))}
         {open.view.plan && <PlanView plan={open.view.plan} />}
         {busy && <div className="thinking" aria-label="Working" />}
@@ -109,7 +111,7 @@ export function ThreadView({ session }: { session: Session }) {
       </div>
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
-      {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} />}
+      {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
       <Composer session={session} disabled={open.state !== "ready"} busy={busy} />
     </main>

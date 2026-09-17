@@ -137,7 +137,7 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
       {(draft.skill || draft.images.length > 0) && (
         <div className="attachments">
           {draft.skill && (
-            <span className="chip">
+            <span className="attachment-chip">
               /{draft.skill.name}
               <button type="button" aria-label="Remove skill" onClick={() => setDraft((d) => ({ ...d, skill: null }))}>
                 ×

@@ -12,7 +12,7 @@
 - [x] Stage 6：实时性与可见性（列表实时更新 / 计划与用量 / 错误提示 / 模型提问）
 - [x] Stage 7：输入增强（图片附件 / turn/steer / @文件 / 技能）
 - [ ] Stage 8：Web Push 通知（依赖 Stage 5 证书）
-- [ ] Stage 9：Diff 视图 / 线程管理 / 审批策略 / review
+- [x] Stage 9：Diff 视图 / 线程管理 / 审批策略 / review
 
 详见 [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)。
 

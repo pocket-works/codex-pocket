@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { ThreadItem } from "../state/thread-reducer.js";
 import { renderMarkdown } from "./markdown.js";
+import { FileDiff } from "./DiffView.js";
 
-export function ItemView({ item }: { item: ThreadItem }) {
+export function ItemView({ item, cwd }: { item: ThreadItem; cwd?: string }) {
   switch (item.type) {
     case "userMessage": {
       const text = item.content
@@ -35,13 +36,9 @@ export function ItemView({ item }: { item: ThreadItem }) {
             <span>Edited {item.changes.length} file{item.changes.length === 1 ? "" : "s"}</span>
             <StatusPill status={item.status} />
           </div>
-          <ul className="file-list">
-            {item.changes.map((c) => (
-              <li key={c.path}>
-                <span className={`kind ${c.kind.type}`}>{c.kind.type}</span> {c.path}
-              </li>
-            ))}
-          </ul>
+          {item.changes.map((c) => (
+            <FileDiff key={c.path} change={c} cwd={cwd} />
+          ))}
         </div>
       );
     case "mcpToolCall":
