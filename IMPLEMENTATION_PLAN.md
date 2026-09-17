@@ -54,7 +54,7 @@
 **Goal**: 输入框支持图片附件（相册/拍照 → `localImage` 或 base64 `image`，多张）；turn 进行中输入改为 `turn/steer`（追加指令而非新起 turn），并显示 `thread/queue/changed` 的排队状态；`@` 触发 `fuzzyFileSearch` 补全为 `mention`；`skills/list` 驱动 `/` 技能选择。
 **Success Criteria**: 手机截图发给 Codex 并被正确识别；运行中追加一句指令能被当前 turn 采纳；`@` 能补全出项目内文件。
 **Tests**: 输入内容到 `UserInput[]` 的组装（文本 + 图片 + mention 混排）；steer 与 start 的分流逻辑；fuzzy search 结果的防抖与取消。
-**Status**: Not Started
+**Status**: Complete（@补全、/技能、图片上传已浏览器验证；steer 与图片被模型识别需真实 turn，待真机验证。`thread/queue/changed` 无内容且本版本协议无法读取队列，排队仅显示本机发出的消息）
 
 ## Stage 8: Web Push 通知
 **Goal**: host 实现 Web Push（VAPID 密钥持久化在 `~/.codex-pocket/`，`web-push` 发送），订阅信息按设备存入 `devices.json`；在 `turn/completed`、三种 `requestApproval`、`item/tool/requestUserInput`、`error` 时推送，PWA 前台且正在看该线程时不推；`sw.js` 处理 `push` 与 `notificationclick`，点击跳到对应线程。依赖 Stage 5 的 HTTPS 证书（iOS 要求 HTTPS + 添加到主屏幕）。

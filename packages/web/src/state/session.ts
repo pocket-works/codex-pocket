@@ -11,6 +11,7 @@ import {
   type ThreadViewState,
 } from "./thread-reducer.js";
 import { applyThreadListNotification, mergeThreadList, type ThreadSummary } from "./thread-list.js";
+import { buildUserInput, type Draft } from "./compose.js";
 
 export type { ThreadStatus, ThreadSummary } from "./thread-list.js";
 
@@ -32,6 +33,18 @@ export interface Notice {
   message: string;
 }
 
+export interface FileMatch {
+  name: string;
+  path: string;
+  relative: string;
+}
+
+export interface Skill {
+  name: string;
+  description: string;
+  path: string;
+}
+
 export type OpenState = "loading" | "ready" | "locked" | "error";
 
 export interface OpenThread {
@@ -46,6 +59,8 @@ export interface OpenThread {
   cwd: string;
   olderCursor: string | null;
   loadingOlder: boolean;
+  /** Messages Codex accepted while busy; they run after the current turn. */
+  queued: string[];
 }
 
 export interface SessionState {
@@ -101,7 +116,7 @@ export class Session {
       this.store.set((s) => ({ ...s, connection, upstreamConnected: connection === "open" ? s.upstreamConnected : false }));
       if (connection === "open") this.onReconnected();
     });
-    rpc.onNotification((n) => this.onNotification(n));
+    rpc.onNotification((n) => this.handleNotification(n));
     rpc.onServerRequest((req) => this.onServerRequest(req));
   }
 
@@ -172,6 +187,7 @@ export class Session {
         cwd: current?.cwd ?? "",
         olderCursor: null,
         loadingOlder: false,
+        queued: current?.view.threadId === threadId ? current.queued : [],
       },
     }));
     try {
@@ -271,22 +287,73 @@ export class Session {
     return open.override ?? { model: open.model, effort: open.effort };
   }
 
-  async sendMessage(text: string): Promise<void> {
+  async sendMessage(draft: Draft): Promise<void> {
     const open = this.store.get().open;
     if (!open || open.state !== "ready") throw new Error("thread not ready");
-    const input: v2.UserInput[] = [{ type: "text", text, text_elements: [] }];
+    const threadId = open.view.threadId;
+    const input = buildUserInput(draft);
+    if (input.length === 0) return;
+
+    // While a turn runs, steer it; Codex folds the input into the current
+    // turn. Review/compact turns cannot be steered, so fall back to a queued
+    // turn/start which runs when the current one ends.
+    const activeTurnId = open.view.activeTurnId;
+    if (activeTurnId) {
+      try {
+        await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input, expectedTurnId: activeTurnId });
+        return;
+      } catch (err) {
+        if (!(err instanceof RpcError)) throw err;
+      }
+    }
+
     // Only send overrides the user actually chose: Codex treats a model
     // override as a switch (with context compaction) even when unchanged.
-    const params: v2.TurnStartParams = { threadId: open.view.threadId, input };
+    const params: v2.TurnStartParams = { threadId, input };
     if (open.override) {
       params.model = open.override.model;
       params.effort = open.override.effort;
     }
     await this.rpc.request<v2.TurnStartResponse>("turn/start", params);
-    if (open.override) {
-      const { model, effort } = open.override;
-      this.store.set((s) => (s.open && s.open.view.threadId === open.view.threadId ? { ...s, open: { ...s.open, model, effort, override: null } } : s));
-    }
+    this.store.set((s) => {
+      if (!s.open || s.open.view.threadId !== threadId) return s;
+      const next = { ...s.open };
+      if (open.override) Object.assign(next, { model: open.override.model, effort: open.override.effort, override: null });
+      if (activeTurnId) next.queued = [...next.queued, draft.text.trim() || "(attachment)"];
+      return { ...s, open: next };
+    });
+  }
+
+  private searchToken = 0;
+
+  /** Fuzzy file search under the open thread's cwd; stale results resolve to []. */
+  async searchFiles(query: string): Promise<FileMatch[]> {
+    const open = this.store.get().open;
+    if (!open || !open.cwd || !query) return [];
+    const token = ++this.searchToken;
+    const res = await this.rpc.request<{ files: { root: string; path: string; file_name: string }[] }>("fuzzyFileSearch", {
+      query,
+      roots: [open.cwd],
+      cancellationToken: String(token),
+    });
+    if (token !== this.searchToken) return [];
+    return res.files.map((f) => ({ name: f.file_name, path: `${f.root.replace(/\/$/, "")}/${f.path}`, relative: f.path }));
+  }
+
+  private skillsCache = new Map<string, Skill[]>();
+
+  async loadSkills(): Promise<Skill[]> {
+    const open = this.store.get().open;
+    if (!open || !open.cwd) return [];
+    const cached = this.skillsCache.get(open.cwd);
+    if (cached) return cached;
+    const res = await this.rpc.request<v2.SkillsListResponse>("skills/list", { cwds: [open.cwd] });
+    const skills = res.data
+      .flatMap((entry) => entry.skills)
+      .filter((sk) => sk.enabled)
+      .map((sk) => ({ name: sk.name, description: sk.shortDescription ?? sk.description, path: sk.path }));
+    this.skillsCache.set(open.cwd, skills);
+    return skills;
   }
 
   async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null): Promise<string> {
@@ -304,6 +371,7 @@ export class Session {
         cwd: res.cwd,
         olderCursor: null,
         loadingOlder: false,
+        queued: [],
       },
     }));
     this.openGeneration++;
@@ -330,7 +398,8 @@ export class Session {
     void this.loadRateLimits();
   }
 
-  private onNotification(n: JsonRpcNotification): void {
+  /** Public so tests can feed notifications without a socket. */
+  handleNotification(n: JsonRpcNotification): void {
     if (n.method === "pocket/upstream/status") {
       const connected = !!(n.params as { connected?: boolean } | undefined)?.connected;
       this.store.set((s) => ({ ...s, upstreamConnected: connected }));
@@ -356,8 +425,10 @@ export class Session {
       if (view === s.open.view) return s;
       // Live traffic proves the thread is ours: clear a stale resume error
       // (e.g. "no rollout" on a thread that had not been written yet).
-      const state = s.open.state === "error" && n.method === "turn/started" ? "ready" : s.open.state;
-      return { ...s, open: { ...s.open, view, state, error: state === "ready" ? null : s.open.error } };
+      const started = n.method === "turn/started";
+      const state = s.open.state === "error" && started ? "ready" : s.open.state;
+      const queued = started ? [] : s.open.queued;
+      return { ...s, open: { ...s.open, view, state, queued, error: state === "ready" ? null : s.open.error } };
     });
   }
 

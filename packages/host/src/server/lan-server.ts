@@ -1,7 +1,9 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { JsonRpcMessage } from "@codex-pocket/protocol";
@@ -19,6 +21,8 @@ export interface LanServerOptions {
   host?: string;
   tls?: TlsMaterial | null;
   staticDir?: string | null;
+  /** Where phone image attachments are written so Codex can read them as `localImage`. */
+  uploadsDir?: string | null;
   deviceStore: DeviceStore;
   proxy: CodexProxy;
   /** Shared secret for the loopback-only admin endpoints. */
@@ -41,6 +45,15 @@ export const WS_PROTOCOL = "cp1";
 const WS_TOKEN_PREFIX = "tok.";
 
 const MAX_BODY_BYTES = 16 * 1024;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+const IMAGE_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/heic": "heic",
+};
 
 export function createLanServer(opts: LanServerOptions): LanServer {
   const log = opts.log ?? (() => {});
@@ -153,6 +166,24 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected });
   }
 
+  if (path === "/api/uploads" && method === "POST") {
+    const device = await opts.deviceStore.verifyToken(bearerToken(req));
+    if (!device) return sendJson(res, 401, { error: "unauthorized" });
+    if (!opts.uploadsDir) return sendJson(res, 404, { error: "uploads disabled" });
+    const ext = IMAGE_EXT[(req.headers["content-type"] ?? "").split(";")[0].trim()];
+    if (!ext) return sendJson(res, 415, { error: "only image uploads are accepted" });
+    let body: Buffer;
+    try {
+      body = await readRawBody(req, MAX_UPLOAD_BYTES);
+    } catch (err) {
+      return sendJson(res, err instanceof BodyTooLarge ? 413 : 400, { error: describe(err) });
+    }
+    mkdirSync(opts.uploadsDir, { recursive: true, mode: 0o700 });
+    const file = join(opts.uploadsDir, `${randomBytes(8).toString("hex")}.${ext}`);
+    writeFileSync(file, body, { mode: 0o600 });
+    return sendJson(res, 200, { path: file });
+  }
+
   if (path.startsWith("/api/admin/")) {
     if (!isLoopback(req) || !constantTimeEqual(bearerToken(req), opts.adminToken)) {
       return sendJson(res, 401, { error: "unauthorized" });
@@ -200,27 +231,45 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+class BodyTooLarge extends Error {
+  constructor() {
+    super("body too large");
+  }
+}
+
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"] ?? 0);
+    if (declared > limit) {
+      reject(new BodyTooLarge());
+      req.resume();
+      return;
+    }
     let size = 0;
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => {
       size += c.length;
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error("body too large"));
+      if (size > limit) {
+        reject(new BodyTooLarge());
         req.destroy();
         return;
       }
       chunks.push(c);
     });
-    req.on("end", () => {
-      try {
-        const text = Buffer.concat(chunks).toString("utf8");
-        resolve(text ? (JSON.parse(text) as Record<string, unknown>) : null);
-      } catch {
-        resolve(null);
-      }
-    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  const text = (await readRawBody(req, MAX_BODY_BYTES)).toString("utf8");
+  try {
+    return text ? (JSON.parse(text) as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }

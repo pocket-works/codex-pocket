@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
+import { Composer } from "./Composer.js";
 import { ItemView } from "./ItemView.js";
 import { ModelPicker } from "./ModelPicker.js";
 import { PlanView } from "./PlanView.js";
@@ -98,58 +99,19 @@ export function ThreadView({ session }: { session: Session }) {
         ))}
         {open.view.plan && <PlanView plan={open.view.plan} />}
         {busy && <div className="thinking" aria-label="Working" />}
+        {open.queued.map((q, i) => (
+          <div key={i} className="msg user queued">
+            {q}
+            <span className="muted small">Queued</span>
+          </div>
+        ))}
         {open.view.lastTurnError && <p className="error">{open.view.lastTurnError}</p>}
       </div>
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} />}
 
-      <Composer session={session} disabled={open.state !== "ready"} />
+      <Composer session={session} disabled={open.state !== "ready"} busy={busy} />
     </main>
-  );
-}
-
-function Composer({ session, disabled }: { session: Session; disabled: boolean }) {
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-
-  async function send() {
-    const body = text.trim();
-    if (!body || sending) return;
-    setSending(true);
-    setError(null);
-    try {
-      await session.sendMessage(body);
-      setText("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div className="composer">
-      {error && <p className="error">{error}</p>}
-      <div className="composer-row">
-        <textarea
-          value={text}
-          rows={1}
-          placeholder={disabled ? "Thread not ready" : "Message Codex…"}
-          disabled={disabled}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
-        <button className="primary" onClick={() => void send()} disabled={disabled || sending || !text.trim()} aria-label="Send">
-          ↑
-        </button>
-      </div>
-    </div>
   );
 }
