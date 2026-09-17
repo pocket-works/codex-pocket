@@ -252,6 +252,12 @@ code,
   -webkit-overflow-scrolling: touch;
 }
 
+/* Flex children with overflow:hidden (tool blocks) would otherwise shrink to
+   nothing once the thread is taller than the screen. */
+.items > * {
+  flex-shrink: 0;
+}
+
 .msg {
   max-width: 92%;
   padding: 10px 14px;
@@ -718,7 +724,7 @@ code,
   margin-bottom: 8px;
 }
 
-.chip {
+.attachment-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -743,7 +749,7 @@ code,
   border: 1px solid var(--line);
 }
 
-.chip button,
+.attachment-chip button,
 .thumb button {
   width: 22px;
   height: 22px;
@@ -767,4 +773,200 @@ code,
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* --- stage 9: diffs, thread menu, folder browser --- */
+
+.file-diff {
+  border-top: 1px solid var(--line);
+}
+
+.file-diff:first-of-type {
+  border-top: none;
+}
+
+.file-diff .tool-head {
+  font-size: 13px;
+}
+
+.file-diff .tool-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.diff-stats {
+  display: flex;
+  gap: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.diff-stats .add,
+.diff .line.add .sign {
+  color: var(--ok);
+}
+
+.diff-stats .del,
+.diff .line.del .sign {
+  color: var(--danger);
+}
+
+pre.diff {
+  margin: 0;
+  padding: 6px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  background: var(--card);
+}
+
+.diff .line {
+  display: block;
+  white-space: pre;
+  padding-right: 12px;
+}
+
+.diff .line.add {
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.diff .line.del {
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.diff .line.hunk {
+  color: var(--muted);
+  background: none;
+}
+
+.diff .no {
+  display: inline-block;
+  width: 3.5em;
+  padding-right: 6px;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+}
+
+.diff .sign {
+  display: inline-block;
+  width: 1.2em;
+  user-select: none;
+}
+
+.approval-diff {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.menu-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-list button {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+}
+
+.rename-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.rename-row input {
+  flex: 1;
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+}
+
+.thread-menu h3 {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 8px 0;
+}
+
+.segmented {
+  display: flex;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.segmented button {
+  flex: 1;
+  border: none;
+  border-radius: 0;
+  border-left: 1px solid var(--line);
+  padding: 10px 4px;
+  font-size: 14px;
+}
+
+.segmented button:first-child {
+  border-left: none;
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.folder-browser {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.folder-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.folder-path span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.folder-list button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  padding: 10px 14px;
+}
+
+.folder-browser p {
+  margin: 0;
+  padding: 10px 14px;
 }

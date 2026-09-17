@@ -61,6 +61,17 @@ describe("applyNotification", () => {
   });
 });
 
+describe("file changes", () => {
+  it("replaces a file change's patch when it is updated mid-turn", () => {
+    let s = initialThreadState(T);
+    const fc = { type: "fileChange", id: "f1", changes: [], status: "inProgress" } as unknown as ThreadItem;
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t", item: fc } });
+    const changes = [{ path: "/p/a.ts", kind: { type: "update", move_path: null }, diff: "+x" }];
+    s = applyNotification(s, { method: "item/fileChange/patchUpdated", params: { threadId: T, turnId: "t", itemId: "f1", changes } });
+    expect(s.items[0]).toMatchObject({ type: "fileChange", changes });
+  });
+});
+
 describe("turn plan, token usage and alerts", () => {
   it("replaces the plan on every update and clears it on the next turn", () => {
     let s = initialThreadState(T);

@@ -66,6 +66,6 @@
 **Goal**: `fileChange` 支持展开查看 diff（`item/fileChange/patchUpdated` / `turn/diff/updated`，手机友好的按文件折叠视图）；线程重命名（`thread/name/set`）、归档（`thread/archive` / `thread/unarchive`）、fork（`thread/fork`）；新建线程支持目录浏览（`fs/readDirectory`）；审批弹层增加"本次会话一直允许"（`acceptForSession`）；线程页可切换审批策略/沙箱（`permissionProfile/list`）；`review/start` 入口。
 **Success Criteria**: 手机上能看清一次改动的 diff 并批准；能整理线程列表；同类命令不用反复批准。
 **Tests**: diff 解析与按文件分组；审批决策到响应体的映射；归档后列表过滤。
-**Status**: Not Started
+**Status**: Complete（diff 视图、重命名、目录浏览、权限切换已浏览器验证；fork / review / archive 仅单测——空线程无 rollout 无法归档，真机遇到时验证。"会话内允许"在 Stage 4 已实现。顺手修复了长线程中折叠工具块被 flex 压扁成 2px 的旧 bug）
 
 **外网可达（不设 Stage）**：一期在 README 里记录 Tailscale / WireGuard 方案，host `--host` 绑定 tailnet IP 即可；自建中继不在本计划内。

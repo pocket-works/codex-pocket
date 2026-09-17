@@ -45,6 +45,12 @@ export interface Skill {
   path: string;
 }
 
+/** Approval policy + sandbox as the user sees them; both stick for later turns. */
+export interface Permissions {
+  approval: v2.AskForApproval;
+  sandbox: v2.SandboxMode;
+}
+
 export type OpenState = "loading" | "ready" | "locked" | "error";
 
 export interface OpenThread {
@@ -61,6 +67,10 @@ export interface OpenThread {
   loadingOlder: boolean;
   /** Messages Codex accepted while busy; they run after the current turn. */
   queued: string[];
+  /** Current approval/sandbox (from resume/start); null when unknown. */
+  permissions: Permissions | null;
+  /** Pending user choice applied on the next turn/start. */
+  permissionOverride: Permissions | null;
 }
 
 export interface SessionState {
@@ -87,6 +97,28 @@ function rateLimitWindow(w: v2.RateLimitWindow | null): RateLimitWindow | null {
 
 function rateLimits(snapshot: v2.RateLimitSnapshot): RateLimits {
   return { primary: rateLimitWindow(snapshot.primary), secondary: rateLimitWindow(snapshot.secondary) };
+}
+
+function sandboxMode(policy: v2.SandboxPolicy): v2.SandboxMode {
+  switch (policy.type) {
+    case "dangerFullAccess":
+      return "danger-full-access";
+    case "workspaceWrite":
+      return "workspace-write";
+    default:
+      return "read-only";
+  }
+}
+
+function sandboxPolicy(mode: v2.SandboxMode, cwd: string): v2.SandboxPolicy {
+  switch (mode) {
+    case "danger-full-access":
+      return { type: "dangerFullAccess" };
+    case "workspace-write":
+      return { type: "workspaceWrite", writableRoots: [cwd], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false };
+    default:
+      return { type: "readOnly", networkAccess: false };
+  }
 }
 
 function isLockedError(err: unknown): boolean {
@@ -188,6 +220,8 @@ export class Session {
         olderCursor: null,
         loadingOlder: false,
         queued: current?.view.threadId === threadId ? current.queued : [],
+        permissions: current?.view.threadId === threadId ? current.permissions : null,
+        permissionOverride: current?.view.threadId === threadId ? current.permissionOverride : null,
       },
     }));
     try {
@@ -214,6 +248,7 @@ export class Session {
             effort: resumed.reasoningEffort,
             cwd: resumed.cwd,
             olderCursor: page.nextCursor,
+            permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox) },
           },
         };
       });
@@ -314,11 +349,17 @@ export class Session {
       params.model = open.override.model;
       params.effort = open.override.effort;
     }
+    const perms = open.permissionOverride;
+    if (perms) {
+      params.approvalPolicy = perms.approval;
+      params.sandboxPolicy = sandboxPolicy(perms.sandbox, open.cwd);
+    }
     await this.rpc.request<v2.TurnStartResponse>("turn/start", params);
     this.store.set((s) => {
       if (!s.open || s.open.view.threadId !== threadId) return s;
       const next = { ...s.open };
       if (open.override) Object.assign(next, { model: open.override.model, effort: open.override.effort, override: null });
+      if (perms) Object.assign(next, { permissions: perms, permissionOverride: null });
       if (activeTurnId) next.queued = [...next.queued, draft.text.trim() || "(attachment)"];
       return { ...s, open: next };
     });
@@ -358,6 +399,13 @@ export class Session {
 
   async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null): Promise<string> {
     const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model });
+    this.adoptStarted(res, effort);
+    return res.thread.id;
+  }
+
+  // A thread we just started/forked is live already; resuming it would fail
+  // because Codex has not written its rollout yet, so open it directly.
+  private adoptStarted(res: v2.ThreadStartResponse | v2.ThreadForkResponse, effort: ReasoningEffort | null = null): void {
     const threadId = res.thread.id;
     this.store.set((s) => ({
       ...s,
@@ -372,10 +420,59 @@ export class Session {
         olderCursor: null,
         loadingOlder: false,
         queued: [],
+        permissions: { approval: res.approvalPolicy, sandbox: sandboxMode(res.sandbox) },
+        permissionOverride: null,
       },
     }));
     this.openGeneration++;
-    return threadId;
+  }
+
+  // --- thread management --------------------------------------------------
+
+  async renameThread(threadId: string, name: string): Promise<void> {
+    const clean = name.trim();
+    if (!clean) return;
+    await this.rpc.request("thread/name/set", { threadId, name: clean });
+    // The desktop hears thread/name/updated; we may not, so update locally.
+    this.store.set((s) => ({ ...s, threads: s.threads.map((t) => (t.id === threadId ? { ...t, title: clean } : t)) }));
+  }
+
+  async archiveThread(threadId: string): Promise<void> {
+    await this.rpc.request("thread/archive", { threadId });
+    this.store.set((s) => ({ ...s, threads: s.threads.filter((t) => t.id !== threadId) }));
+    if (this.store.get().open?.view.threadId === threadId) await this.closeThread();
+  }
+
+  /** Copies the thread's history into a new one and opens it. */
+  async forkThread(threadId: string): Promise<string> {
+    const res = await this.rpc.request<v2.ThreadForkResponse>("thread/fork", { threadId });
+    this.adoptStarted(res);
+    return res.thread.id;
+  }
+
+  /** Asks Codex to review the working tree; the review runs as a turn on this thread. */
+  async startReview(): Promise<void> {
+    const open = this.store.get().open;
+    if (!open || open.state !== "ready") throw new Error("thread not ready");
+    const params: v2.ReviewStartParams = { threadId: open.view.threadId, target: { type: "uncommittedChanges" }, delivery: "inline" };
+    await this.rpc.request<v2.ReviewStartResponse>("review/start", params);
+  }
+
+  setPermissions(approval: v2.AskForApproval, sandbox: v2.SandboxMode): void {
+    this.store.set((s) => {
+      if (!s.open) return s;
+      const same = s.open.permissions && s.open.permissions.approval === approval && s.open.permissions.sandbox === sandbox;
+      return { ...s, open: { ...s.open, permissionOverride: same ? null : { approval, sandbox } } };
+    });
+  }
+
+  /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */
+  async listDirectory(path: string): Promise<string[]> {
+    const res = await this.rpc.request<v2.FsReadDirectoryResponse>("fs/readDirectory", { path });
+    return res.entries
+      .filter((e) => e.isDirectory && !e.fileName.startsWith("."))
+      .map((e) => e.fileName)
+      .sort((a, b) => a.localeCompare(b));
   }
 
   answerApproval(id: JsonRpcRequest["id"], result: unknown): void {
