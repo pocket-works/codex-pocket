@@ -171,4 +171,23 @@ describe("LanServer", () => {
       expect(res.status).toBe(413);
     });
   });
+
+  it("serves HTTPS from the given PEMs and swaps them without restarting", async () => {
+    const key = readFileSync(join(import.meta.dirname, "fixtures", "expiring.key"));
+    const cert = readFileSync(join(import.meta.dirname, "fixtures", "expiring.crt"));
+    const secure = createLanServer({ port: 0, host: "127.0.0.1", tls: { key, cert }, deviceStore: store, proxy, adminToken: ADMIN, pairingUrl: (c) => c });
+    const addr = await secure.listen();
+    try {
+      expect(secure.tls).toBe(true);
+      const res = await new Promise<number>((resolve, reject) => {
+        import("node:https").then(({ request }) => {
+          request({ host: "127.0.0.1", port: addr.port, path: "/api/health", rejectUnauthorized: false }, (r) => resolve(r.statusCode ?? 0)).on("error", reject).end();
+        });
+      });
+      expect(res).toBe(200);
+      expect(() => secure.setTls({ key, cert })).not.toThrow();
+    } finally {
+      await secure.close();
+    }
+  });
 });

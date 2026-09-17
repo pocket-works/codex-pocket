@@ -31,14 +31,7 @@
 **Goal**: host 内置 ACME DNS-01（`acme-client`）签发 `*.lan.<域名>` 通配证书，域名商 API 适配器（Cloudflare 优先）自动维护 A 记录指向当前局域网 IP；证书 <30 天自动续期；launchd 常驻；README。
 **Success Criteria**: 手机浏览器打开 `https://mac.lan.<域名>:<port>` 无证书警告；Mac 换网络后 URL 不变。
 **Tests**: DNS 适配器的请求构造（mock HTTP）；证书到期判断；IP 变化检测。
-**Status**: Not Started（暂缓，先用自签证书 + 手动启动）
-
-**TODO**（恢复时按此拆分）：
-- [ ] ACME DNS-01 签发 `*.lan.<域名>` 通配证书（`acme-client`）
-- [ ] Cloudflare DNS 适配器：A 记录指向当前局域网 IP，IP 变化时自动更新
-- [ ] 证书剩余 <30 天自动续期
-- [ ] launchd 常驻（plist 生成 + `install` / `uninstall` 命令）
-- [ ] README 补充部署与域名配置说明
+**Status**: Complete（Cloudflare 适配器、ACME 挑战处理、证书到期/续期、IP 变化检测、launchd plist 均有单测；真实签发需要用户的 Cloudflare 域名与 token，未在本机跑通；`install` 会在本机安装常驻 agent，待用户确认后执行）
 
 ---
 
