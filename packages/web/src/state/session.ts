@@ -6,6 +6,7 @@ import {
   applyServerRequest,
   dismissAlert,
   initialThreadState,
+  mergeTurns,
   prependHistory,
   removeApproval,
   type ThreadViewState,
@@ -111,7 +112,8 @@ const HISTORY_PAGE = 40;
 let nextNoticeId = 1;
 
 function rateLimitWindow(w: v2.RateLimitWindow | null): RateLimitWindow | null {
-  return w ? { usedPercent: w.usedPercent, durationMins: w.windowDurationMins, resetsAt: w.resetsAt } : null;
+  // Codex reports resetsAt in epoch seconds; the UI works in ms.
+  return w ? { usedPercent: w.usedPercent, durationMins: w.windowDurationMins, resetsAt: w.resetsAt === null ? null : w.resetsAt * 1000 } : null;
 }
 
 function rateLimits(snapshot: v2.RateLimitSnapshot): RateLimits {
@@ -246,16 +248,15 @@ export class Session {
     try {
       const resumed = await this.rpc.request<v2.ThreadResumeResponse>("thread/resume", { threadId, excludeTurns: true });
       if (generation !== this.openGeneration) return;
-      const page = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
-        threadId,
-        limit: HISTORY_PAGE,
-        sortDirection: "desc",
-      });
+      const [page, turns] = await Promise.all([
+        this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", { threadId, limit: HISTORY_PAGE, sortDirection: "desc" }),
+        this.loadTurnMeta(threadId),
+      ]);
       if (generation !== this.openGeneration) return;
       this.store.set((s) => {
         if (!s.open || s.open.view.threadId !== threadId) return s;
         // History replaces what we had: after a reconnect it is the truth.
-        const fresh = prependHistory(initialThreadState(threadId), page.data.slice().reverse());
+        const fresh = mergeTurns(prependHistory(initialThreadState(threadId), page.data.slice().reverse()), turns);
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals };
         return {
           ...s,
@@ -281,6 +282,28 @@ export class Session {
     }
   }
 
+  // Timing/status per turn ("Worked for 36s"). Items pages carry only ids,
+  // so fetch turns without items and keep paging until the wanted ids show up.
+  private async loadTurnMeta(threadId: string, wanted?: string[]): Promise<v2.Turn[]> {
+    const need = new Set(wanted ?? []);
+    const out: v2.Turn[] = [];
+    let cursor: string | null = null;
+    for (let page = 0; page < 5; page++) {
+      const res: v2.ThreadTurnsListResponse = await this.rpc.request<v2.ThreadTurnsListResponse>("thread/turns/list", {
+        threadId,
+        cursor,
+        limit: 50,
+        sortDirection: "desc",
+        itemsView: "notLoaded",
+      });
+      out.push(...res.data);
+      for (const t of res.data) need.delete(t.id);
+      cursor = res.nextCursor;
+      if (!cursor || (wanted ? need.size === 0 : true)) break;
+    }
+    return out;
+  }
+
   async loadOlder(): Promise<void> {
     const open = this.store.get().open;
     if (!open || !open.olderCursor || open.loadingOlder) return;
@@ -293,9 +316,10 @@ export class Session {
         limit: HISTORY_PAGE,
         sortDirection: "desc",
       });
+      const turns = await this.loadTurnMeta(threadId, page.data.map((e) => e.turnId));
       this.store.set((s) =>
         s.open && s.open.view.threadId === threadId
-          ? { ...s, open: { ...s.open, view: prependHistory(s.open.view, page.data.slice().reverse()), olderCursor: page.nextCursor, loadingOlder: false } }
+          ? { ...s, open: { ...s.open, view: mergeTurns(prependHistory(s.open.view, page.data.slice().reverse()), turns), olderCursor: page.nextCursor, loadingOlder: false } }
           : s,
       );
     } catch {
@@ -455,6 +479,17 @@ export class Session {
     await this.rpc.request("thread/name/set", { threadId, name: clean });
     // The desktop hears thread/name/updated; we may not, so update locally.
     this.store.set((s) => ({ ...s, threads: s.threads.map((t) => (t.id === threadId ? { ...t, title: clean } : t)) }));
+  }
+
+  /** Archived threads, newest first (not kept in the store: rarely viewed). */
+  async loadArchivedThreads(): Promise<ThreadSummary[]> {
+    const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 100, sortKey: "updated_at", archived: true });
+    return mergeThreadList([], res.data);
+  }
+
+  async unarchiveThread(threadId: string): Promise<void> {
+    await this.rpc.request("thread/unarchive", { threadId });
+    await this.loadThreads();
   }
 
   async archiveThread(threadId: string): Promise<void> {
