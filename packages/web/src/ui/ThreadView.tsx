@@ -3,7 +3,7 @@ import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
 import { Composer } from "./Composer.js";
-import { ItemView } from "./ItemView.js";
+import { Transcript } from "./TurnView.js";
 import { PlanView } from "./PlanView.js";
 import { ThreadMenu } from "./ThreadMenu.js";
 import { navigate } from "./route.js";
@@ -86,11 +86,8 @@ export function ThreadView({ session }: { session: Session }) {
       <div className="items" ref={listRef} onScroll={onScroll}>
         {open.loadingOlder && <p className="muted center">Loading…</p>}
         {open.state === "loading" && items.length === 0 && <p className="muted center">Loading…</p>}
-        {items.map((item) => (
-          <ItemView key={item.id} item={item} cwd={open.cwd} />
-        ))}
+        <Transcript session={session} view={open.view} cwd={open.cwd} />
         {open.view.plan && <PlanView plan={open.view.plan} />}
-        {busy && <div className="thinking" aria-label="Working" />}
         {open.queued.map((q, i) => (
           <div key={i} className="msg user queued">
             {q}

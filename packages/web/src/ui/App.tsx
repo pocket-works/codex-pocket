@@ -5,6 +5,8 @@ import { NewThread } from "./NewThread.js";
 import { ThreadList } from "./ThreadList.js";
 import { ThreadView } from "./ThreadView.js";
 import { useRoute } from "./route.js";
+import { ArchivedList } from "./ArchivedList.js";
+import { SettingsScreen } from "./SettingsScreen.js";
 
 export function App({ session }: { session: Session }) {
   const route = useRoute();
@@ -33,7 +35,9 @@ export function App({ session }: { session: Session }) {
         </div>
       ))}
       {route.name === "list" && <ThreadList session={session} />}
-      {route.name === "new" && <NewThread session={session} />}
+      {route.name === "new" && <NewThread session={session} presetCwd={route.cwd} />}
+      {route.name === "archived" && <ArchivedList session={session} />}
+      {route.name === "settings" && <SettingsScreen session={session} />}
       {route.name === "thread" && <ThreadView session={session} />}
     </div>
   );

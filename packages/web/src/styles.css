@@ -1177,3 +1177,467 @@ pre.diff {
   margin: 0;
   padding: 10px 14px;
 }
+
+/* --- thread list, official-app style --- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.topbar.plain {
+  border-bottom: none;
+  min-height: 56px;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.icon-btn.round {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--card);
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.screen.list .list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 96px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 8px 16px 4px;
+}
+
+.thread-list.nested {
+  padding-left: 12px;
+}
+
+.project-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 16px;
+}
+
+.project-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: none;
+  border: none;
+  padding: 10px 0;
+  text-align: left;
+  font-size: 17px;
+  min-width: 0;
+}
+
+.project-icon {
+  display: inline-flex;
+  color: var(--fg);
+}
+
+.project-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-row .icon-btn {
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+
+/* Bottom bar: search pill + Chat button */
+.list-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px calc(12px + var(--safe-bottom));
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+.screen.list {
+  position: relative;
+}
+
+.search-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 16px;
+  min-height: 48px;
+  color: var(--muted);
+}
+
+.search-pill input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: none;
+  border: none;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.chat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 0 20px;
+  min-height: 48px;
+  font-weight: 600;
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+/* Menu popover */
+.popover-card.menu {
+  min-width: 280px;
+  padding: 8px 0;
+}
+
+.popover-card.right {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: 48px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 12px 16px 12px 10px;
+  font-size: 17px;
+  text-align: left;
+}
+
+.menu-check {
+  width: 20px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.menu-icon {
+  display: inline-flex;
+  width: 26px;
+  justify-content: center;
+}
+
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 16px;
+}
+
+.menu-heading {
+  padding: 8px 16px 4px 40px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.menu-usage {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 16px 8px 40px;
+}
+
+.usage-left {
+  font-size: 18px;
+}
+
+.usage-left.high {
+  color: var(--danger);
+}
+
+/* Archived */
+.archived-row {
+  display: flex;
+  align-items: center;
+}
+
+.archived-row .thread-row {
+  flex: 1;
+}
+
+.subtle-btn {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin-right: 12px;
+  font-size: 14px;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Settings */
+.settings {
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings .setting-row {
+  font-size: 16px;
+}
+
+.settings .setting-value {
+  gap: 8px;
+}
+
+.danger-row {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--danger);
+  text-align: left;
+  justify-content: flex-start;
+}
+
+/* --- transcript, official-app style --- */
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+}
+
+.work-header {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.work-header.live {
+  color: var(--fg);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.chev {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.chev.down {
+  transform: rotate(90deg);
+}
+
+.work {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.work-note {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.work-note > :first-child {
+  margin-top: 0;
+}
+
+.work-note > :last-child {
+  margin-bottom: 0;
+}
+
+.work-muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.tool-batch,
+.tool-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  text-align: left;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.tool-row svg:first-child {
+  flex: none;
+  color: var(--muted);
+}
+
+.tool-row .tool-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.tool-row.heading .tool-text,
+.thinking-item .tool-text,
+.tool-item.failed .tool-text {
+  color: var(--muted);
+}
+
+.tool-item.failed .tool-text {
+  color: var(--danger);
+}
+
+.tool-batch .tool-item .tool-row {
+  padding-left: 0;
+}
+
+.tool-detail {
+  margin: 2px 0 6px 30px;
+  border-left: 2px solid var(--line);
+  padding-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-detail pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 40vh;
+  overflow: auto;
+  font-size: 13px;
+}
+
+.tool-detail.prose {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.turn-sep {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 4px 0;
+}
+
+.final-text {
+  font-size: 17px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.final-text > :first-child {
+  margin-top: 0;
+}
+
+.final-text > :last-child {
+  margin-bottom: 0;
+}
+
+.final-text pre {
+  overflow-x: auto;
+  background: var(--card);
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.final-text code {
+  font-size: 0.9em;
+}
+
+.final-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.final-actions .act {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+
+.final-actions .act.on {
+  color: #3b82f6;
+}
+
+.final-time {
+  margin-left: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* The user's message keeps its bubble; everything else is flush like the app. */
+.items {
+  gap: 18px;
+}

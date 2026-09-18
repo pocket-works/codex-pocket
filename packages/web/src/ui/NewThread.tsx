@@ -3,12 +3,12 @@ import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
 
-export function NewThread({ session }: { session: Session }) {
+export function NewThread({ session, presetCwd }: { session: Session; presetCwd?: string }) {
   const threads = useStore(session.store, (s) => s.threads);
   const models = useStore(session.store, (s) => s.models);
   const connection = useStore(session.store, (s) => s.connection);
   const cwds = session.knownCwds();
-  const [cwd, setCwd] = useState("");
+  const [cwd, setCwd] = useState(presetCwd ?? "");
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,9 +1,14 @@
-import { useEffect } from "react";
-import type { RateLimits, RateLimitWindow, Session, ThreadSummary } from "../state/session.js";
+import { useEffect, useMemo, useState } from "react";
+import { getListView, setListView, type ListView } from "../state/list-prefs.js";
+import type { Session, ThreadSummary } from "../state/session.js";
 import { useStore } from "../state/store.js";
+import { ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
-function relativeTime(ms: number): string {
+const RECENT_CHATS = 6;
+
+export function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
   const min = Math.round(diff / 60000);
   if (min < 1) return "now";
@@ -15,28 +20,26 @@ function relativeTime(ms: number): string {
   return new Date(ms).toLocaleDateString();
 }
 
-function projectName(cwd: string): string {
+export function projectName(cwd: string): string {
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
 }
 
-function windowLabel(w: RateLimitWindow): string {
-  if (w.durationMins === null) return "";
-  return w.durationMins >= 1440 ? `${Math.round(w.durationMins / 1440)}d` : `${Math.round(w.durationMins / 60)}h`;
+interface ProjectGroup {
+  cwd: string;
+  threads: ThreadSummary[];
+  updatedAt: number;
 }
 
-// "5h 32% · 7d 12%": how much of each usage window is spent.
-function RateLimitsBadge({ limits }: { limits: RateLimits }) {
-  const windows = [limits.primary, limits.secondary].filter((w): w is RateLimitWindow => w !== null);
-  if (windows.length === 0) return null;
-  return (
-    <p className="rate-limits muted small">
-      {windows.map((w, i) => (
-        <span key={i} className={w.usedPercent >= 90 ? "high" : ""}>
-          {windowLabel(w)} {Math.round(w.usedPercent)}%
-        </span>
-      ))}
-    </p>
-  );
+export function groupByProject(threads: ThreadSummary[]): ProjectGroup[] {
+  const groups = new Map<string, ProjectGroup>();
+  for (const t of threads) {
+    const g = groups.get(t.cwd);
+    if (g) {
+      g.threads.push(t);
+      g.updatedAt = Math.max(g.updatedAt, t.updatedAt);
+    } else groups.set(t.cwd, { cwd: t.cwd, threads: [t], updatedAt: t.updatedAt });
+  }
+  return [...groups.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export function ThreadList({ session }: { session: Session }) {
@@ -44,45 +47,103 @@ export function ThreadList({ session }: { session: Session }) {
   const loading = useStore(session.store, (s) => s.threadsLoading);
   const error = useStore(session.store, (s) => s.threadsError);
   const connection = useStore(session.store, (s) => s.connection);
-  const rateLimits = useStore(session.store, (s) => s.rateLimits);
+  const [view, setView] = useState<ListView>(getListView);
+  const [query, setQuery] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     if (connection === "open") void session.loadThreads();
   }, [connection, session]);
 
+  function changeView(v: ListView) {
+    setListView(v);
+    setView(v);
+  }
+
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(
+    () => (q ? threads.filter((t) => t.title.toLowerCase().includes(q) || projectName(t.cwd).toLowerCase().includes(q)) : threads),
+    [threads, q],
+  );
+  const groups = useMemo(() => groupByProject(filtered), [filtered]);
+  const grouped = view === "project" && !q;
+
   return (
-    <main className="screen">
-      <header className="topbar">
-        <div className="topbar-title">
-          <h1>Threads</h1>
-          {rateLimits && <RateLimitsBadge limits={rateLimits} />}
-        </div>
-        <div className="topbar-actions">
-          <button className="icon-btn" aria-label="Refresh" onClick={() => void session.loadThreads()} disabled={loading}>
-            ↻
-          </button>
-          <button className="primary" onClick={() => navigate({ name: "new" })}>
-            New
-          </button>
-        </div>
+    <main className="screen list">
+      <header className="topbar plain">
+        <h1 className="sr-only">Threads</h1>
+        <span className="spacer" />
+        <ListMenu session={session} view={view} onView={changeView} />
       </header>
+
       {error && <p className="error">{error}</p>}
       {threads.length === 0 && !loading && !error && <p className="muted center">No threads yet.</p>}
-      <ul className="thread-list">
-        {threads.map((t) => (
-          <ThreadRow key={t.id} thread={t} />
-        ))}
-      </ul>
+
+      <div className="list-scroll">
+        {grouped ? (
+          <>
+            <h2 className="section-title">Chats</h2>
+            <ul className="thread-list">
+              {filtered.slice(0, RECENT_CHATS).map((t) => (
+                <ThreadRow key={t.id} thread={t} showProject />
+              ))}
+            </ul>
+            <h2 className="section-title">Projects</h2>
+            <ul className="project-list">
+              {groups.map((g) => (
+                <li key={g.cwd}>
+                  <div className="project-row">
+                    <button className="project-main" aria-expanded={expanded === g.cwd} onClick={() => setExpanded((e) => (e === g.cwd ? null : g.cwd))}>
+                      <span className="project-icon">
+                        <FolderIcon />
+                      </span>
+                      <span className="project-name">{projectName(g.cwd)}</span>
+                      <span className="muted small">{g.threads.length}</span>
+                    </button>
+                    <button className="icon-btn" aria-label={`New thread in ${projectName(g.cwd)}`} onClick={() => navigate({ name: "new", cwd: g.cwd })}>
+                      <ComposeIcon />
+                    </button>
+                  </div>
+                  {expanded === g.cwd && (
+                    <ul className="thread-list nested">
+                      {g.threads.map((t) => (
+                        <ThreadRow key={t.id} thread={t} />
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <ul className="thread-list">
+            {filtered.map((t) => (
+              <ThreadRow key={t.id} thread={t} showProject />
+            ))}
+            {q && filtered.length === 0 && <p className="muted center">No matches.</p>}
+          </ul>
+        )}
+      </div>
+
+      <div className="list-bar">
+        <label className="search-pill">
+          <SearchIcon />
+          <input type="search" placeholder="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+        <button className="primary chat-btn" onClick={() => navigate({ name: "new" })}>
+          <ComposeIcon size={20} /> Chat
+        </button>
+      </div>
     </main>
   );
 }
 
-function ThreadRow({ thread }: { thread: ThreadSummary }) {
+export function ThreadRow({ thread, showProject }: { thread: ThreadSummary; showProject?: boolean }) {
   return (
     <li>
       <button className="thread-row" onClick={() => navigate({ name: "thread", id: thread.id })}>
         <div className="thread-row-top">
-          <span className="thread-project">{projectName(thread.cwd)}</span>
+          {showProject && <span className="thread-project">{projectName(thread.cwd)}</span>}
           {thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
           {thread.status === "active" && <span className="dot active" title="Running" />}
           <span className="thread-time">{relativeTime(thread.updatedAt)}</span>

@@ -25,10 +25,22 @@ export interface Alert {
   message: string;
 }
 
+export interface TurnMeta {
+  id: string;
+  status: v2.TurnStatus;
+  /** Epoch ms. */
+  startedAt: number | null;
+  completedAt: number | null;
+  durationMs: number | null;
+}
+
 export interface ThreadViewState {
   threadId: string;
   /** Items in display order (oldest first). */
   items: ThreadItem[];
+  /** itemId -> turnId, so items can be grouped per turn. */
+  itemTurns: Record<string, string>;
+  turns: Record<string, TurnMeta>;
   activeTurnId: string | null;
   lastTurnError: string | null;
   approvals: PendingApproval[];
@@ -40,7 +52,7 @@ export interface ThreadViewState {
 }
 
 export function initialThreadState(threadId: string): ThreadViewState {
-  return { threadId, items: [], activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [] };
+  return { threadId, items: [], itemTurns: {}, turns: {}, activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [] };
 }
 
 let nextAlertId = 1;
@@ -51,6 +63,20 @@ function addAlert(state: ThreadViewState, kind: Alert["kind"], message: string):
 
 export function dismissAlert(state: ThreadViewState, id: number): ThreadViewState {
   return { ...state, alerts: state.alerts.filter((a) => a.id !== id) };
+}
+
+// Codex reports turn timestamps in epoch seconds; normalise to ms.
+function toMs(t: number | null): number | null {
+  return t === null ? null : t < 1e12 ? t * 1000 : t;
+}
+
+function turnMeta(turn: v2.Turn): TurnMeta {
+  return { id: turn.id, status: turn.status, startedAt: toMs(turn.startedAt), completedAt: toMs(turn.completedAt), durationMs: turn.durationMs };
+}
+
+function withTurn(state: ThreadViewState, itemId: string, turnId: string | undefined): ThreadViewState {
+  if (!turnId || state.itemTurns[itemId] === turnId) return state;
+  return { ...state, itemTurns: { ...state.itemTurns, [itemId]: turnId } };
 }
 
 function upsert(items: ThreadItem[], item: ThreadItem): ThreadItem[] {
@@ -89,7 +115,9 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
   switch (n.method) {
     case "turn/started": {
       const turn = (p as unknown as v2.TurnStartedNotification).turn;
-      return { ...state, activeTurnId: turn.id, lastTurnError: null, plan: null, alerts: [] };
+      const meta = turnMeta(turn);
+      if (meta.startedAt === null) meta.startedAt = Date.now();
+      return { ...state, activeTurnId: turn.id, lastTurnError: null, plan: null, alerts: [], turns: { ...state.turns, [turn.id]: meta } };
     }
     case "turn/plan/updated": {
       const { explanation, plan } = p as unknown as v2.TurnPlanUpdatedNotification;
@@ -113,24 +141,30 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
     }
     case "turn/completed": {
       const turn = (p as unknown as v2.TurnCompletedNotification).turn;
+      const prev = state.turns[turn.id];
+      const meta = turnMeta(turn);
+      if (meta.startedAt === null) meta.startedAt = prev?.startedAt ?? null;
+      if (meta.completedAt === null) meta.completedAt = Date.now();
+      if (meta.durationMs === null && meta.startedAt !== null) meta.durationMs = meta.completedAt - meta.startedAt;
       return {
         ...state,
         activeTurnId: state.activeTurnId === turn.id ? null : state.activeTurnId,
         lastTurnError: turn.status === "failed" ? (turn.error?.message ?? "turn failed") : null,
+        turns: { ...state.turns, [turn.id]: meta },
       };
     }
     case "item/started":
     case "item/completed": {
-      const item = (p as unknown as v2.ItemStartedNotification).item;
-      return { ...state, items: upsert(state.items, item) };
+      const { item, turnId } = p as unknown as v2.ItemStartedNotification;
+      return withTurn({ ...state, items: upsert(state.items, item) }, item.id, turnId);
     }
     case "item/agentMessage/delta": {
-      const { itemId, delta } = p as unknown as v2.AgentMessageDeltaNotification;
+      const { itemId, delta, turnId } = p as unknown as v2.AgentMessageDeltaNotification;
       if (!state.items.some((i) => i.id === itemId)) {
         const placeholder: ThreadItem = { type: "agentMessage", id: itemId, text: delta, phase: null, memoryCitation: null, delivery: null, questions: null };
-        return { ...state, items: [...state.items, placeholder] };
+        return withTurn({ ...state, items: [...state.items, placeholder] }, itemId, turnId);
       }
-      return { ...state, items: patch(state.items, itemId, (i) => (i.type === "agentMessage" ? withText(i, delta) : i)) };
+      return withTurn({ ...state, items: patch(state.items, itemId, (i) => (i.type === "agentMessage" ? withText(i, delta) : i)) }, itemId, turnId);
     }
     case "item/plan/delta": {
       const { itemId, delta } = p as unknown as v2.PlanDeltaNotification;
@@ -198,5 +232,20 @@ export function removeApproval(state: ThreadViewState, id: JsonRpcRequest["id"])
 export function prependHistory(state: ThreadViewState, entries: v2.ThreadItemEntry[]): ThreadViewState {
   const known = new Set(state.items.map((i) => i.id));
   const older = entries.map((e) => e.item).filter((i) => !known.has(i.id));
-  return { ...state, items: [...older, ...state.items] };
+  const itemTurns = { ...state.itemTurns };
+  for (const e of entries) itemTurns[e.item.id] = e.turnId;
+  return { ...state, items: [...older, ...state.items], itemTurns };
+}
+
+/** Record timing/status for turns from `thread/turns/list`. */
+export function mergeTurns(state: ThreadViewState, turns: v2.Turn[]): ThreadViewState {
+  if (turns.length === 0) return state;
+  const next = { ...state.turns };
+  for (const t of turns) {
+    const prev = next[t.id];
+    // A live turn we are already tracking keeps its in-progress status.
+    if (prev && prev.status === "inProgress" && state.activeTurnId === t.id) continue;
+    next[t.id] = turnMeta(t);
+  }
+  return { ...state, turns: next };
 }
