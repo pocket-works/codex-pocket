@@ -101,7 +101,7 @@ export function ThreadMenu({ session }: { session: Session }) {
               </ul>
             )}
 
-            <h3>Permissions for next turns</h3>
+            <h3>Advanced permissions</h3>
             {isGranular && <p className="muted small">This thread uses a custom approval policy; picking one below replaces it.</p>}
             <div className="segmented" role="radiogroup" aria-label="Approval policy">
               {APPROVALS.map((a) => (

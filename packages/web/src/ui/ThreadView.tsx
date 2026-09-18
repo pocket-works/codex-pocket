@@ -4,7 +4,6 @@ import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
 import { Composer } from "./Composer.js";
 import { ItemView } from "./ItemView.js";
-import { ModelPicker } from "./ModelPicker.js";
 import { PlanView } from "./PlanView.js";
 import { ThreadMenu } from "./ThreadMenu.js";
 import { navigate } from "./route.js";
@@ -44,8 +43,6 @@ export function ThreadView({ session }: { session: Session }) {
   if (!open) return null;
   const busy = open.view.activeTurnId !== null;
   const pending = open.view.approvals[0];
-  const usage = open.view.tokenUsage;
-  const contextPct = usage?.contextWindow ? Math.min(100, Math.round((usage.contextTokens / usage.contextWindow) * 100)) : null;
 
   return (
     <main className="screen thread">
@@ -55,14 +52,7 @@ export function ThreadView({ session }: { session: Session }) {
         </button>
         <div className="topbar-title">
           <h1>{open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
-          <div className="topbar-meta">
-            <ModelPicker session={session} />
-            {contextPct !== null && (
-              <span className={`context-pct ${contextPct >= 80 ? "high" : ""}`} title="Context window used">
-                {contextPct}%
-              </span>
-            )}
-          </div>
+          <div className="topbar-meta muted small">{open.cwd}</div>
         </div>
         {busy && (
           <button className="danger" onClick={() => void session.interrupt()}>

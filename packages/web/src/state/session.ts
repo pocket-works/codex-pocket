@@ -49,6 +49,25 @@ export interface Skill {
 export interface Permissions {
   approval: v2.AskForApproval;
   sandbox: v2.SandboxMode;
+  /** Who reviews approval requests: the human, or Codex's auto-review subagent. */
+  reviewer: v2.ApprovalsReviewer;
+}
+
+// The three presets the official app offers, mapped onto Codex policies.
+export type PermissionPreset = "ask" | "auto" | "full";
+
+export const PERMISSION_PRESETS: Record<PermissionPreset, Permissions> = {
+  ask: { approval: "on-request", sandbox: "workspace-write", reviewer: "user" },
+  auto: { approval: "on-request", sandbox: "workspace-write", reviewer: "auto_review" },
+  full: { approval: "never", sandbox: "danger-full-access", reviewer: "user" },
+};
+
+export function permissionPreset(p: Permissions | null): PermissionPreset | null {
+  if (!p) return null;
+  for (const [name, preset] of Object.entries(PERMISSION_PRESETS) as [PermissionPreset, Permissions][]) {
+    if (preset.approval === p.approval && preset.sandbox === p.sandbox && preset.reviewer === p.reviewer) return name;
+  }
+  return null;
 }
 
 export type OpenState = "loading" | "ready" | "locked" | "error";
@@ -248,7 +267,7 @@ export class Session {
             effort: resumed.reasoningEffort,
             cwd: resumed.cwd,
             olderCursor: page.nextCursor,
-            permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox) },
+            permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox), reviewer: resumed.approvalsReviewer },
           },
         };
       });
@@ -353,6 +372,7 @@ export class Session {
     if (perms) {
       params.approvalPolicy = perms.approval;
       params.sandboxPolicy = sandboxPolicy(perms.sandbox, open.cwd);
+      params.approvalsReviewer = perms.reviewer;
     }
     await this.rpc.request<v2.TurnStartResponse>("turn/start", params);
     this.store.set((s) => {
@@ -420,7 +440,7 @@ export class Session {
         olderCursor: null,
         loadingOlder: false,
         queued: [],
-        permissions: { approval: res.approvalPolicy, sandbox: sandboxMode(res.sandbox) },
+        permissions: { approval: res.approvalPolicy, sandbox: sandboxMode(res.sandbox), reviewer: res.approvalsReviewer },
         permissionOverride: null,
       },
     }));
@@ -458,12 +478,19 @@ export class Session {
     await this.rpc.request<v2.ReviewStartResponse>("review/start", params);
   }
 
-  setPermissions(approval: v2.AskForApproval, sandbox: v2.SandboxMode): void {
+  setPermissions(approval: v2.AskForApproval, sandbox: v2.SandboxMode, reviewer?: v2.ApprovalsReviewer): void {
     this.store.set((s) => {
       if (!s.open) return s;
-      const same = s.open.permissions && s.open.permissions.approval === approval && s.open.permissions.sandbox === sandbox;
-      return { ...s, open: { ...s.open, permissionOverride: same ? null : { approval, sandbox } } };
+      const current = s.open.permissions;
+      const next: Permissions = { approval, sandbox, reviewer: reviewer ?? current?.reviewer ?? "user" };
+      const same = current && current.approval === next.approval && current.sandbox === next.sandbox && current.reviewer === next.reviewer;
+      return { ...s, open: { ...s.open, permissionOverride: same ? null : next } };
     });
+  }
+
+  setPermissionPreset(preset: PermissionPreset): void {
+    const p = PERMISSION_PRESETS[preset];
+    this.setPermissions(p.approval, p.sandbox, p.reviewer);
   }
 
   /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */
