@@ -28,7 +28,7 @@ describe("CodexClient.connect", () => {
       daemonRunner: async () => JSON.stringify({ status: "running", socketPath: fake.socketPath }),
     });
     expect(client.serverInfo.codexHome).toBe("/h");
-    expect(client.socketPath).toBe(fake.socketPath);
+    expect(client.url).toBe(`ws+unix://${fake.socketPath}:/`);
     // Wait for the trailing `initialized` notification to arrive.
     await new Promise((r) => setTimeout(r, 20));
     expect(received.map((m) => (m as { method: string }).method)).toEqual(["initialize", "initialized"]);
