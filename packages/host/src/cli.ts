@@ -5,7 +5,10 @@ import { CodexClient } from "./codex/codex-client.js";
 import { certsDir } from "./config/paths.js";
 import { parseTlsSettings, readSettings, writeSettings } from "./config/settings.js";
 import { CloudflareDns } from "./dns/cloudflare.js";
-import { installLaunchAgent, uninstallLaunchAgent } from "./launchd.js";
+import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, linkDesktop, uninstallLaunchAgent, unlinkDesktop } from "./launchd.js";
+import { sharedAppServerUrl } from "./codex/shared-app-server.js";
+import { codexConnector } from "./codex/target.js";
+import { codexSettings } from "./config/settings.js";
 import { renderQrTerminal } from "./pairing/qr.js";
 import { DEFAULT_PORT, serve } from "./serve.js";
 import { issueCertificate, wildcardFor } from "./tls/acme.js";
@@ -31,6 +34,9 @@ Commands:
   tls status        Show certificate expiry and settings
   install           Install a launchd agent so serve runs at login
   uninstall         Remove the launchd agent
+  link-desktop      Make the ChatGPT desktop app use the shared app-server (restart ChatGPT after)
+  unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
+  desktop           Show whether the desktop app is linked
 `;
 
 interface Flags {
@@ -166,9 +172,29 @@ async function main(argv: string[]): Promise<number> {
     case "uninstall":
       console.log(uninstallLaunchAgent() ? "launchd agent removed" : "no launchd agent installed");
       return 0;
+    case "link-desktop": {
+      const codex = codexSettings();
+      if (codex.mode !== "shared") throw new Error('codex.mode is "daemon"; set it to "shared" in ~/.codex-pocket/config.json first');
+      const url = sharedAppServerUrl(codex.port);
+      const file = linkDesktop(url);
+      console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})
+Quit and reopen the ChatGPT app for it to take effect.`);
+      return 0;
+    }
+    case "unlink-desktop":
+      unlinkDesktop();
+      console.log(`${DESKTOP_ENV_VAR} cleared. Quit and reopen the ChatGPT app for it to take effect.`);
+      return 0;
+    case "desktop": {
+      const current = currentDesktopEnv();
+      const expected = sharedAppServerUrl(codexSettings().port);
+      const same = current?.replace(/\/$/, "") === expected.replace(/\/$/, "");
+      console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (host expects ${expected})`}` : "desktop app not linked (run `codex-pocket link-desktop`)");
+      return 0;
+    }
     case "info":
       return withClient(async (client) => {
-        console.log(`socket:     ${client.socketPath}`);
+        console.log(`url:        ${client.url}`);
         console.log(`userAgent:  ${client.serverInfo.userAgent}`);
         console.log(`codexHome:  ${client.serverInfo.codexHome}`);
       });
@@ -191,7 +217,7 @@ function fmt(ms: number): string {
 }
 
 async function withClient(fn: (client: CodexClient) => Promise<void>): Promise<number> {
-  const client = await CodexClient.connect();
+  const client = await codexConnector()();
   try {
     await fn(client);
     return 0;

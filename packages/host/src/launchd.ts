@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { pocketHome } from "./config/paths.js";
 
 export const LAUNCHD_LABEL = "com.codex-pocket.host";
+export const DESKTOP_ENV_LABEL = "com.codex-pocket.desktop-env";
+export const DESKTOP_ENV_VAR = "CODEX_APP_SERVER_WS_URL";
 
 export interface PlistOptions {
   label: string;
@@ -55,8 +57,62 @@ export function launchAgentPlist(o: PlistOptions): string {
 `;
 }
 
-function plistPath(): string {
-  return join(homedir(), "Library", "LaunchAgents", `${LAUNCHD_LABEL}.plist`);
+function plistPath(label = LAUNCHD_LABEL): string {
+  return join(homedir(), "Library", "LaunchAgents", `${label}.plist`);
+}
+
+// The ChatGPT desktop app reads CODEX_APP_SERVER_WS_URL and, when set,
+// connects to that app-server instead of spawning a private one. GUI apps
+// inherit launchd's environment, so `launchctl setenv` at login is enough.
+export function desktopEnvPlist(url: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${esc(DESKTOP_ENV_LABEL)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/launchctl</string>
+    <string>setenv</string>
+    <string>${esc(DESKTOP_ENV_VAR)}</string>
+    <string>${esc(url)}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+`;
+}
+
+export function currentDesktopEnv(): string | null {
+  try {
+    const out = execFileSync("launchctl", ["getenv", DESKTOP_ENV_VAR], { encoding: "utf8" }).trim();
+    return out || null;
+  } catch {
+    return null;
+  }
+}
+
+// Sets the variable now and installs an agent that sets it again at login.
+export function linkDesktop(url: string): string {
+  execFileSync("launchctl", ["setenv", DESKTOP_ENV_VAR, url]);
+  const file = plistPath(DESKTOP_ENV_LABEL);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, desktopEnvPlist(url));
+  return file;
+}
+
+export function unlinkDesktop(): boolean {
+  try {
+    execFileSync("launchctl", ["unsetenv", DESKTOP_ENV_VAR]);
+  } catch {
+    // Not set.
+  }
+  const file = plistPath(DESKTOP_ENV_LABEL);
+  if (!existsSync(file)) return false;
+  unlinkSync(file);
+  return true;
 }
 
 function builtCli(): string {

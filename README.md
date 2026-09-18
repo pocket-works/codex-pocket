@@ -72,9 +72,17 @@ pnpm --filter @codex-pocket/web build
 pnpm dev:host serve
 ```
 
-## 已知约束
+## 与桌面 Codex 共享线程（推荐）
 
-- Codex 的 app-server 对每个线程只允许一个 writer 连接。**桌面 Codex 正打开的线程在手机上会显示"已在桌面打开"**，在桌面关掉该线程的标签页后即可从手机继续。反过来，手机打开的线程在所有手机断开约 5 秒后自动释放给桌面。
+Codex 的 writer 锁是跨进程的文件锁：桌面 ChatGPT App 默认自己 spawn 一个私有 `app-server`，手机连别的进程就打不开桌面正开着的线程。解决办法是让两边进同一个进程：
+
+```bash
+codex-pocket link-desktop   # 设置 CODEX_APP_SERVER_WS_URL=ws://127.0.0.1:7355/，并安装登录时自动设置的 LaunchAgent
+# 退出并重新打开 ChatGPT
+codex-pocket desktop        # 查看链接状态
+```
+
+`serve` 会用桌面 App 自带的 codex 二进制启动（或复用）一个监听 `ws://127.0.0.1:7355` 的共享 app-server；桌面和手机都连它，桌面打开的线程在手机上可以直接继续，双方实时同步。`codex-pocket unlink-desktop` 可以恢复默认行为。`~/.codex-pocket/config.json` 里 `"codex": {"mode": "daemon"}` 可切回官方 daemon 模式（此时桌面正打开的线程会显示"已在桌面打开"）。
 - 目前是纯 HTTP（局域网内）。Stage 5 接入正式证书后才能作为 PWA 安装到主屏幕。
 
 升级 Codex 后重新生成协议类型：

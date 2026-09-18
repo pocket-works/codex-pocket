@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
-import { CodexClient } from "./codex/codex-client.js";
+import { codexConnector } from "./codex/target.js";
 import { adminToken, certsDir, devicesFile, findCertFiles, uploadsDir, writeRuntimeInfo } from "./config/paths.js";
-import { readSettings } from "./config/settings.js";
+import { codexSettings, readSettings } from "./config/settings.js";
 import { CloudflareDns } from "./dns/cloudflare.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
@@ -57,7 +57,8 @@ export async function serve(opts: ServeOptions): Promise<void> {
   if (!publicHost) throw new Error("no LAN IPv4 address found; pass --public-host");
 
   const deviceStore = new DeviceStore(devicesFile());
-  const proxy = new CodexProxy({ connect: () => CodexClient.connect(), log });
+  const codex = codexSettings();
+  const proxy = new CodexProxy({ connect: codexConnector(codex, log), log });
   const publicUrl = `${scheme}://${publicHost}:${opts.port}`;
   const server = createLanServer({
     port: opts.port,
@@ -81,7 +82,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
   }
 
   proxy.start().then(
-    () => log("connected to Codex app-server"),
+    () => log(`connected to Codex app-server (${codex.mode === "shared" ? `shared, port ${codex.port}` : "official daemon"})`),
     (err) => log(`Codex app-server not reachable yet, will retry: ${err instanceof Error ? err.message : err}`),
   );
 

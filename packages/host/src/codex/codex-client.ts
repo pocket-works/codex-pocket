@@ -1,6 +1,6 @@
 import type { InitializeParams, InitializeResponse, v2 } from "@codex-pocket/protocol";
 import { JsonRpcConnection, type NotificationListener, type ServerRequestHandler } from "./jsonrpc-connection.js";
-import { openUnixWebSocket } from "./unix-websocket.js";
+import { openAppServerWebSocket, unixSocketUrl } from "./websocket.js";
 import { ensureDaemon, type DaemonRunner } from "./locate.js";
 
 // Response types for the client methods we call. The generated union only
@@ -32,8 +32,11 @@ export type KnownMethod = keyof ResponseMap & keyof ParamsMap;
 export interface CodexClientOptions {
   clientName?: string;
   clientVersion?: string;
-  /** Skip `codex app-server daemon start` and connect to this socket directly. */
+  /** Connect to this app-server WebSocket URL (ws://host:port/ or ws+unix://…). */
+  url?: string;
+  /** Shorthand for `url` with a unix socket path. */
   socketPath?: string;
+  /** Without url/socketPath: locate the official daemon through `codex app-server daemon start`. */
   daemonRunner?: DaemonRunner;
   connectTimeoutMs?: number;
 }
@@ -43,17 +46,18 @@ export interface CodexClientOptions {
 export class CodexClient {
   readonly conn: JsonRpcConnection;
   readonly serverInfo: InitializeResponse;
-  readonly socketPath: string;
+  /** Where this client is connected (WebSocket URL). */
+  readonly url: string;
 
-  private constructor(conn: JsonRpcConnection, serverInfo: InitializeResponse, socketPath: string) {
+  private constructor(conn: JsonRpcConnection, serverInfo: InitializeResponse, url: string) {
     this.conn = conn;
     this.serverInfo = serverInfo;
-    this.socketPath = socketPath;
+    this.url = url;
   }
 
   static async connect(opts: CodexClientOptions = {}): Promise<CodexClient> {
-    const socketPath = opts.socketPath ?? (await ensureDaemon(opts.daemonRunner)).socketPath;
-    const ws = await openUnixWebSocket(socketPath, opts.connectTimeoutMs);
+    const url = opts.url ?? unixSocketUrl(opts.socketPath ?? (await ensureDaemon(opts.daemonRunner)).socketPath);
+    const ws = await openAppServerWebSocket(url, opts.connectTimeoutMs);
     const conn = new JsonRpcConnection(ws);
     const params: InitializeParams = {
       clientInfo: {
@@ -71,7 +75,7 @@ export class CodexClient {
       throw err;
     }
     conn.notify("initialized");
-    return new CodexClient(conn, serverInfo, socketPath);
+    return new CodexClient(conn, serverInfo, url);
   }
 
   call<M extends KnownMethod>(method: M, params: ParamsMap[M]): Promise<ResponseMap[M]> {
