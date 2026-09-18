@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { emptyDraft, mentionQuery, type Draft, type DraftImage } from "../state/compose.js";
 import type { FileMatch, Session, Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
+import { useStore } from "../state/store.js";
+import { ContextRing, EffortGauge, PermissionsButton } from "./ComposerTools.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -25,6 +27,7 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const project = useStore(session.store, (s) => s.open?.cwd.split("/").filter(Boolean).pop() ?? "this project");
   const canSend = !disabled && !sending && uploading === 0 && (draft.text.trim() !== "" || draft.images.length > 0);
 
   // Debounced search for the token under the caret.
@@ -154,16 +157,12 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
           ))}
         </div>
       )}
-      <div className="composer-row">
-        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
-        <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
-          {uploading > 0 ? "…" : "+"}
-        </button>
+      <div className="composer-box">
         <textarea
           ref={textRef}
           value={draft.text}
           rows={1}
-          placeholder={disabled ? "Thread not ready" : busy ? "Add to the running turn…" : "Message Codex…"}
+          placeholder={disabled ? "Thread not ready" : busy ? "Add to the running turn…" : `Work on ${project}`}
           disabled={disabled}
           onChange={(e) => onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
           onKeyDown={(e) => {
@@ -174,9 +173,19 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
             }
           }}
         />
-        <button className="primary" onClick={() => void send()} disabled={!canSend} aria-label="Send">
-          ↑
-        </button>
+        <div className="composer-tools">
+          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
+          <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
+            {uploading > 0 ? "…" : "+"}
+          </button>
+          <PermissionsButton session={session} disabled={disabled} />
+          <span className="spacer" />
+          <ContextRing session={session} />
+          <EffortGauge session={session} disabled={disabled} />
+          <button className="primary send-btn" onClick={() => void send()} disabled={!canSend} aria-label="Send">
+            ↑
+          </button>
+        </div>
       </div>
     </div>
   );

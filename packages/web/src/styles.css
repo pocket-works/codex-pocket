@@ -402,35 +402,137 @@ code,
 }
 
 .composer {
-  border-top: 1px solid var(--line);
-  padding: 8px 12px calc(8px + var(--safe-bottom));
+  padding: 6px 10px calc(8px + var(--safe-bottom));
 }
 
-.composer-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
+/* One rounded box: text on top, tool row underneath (as in the official app). */
+.composer-box {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 6px 8px 6px;
 }
 
 .composer textarea {
-  flex: 1;
+  display: block;
+  width: 100%;
   font: inherit;
   color: inherit;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 10px 14px;
+  background: none;
+  border: none;
+  outline: none;
+  padding: 8px 10px 4px;
   resize: none;
   max-height: 160px;
-  min-height: 44px;
+  min-height: 40px;
 }
 
-.composer button {
-  width: 44px;
-  height: 44px;
+.composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.composer-tools .spacer {
+  flex: 1;
+}
+
+.composer-tools .icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+}
+
+.composer-tools .send-btn {
+  width: 40px;
+  height: 40px;
   padding: 0;
   font-size: 20px;
   border-radius: 50%;
+  margin-left: 4px;
+}
+
+.ring-high,
+.gauge-fill {
+  color: #3b82f6;
+}
+
+.ring-high {
+  color: var(--danger);
+}
+
+.tool-anchor {
+  position: relative;
+}
+
+.popover-card {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  min-width: 260px;
+  max-width: min(340px, calc(100vw - 32px));
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+  font-size: 14px;
+}
+
+.popover-card.tip {
+  left: auto;
+  right: 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.popover-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.popover-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 8px;
+}
+
+.popover-option.active {
+  background: var(--card);
+}
+
+.popover-icon {
+  width: 24px;
+  text-align: center;
+  font-size: 18px;
+  flex: none;
+}
+
+.popover-option-title {
+  display: block;
+  font-size: 16px;
+}
+
+.popover-option-hint {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.3;
 }
 
 /* --- sheets --- */
@@ -477,36 +579,147 @@ code,
   padding: 12px 8px;
 }
 
-.model-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* --- model sheet --- */
+
+.sheet-grip {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  margin: -4px auto 14px;
 }
 
-.model-name {
-  font-weight: 600;
-  margin-bottom: 6px;
+.model-sheet h2 {
+  text-align: center;
 }
 
-.effort-row {
+.setting-group {
+  background: var(--card);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.setting-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 17px;
+}
+
+.setting-row + .setting-row {
+  border-top: 1px solid var(--line);
+}
+
+.setting-value {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  color: var(--fg);
 }
 
-.chip {
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 14px;
+.setting-value select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  text-align: right;
+  padding-right: 22px;
+  direction: rtl;
 }
 
-.chip.active {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: var(--accent);
+.setting-value .chevrons {
+  position: absolute;
+  right: 0;
+  font-size: 12px;
+  letter-spacing: -3px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* Segmented slider with one stop per supported effort. The native range
+   input stays on top (transparent) for touch/keyboard; the track is drawn
+   underneath. */
+.effort-slider {
+  position: relative;
+  margin: 4px 8px 0;
+}
+
+.effort-slider input[type="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 56px;
+  margin: 0;
+  opacity: 0;
+  z-index: 2;
+}
+
+.effort-track {
+  position: relative;
+  height: 56px;
+  border-radius: 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+}
+
+.effort-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc((var(--index) + 0.5) / var(--stops) * 100% + 24px);
+  max-width: 100%;
+  background: #3b82f6;
+  border-radius: 28px;
+}
+
+.effort-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.effort-dot.on {
+  background: #fff;
+}
+
+.effort-knob {
+  position: absolute;
+  top: 4px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  left: calc((var(--index) + 0.5) / var(--stops) * 100% - 23px);
+  transition: left 0.15s ease;
+}
+
+.effort-labels {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.model-sheet p.center {
+  text-align: center;
+  margin-top: 16px;
 }
 
 /* --- forms --- */
@@ -538,19 +751,13 @@ code,
 /* --- stage 6: live status --- */
 
 .topbar-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
 }
 
-.context-pct {
-  font-size: 12px;
-  color: var(--muted);
-  flex: none;
-}
-
-.context-pct.high,
 .rate-limits .high {
   color: var(--danger);
 }
