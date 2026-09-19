@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { v2 } from "@codex-pocket/protocol";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
+import { transcriptMarkdown } from "../state/turns.js";
 import { navigate } from "./route.js";
 
 const APPROVALS: { value: "untrusted" | "on-request" | "never"; label: string }[] = [
@@ -86,6 +87,14 @@ export function ThreadMenu({ session }: { session: Session }) {
                 <li>
                   <button disabled={busy || !ready || running} onClick={() => void run(() => session.startReview())}>
                     Review uncommitted changes
+                  </button>
+                </li>
+                <li>
+                  <button
+                    disabled={busy || open.view.items.length === 0}
+                    onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
+                  >
+                    Copy as Markdown
                   </button>
                 </li>
                 <li>
