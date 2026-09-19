@@ -200,10 +200,10 @@ Quit and reopen the ChatGPT app for it to take effect.`);
       });
     case "threads":
       return withClient(async (client) => {
-        const res = await client.call("thread/list", { limit: 20, sortKey: "updated_at" });
+        const res = await client.call("thread/list", { limit: 20, sortKey: "recency_at" });
         for (const t of res.data) {
           const title = (t.name ?? t.preview ?? "").replace(/\s+/g, " ").slice(0, 60);
-          console.log(`${fmt(t.updatedAt * 1000)}  ${t.id}  ${t.cwd}\n    ${title}`);
+          console.log(`${fmt((t.recencyAt ?? t.updatedAt) * 1000)}  ${t.id}  ${t.cwd}\n    ${title}`);
         }
       });
     default:

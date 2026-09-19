@@ -8,6 +8,7 @@ export interface ThreadSummary {
   title: string;
   /** First user message; shown when the thread has no name. */
   preview: string;
+  /** Last real activity (Codex's recencyAt); updatedAt alone moves on every resume. */
   updatedAt: number;
   model: string | null;
   status: ThreadStatus;
@@ -32,7 +33,7 @@ export function summarize(t: v2.Thread): ThreadSummary {
     cwd: t.cwd,
     title: title(t.name, t.preview),
     preview: t.preview,
-    updatedAt: t.updatedAt * 1000,
+    updatedAt: (t.recencyAt ?? t.updatedAt) * 1000,
     model: t.model,
     status: status(t.status),
     branch: t.gitInfo?.branch ?? null,

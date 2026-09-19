@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
@@ -169,7 +170,9 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
   if (path === "/api/me" && method === "GET") {
     const device = await opts.deviceStore.verifyToken(bearerToken(req));
     if (!device) return sendJson(res, 401, { error: "unauthorized" });
-    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected });
+    // `host` names the Mac on the new-thread screen, as the official app does;
+    // `home` is where project-less chats get their scratch folder.
+    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected, host: hostname(), home: homedir() });
   }
 
   if (path === "/api/uploads" && method === "POST") {

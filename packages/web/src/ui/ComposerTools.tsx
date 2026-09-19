@@ -103,6 +103,33 @@ export function ContextRing({ session }: { session: Session }) {
   );
 }
 
+// Lightning toggle for the model's faster service tier (Codex calls it
+// "Fast"); hidden for models that only have the standard tier.
+export function FastButton({ session, disabled }: { session: Session; disabled: boolean }) {
+  const open = useStore(session.store, (s) => s.open);
+  const models = useStore(session.store, (s) => s.models);
+  if (!open) return null;
+  const model = models.find((m) => m.model === Session.effectiveModel(open).model);
+  const tier = model?.serviceTiers[0];
+  if (!tier) return null;
+  const fast = Session.isFast(open);
+  const label = `${tier.name}: ${tier.description}`;
+  return (
+    <button
+      className={`icon-btn fast-btn ${fast ? "active" : ""}`}
+      aria-label={label}
+      aria-pressed={fast}
+      title={label}
+      disabled={disabled}
+      onClick={() => session.setServiceTier(fast ? null : tier.id)}
+    >
+      <svg viewBox="0 0 24 24" width="22" height="22" fill={fast ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+        <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+      </svg>
+    </button>
+  );
+}
+
 export function EffortGauge({ session, disabled }: { session: Session; disabled: boolean }) {
   const open = useStore(session.store, (s) => s.open);
   const models = useStore(session.store, (s) => s.models);
@@ -119,7 +146,7 @@ export function EffortGauge({ session, disabled }: { session: Session; disabled:
   return (
     <>
       <button className="icon-btn gauge-btn" aria-label={`Model: ${label}`} title={label} disabled={disabled} onClick={() => setSheet(true)}>
-        <svg viewBox="0 0 24 24" width="24" height="24">
+        <svg viewBox="0 0 24 24" width="30" height="30">
           <path d="M4 16 A8 8 0 0 1 20 16" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" strokeLinecap="round" />
           <path d="M4 16 A8 8 0 0 1 20 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" pathLength="1" strokeDasharray={`${level} 1`} className="gauge-fill" />
           <g transform={`rotate(${angle} 12 16)`}>

@@ -3,7 +3,7 @@ import { emptyDraft, mentionQuery, type Draft, type DraftImage } from "../state/
 import type { FileMatch, Session, Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
-import { ContextRing, EffortGauge, PermissionsButton } from "./ComposerTools.js";
+import { ContextRing, EffortGauge, FastButton, PermissionsButton } from "./ComposerTools.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -15,8 +15,21 @@ interface Popover {
 }
 
 // Message box with image attachments, `@file` completion (fuzzyFileSearch)
-// and `/skill` selection. Sends via Session, which decides steer vs start.
-export function Composer({ session, disabled, busy }: { session: Session; disabled: boolean; busy: boolean }) {
+// and `/skill` selection. Sends via Session, which decides steer vs start,
+// unless the caller supplies `onSend` (the new-thread screen starts a thread first).
+export function Composer({
+  session,
+  disabled,
+  busy,
+  placeholder,
+  onSend,
+}: {
+  session: Session;
+  disabled: boolean;
+  busy: boolean;
+  placeholder?: string;
+  onSend?: (draft: Draft) => Promise<void>;
+}) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -97,7 +110,7 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
     setSending(true);
     setError(null);
     try {
-      await session.sendMessage(draft);
+      await (onSend ? onSend(draft) : session.sendMessage(draft));
       for (const img of draft.images) URL.revokeObjectURL(img.previewUrl);
       setDraft(emptyDraft);
       setPopover(null);
@@ -162,7 +175,8 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
           ref={textRef}
           value={draft.text}
           rows={1}
-          placeholder={disabled ? "Thread not ready" : busy ? "Add to the running turn…" : `Work on ${project}`}
+          autoComplete="off"
+          placeholder={disabled ? "Thread not ready" : busy ? "Add to the running turn…" : (placeholder ?? `Work on ${project}`)}
           disabled={disabled}
           onChange={(e) => onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
           onKeyDown={(e) => {
@@ -181,6 +195,7 @@ export function Composer({ session, disabled, busy }: { session: Session; disabl
           <PermissionsButton session={session} disabled={disabled} />
           <span className="spacer" />
           <ContextRing session={session} />
+          <FastButton session={session} disabled={disabled} />
           <EffortGauge session={session} disabled={disabled} />
           <button className="primary send-btn" onClick={() => void send()} disabled={!canSend} aria-label="Send">
             ↑

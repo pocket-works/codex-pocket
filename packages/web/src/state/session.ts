@@ -91,6 +91,10 @@ export interface OpenThread {
   permissions: Permissions | null;
   /** Pending user choice applied on the next turn/start. */
   permissionOverride: Permissions | null;
+  /** Service tier the thread runs with (e.g. "priority" = Fast); null is standard. */
+  serviceTier: string | null;
+  /** Pending tier for the next turn; "default" switches back to standard, null means keep. */
+  serviceTierOverride: string | null;
 }
 
 export interface SessionState {
@@ -142,6 +146,29 @@ function sandboxPolicy(mode: v2.SandboxMode, cwd: string): v2.SandboxPolicy {
   }
 }
 
+const DRAFT_THREAD_ID = "";
+
+/** Branch/folder-safe name from free text, like the desktop app's `codex/<slug>`. */
+export function slugify(text: string, fallback = "new-chat"): string {
+  return (
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+      .replace(/-+$/, "") || fallback
+  );
+}
+
+export function isDraft(open: OpenThread): boolean {
+  return open.view.threadId === DRAFT_THREAD_ID;
+}
+
+function withDefaultModel(open: OpenThread, models: v2.Model[]): OpenThread {
+  const def = models.find((m) => m.isDefault) ?? models[0];
+  return def ? { ...open, model: def.model, effort: def.defaultReasoningEffort } : open;
+}
+
 function isLockedError(err: unknown): boolean {
   return err instanceof RpcError && /active writer/i.test(err.message);
 }
@@ -182,7 +209,7 @@ export class Session {
   async loadThreads(): Promise<void> {
     this.store.set((s) => ({ ...s, threadsLoading: true, threadsError: null }));
     try {
-      const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "updated_at" });
+      const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "recency_at" });
       this.store.set((s) => ({ ...s, threads: mergeThreadList(s.threads, res.data), threadsLoading: false }));
     } catch (err) {
       this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: describe(err) }));
@@ -196,6 +223,11 @@ export class Session {
     } catch {
       // Not signed in with ChatGPT, or an older Codex: the badge just stays hidden.
     }
+  }
+
+  /** App-wide warning banner, e.g. when a list action fails. */
+  notify(message: string): void {
+    this.store.set((s) => ({ ...s, notices: [...s.notices, { id: nextNoticeId++, message }] }));
   }
 
   dismissNotice(id: number): void {
@@ -216,7 +248,49 @@ export class Session {
   async loadModels(): Promise<void> {
     if (this.store.get().models.length > 0) return;
     const res = await this.rpc.request<v2.ModelListResponse>("model/list", {});
-    this.store.set((s) => ({ ...s, models: res.data.filter((m) => !m.hidden) }));
+    this.store.set((s) => {
+      const models = res.data.filter((m) => !m.hidden);
+      const open = s.open && isDraft(s.open) && !s.open.model ? withDefaultModel(s.open, models) : s.open;
+      return { ...s, models, open };
+    });
+  }
+
+  // --- draft thread (new-thread screen) ----------------------------------
+
+  /**
+   * A placeholder `open` for the new-thread screen so the composer toolbar
+   * (model, permissions) works before the thread exists; the picks are read
+   * back by `startThread` callers. Nothing is sent to Codex.
+   */
+  openDraft(cwd: string): void {
+    this.openGeneration++;
+    this.store.set((s) => ({
+      ...s,
+      open: withDefaultModel(
+        {
+          view: initialThreadState(DRAFT_THREAD_ID),
+          state: "loading",
+          error: null,
+          model: "",
+          effort: null,
+          override: null,
+          cwd,
+          olderCursor: null,
+          loadingOlder: false,
+          queued: [],
+          // Codex's own default; thread/start reports the real one.
+          permissions: PERMISSION_PRESETS.ask,
+          permissionOverride: null,
+          serviceTier: null,
+          serviceTierOverride: null,
+        },
+        s.models,
+      ),
+    }));
+  }
+
+  setDraftCwd(cwd: string): void {
+    this.store.set((s) => (s.open && isDraft(s.open) && s.open.cwd !== cwd ? { ...s, open: { ...s.open, cwd } } : s));
   }
 
   // --- open thread --------------------------------------------------------
@@ -243,6 +317,8 @@ export class Session {
         queued: current?.view.threadId === threadId ? current.queued : [],
         permissions: current?.view.threadId === threadId ? current.permissions : null,
         permissionOverride: current?.view.threadId === threadId ? current.permissionOverride : null,
+        serviceTier: current?.view.threadId === threadId ? current.serviceTier : null,
+        serviceTierOverride: current?.view.threadId === threadId ? current.serviceTierOverride : null,
       },
     }));
     try {
@@ -269,6 +345,7 @@ export class Session {
             cwd: resumed.cwd,
             olderCursor: page.nextCursor,
             permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox), reviewer: resumed.approvalsReviewer },
+            serviceTier: resumed.serviceTier,
           },
         };
       });
@@ -335,6 +412,7 @@ export class Session {
   }
 
   private async unsubscribe(threadId: string): Promise<void> {
+    if (threadId === DRAFT_THREAD_ID) return;
     try {
       await this.rpc.request("thread/unsubscribe", { threadId });
     } catch {
@@ -363,6 +441,21 @@ export class Session {
   /** Effective model/effort shown in the UI. */
   static effectiveModel(open: OpenThread): { model: string; effort: ReasoningEffort | null } {
     return open.override ?? { model: open.model, effort: open.effort };
+  }
+
+  /** Whether the next turn runs on a faster-than-standard tier. */
+  static isFast(open: OpenThread): boolean {
+    const tier = open.serviceTierOverride ?? open.serviceTier;
+    return tier !== null && tier !== "default";
+  }
+
+  /** `null` means standard speed; Codex spells that "default" on the wire. */
+  setServiceTier(tier: string | null): void {
+    this.store.set((s) => {
+      if (!s.open) return s;
+      const same = (tier ?? null) === s.open.serviceTier;
+      return { ...s, open: { ...s.open, serviceTierOverride: same ? null : (tier ?? "default") } };
+    });
   }
 
   async sendMessage(draft: Draft): Promise<void> {
@@ -398,12 +491,15 @@ export class Session {
       params.sandboxPolicy = sandboxPolicy(perms.sandbox, open.cwd);
       params.approvalsReviewer = perms.reviewer;
     }
+    const tier = open.serviceTierOverride;
+    if (tier) params.serviceTier = tier;
     await this.rpc.request<v2.TurnStartResponse>("turn/start", params);
     this.store.set((s) => {
       if (!s.open || s.open.view.threadId !== threadId) return s;
       const next = { ...s.open };
       if (open.override) Object.assign(next, { model: open.override.model, effort: open.override.effort, override: null });
       if (perms) Object.assign(next, { permissions: perms, permissionOverride: null });
+      if (tier) Object.assign(next, { serviceTier: tier === "default" ? null : tier, serviceTierOverride: null });
       if (activeTurnId) next.queued = [...next.queued, draft.text.trim() || "(attachment)"];
       return { ...s, open: next };
     });
@@ -441,8 +537,8 @@ export class Session {
     return skills;
   }
 
-  async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null): Promise<string> {
-    const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model });
+  async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null, serviceTier: string | null = null): Promise<string> {
+    const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model, serviceTier });
     this.adoptStarted(res, effort);
     return res.thread.id;
   }
@@ -466,6 +562,8 @@ export class Session {
         queued: [],
         permissions: { approval: res.approvalPolicy, sandbox: sandboxMode(res.sandbox), reviewer: res.approvalsReviewer },
         permissionOverride: null,
+        serviceTier: res.serviceTier,
+        serviceTierOverride: null,
       },
     }));
     this.openGeneration++;
@@ -483,7 +581,7 @@ export class Session {
 
   /** Archived threads, newest first (not kept in the store: rarely viewed). */
   async loadArchivedThreads(): Promise<ThreadSummary[]> {
-    const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 100, sortKey: "updated_at", archived: true });
+    const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 100, sortKey: "recency_at", archived: true });
     return mergeThreadList([], res.data);
   }
 
@@ -526,6 +624,52 @@ export class Session {
   setPermissionPreset(preset: PermissionPreset): void {
     const p = PERMISSION_PRESETS[preset];
     this.setPermissions(p.approval, p.sandbox, p.reviewer);
+  }
+
+  // --- git (command/exec on the Mac) ---------------------------------------
+
+  private async exec(cwd: string, command: string[], writableRoots: string[] = []): Promise<v2.CommandExecResponse> {
+    const params: v2.CommandExecParams = { command, cwd, timeoutMs: 15_000 };
+    if (writableRoots.length > 0) params.sandboxPolicy = { type: "workspaceWrite", writableRoots, networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false };
+    return this.rpc.request<v2.CommandExecResponse>("command/exec", params);
+  }
+
+  private async git(cwd: string, args: string[], writableRoots: string[] = []): Promise<string> {
+    const res = await this.exec(cwd, ["git", ...args], writableRoots);
+    if (res.exitCode !== 0) throw new Error(res.stderr.trim() || `git ${args[0]} failed (${res.exitCode})`);
+    return res.stdout;
+  }
+
+  /** Current branch and local branches of `cwd`; null when it is not a git checkout. */
+  async gitInfo(cwd: string): Promise<{ branch: string; branches: string[] } | null> {
+    try {
+      const branch = (await this.git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+      const branches = (await this.git(cwd, ["branch", "--format=%(refname:short)"])).split("\n").map((b) => b.trim()).filter(Boolean);
+      return { branch, branches };
+    } catch {
+      return null;
+    }
+  }
+
+  async gitSwitch(cwd: string, branch: string): Promise<void> {
+    await this.git(cwd, ["switch", branch], [cwd]);
+  }
+
+  /**
+   * New worktree at ~/.codex/worktrees/<id>/<repo> on a fresh `codex/<slug>`
+   * branch off `base`, mirroring the desktop app; returns its path.
+   */
+  async gitWorktreeAdd(cwd: string, home: string, base: string, text: string): Promise<string> {
+    const repo = cwd.split("/").filter(Boolean).pop() ?? "repo";
+    const id = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
+    const root = `${home.replace(/\/$/, "")}/.codex/worktrees`;
+    const path = `${root}/${id}/${repo}`;
+    await this.git(cwd, ["worktree", "add", "-b", `codex/${slugify(text)}`, path, base], [cwd, root]);
+    return path;
+  }
+
+  async createDirectory(path: string): Promise<void> {
+    await this.rpc.request("fs/createDirectory", { path, recursive: true });
   }
 
   /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */
@@ -571,7 +715,7 @@ export class Session {
     }
     if (n.method === "warning" && (n.params as v2.WarningNotification).threadId === null) {
       const { message } = n.params as v2.WarningNotification;
-      this.store.set((s) => ({ ...s, notices: [...s.notices, { id: nextNoticeId++, message }] }));
+      this.notify(message);
       return;
     }
     this.store.set((s) => {

@@ -24,6 +24,11 @@ describe("summarize", () => {
     expect(s.updatedAt).toBe(10_000);
   });
 
+  it("uses recencyAt for the timestamp: updatedAt also moves on a plain thread/resume", () => {
+    expect(summarize(thread("a", 99, { recencyAt: 10 })).updatedAt).toBe(10_000);
+    expect(summarize(thread("a", 99, { recencyAt: null })).updatedAt).toBe(99_000);
+  });
+
   it("falls back to (untitled) when there is no text", () => {
     expect(summarize(thread("a", 1, { preview: "" })).title).toBe("(untitled)");
   });
