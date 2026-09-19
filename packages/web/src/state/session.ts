@@ -13,6 +13,7 @@ import {
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
 import { buildUserInput, type Draft } from "./compose.js";
+import { getLastModel, setLastModel } from "./model-prefs.js";
 import {
   getFollowUpMode,
   setFollowUpMode,
@@ -181,9 +182,16 @@ export function isDraft(open: OpenThread): boolean {
   return open.view.threadId === DRAFT_THREAD_ID;
 }
 
+// A draft starts from Codex's default model, with the model the user last
+// used as the pending pick (so thread/start receives it) when it still
+// exists and differs from the default.
 function withDefaultModel(open: OpenThread, models: v2.Model[]): OpenThread {
   const def = models.find((m) => m.isDefault) ?? models[0];
-  return def ? { ...open, model: def.model, effort: def.defaultReasoningEffort } : open;
+  if (!def) return open;
+  const last = getLastModel();
+  const remembered = last && models.some((m) => m.model === last.model) ? last : null;
+  const override = remembered && (remembered.model !== def.model || remembered.effort !== def.defaultReasoningEffort) ? remembered : null;
+  return { ...open, model: def.model, effort: def.defaultReasoningEffort, override };
 }
 
 function isLockedError(err: unknown): boolean {
@@ -349,7 +357,7 @@ export class Session {
         error: null,
         model: current?.model ?? "",
         effort: current?.effort ?? null,
-        override: current?.override ?? null,
+        override: current?.view.threadId === threadId ? current.override : null,
         cwd: current?.cwd ?? "",
         olderCursor: null,
         loadingOlder: false,
@@ -568,6 +576,7 @@ export class Session {
       if (tier) Object.assign(next, { serviceTier: tier === "default" ? null : tier, serviceTierOverride: null });
       return { ...s, open: next };
     });
+    if (open.override) setLastModel(open.override);
   }
 
   /** Sends the last user message again after a turn failed (network, model errors). */
@@ -692,6 +701,7 @@ export class Session {
   async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null, serviceTier: string | null = null): Promise<string> {
     const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model, serviceTier });
     this.adoptStarted(res, effort);
+    setLastModel({ model: res.model, effort: effort ?? res.reasoningEffort });
     return res.thread.id;
   }
 

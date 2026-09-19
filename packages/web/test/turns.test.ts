@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, toolLabel, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, threadChangeTotals, toolLabel, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -85,6 +85,22 @@ describe("summarizeTools", () => {
   it("counts failures", () => {
     const failed = { ...cmd("1", "make"), exitCode: 2 } as unknown as ThreadItem;
     expect(summarizeTools([failed, cmd("2", "ls")])).toBe("Ran 2 commands · 1 failed");
+  });
+});
+
+describe("threadChangeTotals", () => {
+  const edit = (id: string, files: Record<string, string>, status = "completed"): ThreadItem =>
+    ({ type: "fileChange", id, status, changes: Object.entries(files).map(([path, diff]) => ({ path, kind: { type: "update", move_path: null }, diff })) }) as unknown as ThreadItem;
+  const stats = (diff: string) => ({ added: (diff.match(/^\+/gm) ?? []).length, removed: (diff.match(/^-/gm) ?? []).length });
+
+  it("counts unique files with the latest patch of each, skipping failed edits", () => {
+    let s = initialThreadState(T);
+    s = prependHistory(s, [
+      { turnId: "t1", item: edit("e1", { "/p/a.ts": "+1\n+2", "/p/b.ts": "-1" }) },
+      { turnId: "t2", item: edit("e2", { "/p/a.ts": "+1" }) },
+      { turnId: "t2", item: edit("e3", { "/p/c.ts": "+9" }, "failed") },
+    ]);
+    expect(threadChangeTotals(s, stats)).toEqual({ files: 2, added: 1, removed: 1 });
   });
 });
 
