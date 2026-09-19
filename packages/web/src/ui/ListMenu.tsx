@@ -49,12 +49,38 @@ export function ListMenu({ session, view, onView }: { session: Session; view: Li
   );
 }
 
-function MenuItem({ icon, label, checked, onClick }: { icon: React.ReactNode; label: string; checked?: boolean; onClick: () => void }) {
+export function MenuItem({
+  icon,
+  label,
+  hint,
+  checked,
+  danger,
+  disabled,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  /** Muted text after the label, e.g. "· 62% full". */
+  hint?: string;
+  checked?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button className="menu-item" role={checked === undefined ? "menuitem" : "menuitemradio"} aria-checked={checked} onClick={onClick}>
-      <span className="menu-check">{checked && <CheckIcon />}</span>
+    <button
+      className={`menu-item ${danger ? "danger" : ""}`}
+      role={checked === undefined ? "menuitem" : "menuitemradio"}
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {checked !== undefined && <span className="menu-check">{checked && <CheckIcon />}</span>}
       <span className="menu-icon">{icon}</span>
-      <span>{label}</span>
+      <span>
+        {label}
+        {hint && <span className="muted small"> {hint}</span>}
+      </span>
     </button>
   );
 }

@@ -26,3 +26,7 @@ export const LaptopIcon = () => <Icon d="M4 5h16a1 1 0 0 1 1 1v9H3V6a1 1 0 0 1 1
 export const WorktreeIcon = () => <Icon d="M4 7h6l4 5h6M4 17h6l4-5M17 9l3 3-3 3" />;
 export const ChevronsIcon = () => <Icon size={14} d="m7 9 5-5 5 5M7 15l5 5 5-5" />;
 export const ChevronIcon = () => <Icon size={18} d="m9 6 6 6-6 6" />;
+export const PencilIcon = () => <Icon d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />;
+export const CopyIcon = () => <Icon d="M9 9h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />;
+export const ReviewIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15l2 2 4-4" />;
+export const CompressIcon = () => <Icon d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />;

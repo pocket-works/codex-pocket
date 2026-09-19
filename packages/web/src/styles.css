@@ -1245,25 +1245,9 @@ pre.diff {
   overflow: hidden;
 }
 
-.menu-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.menu-list button {
-  width: 100%;
-  text-align: left;
-  padding: 12px 14px;
-}
-
 .rename-row {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
 }
 
 .rename-row input {
@@ -1274,12 +1258,6 @@ pre.diff {
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--fg);
-}
-
-.thread-menu h3 {
-  font-size: 14px;
-  color: var(--muted);
-  margin: 8px 0;
 }
 
 .segmented {
@@ -1538,6 +1516,35 @@ pre.diff {
   display: inline-flex;
   width: 26px;
   justify-content: center;
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+.menu-item:disabled {
+  opacity: 0.45;
+}
+
+.menu-error {
+  margin: 4px 16px 8px;
+}
+
+.popover-card.menu .rename-row {
+  padding: 8px 12px;
+}
+
+.popover-section {
+  margin-top: 12px;
+}
+
+.popover-card .segmented {
+  margin: 4px 0;
+}
+
+.advanced-toggle {
+  margin-top: 4px;
+  color: var(--muted);
 }
 
 .menu-sep {

@@ -1,31 +1,30 @@
-import { useState } from "react";
-import type { v2 } from "@codex-pocket/protocol";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { transcriptMarkdown } from "../state/turns.js";
+import { ArchiveIcon, BranchIcon, CompressIcon, CopyIcon, PencilIcon, ReviewIcon } from "./icons.js";
+import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
-const APPROVALS: { value: "untrusted" | "on-request" | "never"; label: string }[] = [
-  { value: "untrusted", label: "Ask" },
-  { value: "on-request", label: "On request" },
-  { value: "never", label: "Never" },
-];
-
-const SANDBOXES: { value: v2.SandboxMode; label: string }[] = [
-  { value: "read-only", label: "Read-only" },
-  { value: "workspace-write", label: "Workspace" },
-  { value: "danger-full-access", label: "Full access" },
-];
-
-// "⋯" in the thread topbar: rename / fork / review / archive plus the
-// approval + sandbox policy for upcoming turns.
+// "⋯" in the thread topbar: a compact anchored menu like the official app's
+// thread header (rename / copy / fork / archive). Approval policy and the
+// follow-up mode live with the composer's permissions button instead.
 export function ThreadMenu({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
-  const followUp = useStore(session.store, (s) => s.followUp);
-  const [sheet, setSheet] = useState(false);
+  const [show, setShow] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!show) return;
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) close();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [show]);
 
   if (!open) return null;
   const threadId = open.view.threadId;
@@ -33,16 +32,19 @@ export function ThreadMenu({ session }: { session: Session }) {
   const running = open.view.activeTurnId !== null;
   const usage = open.view.tokenUsage;
   const contextPct = usage?.contextWindow ? Math.min(100, Math.round((usage.contextTokens / usage.contextWindow) * 100)) : null;
-  const perms = open.permissionOverride ?? open.permissions;
-  const isGranular = typeof perms?.approval === "object";
+
+  function close() {
+    setShow(false);
+    setRenaming(null);
+    setError(null);
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
     try {
       await action();
-      setSheet(false);
-      setRenaming(null);
+      close();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -51,115 +53,69 @@ export function ThreadMenu({ session }: { session: Session }) {
   }
 
   return (
-    <>
-      <button className="icon-btn" aria-label="Thread menu" onClick={() => setSheet(true)}>
+    <div className="tool-anchor" ref={ref}>
+      <button className="icon-btn" aria-label="Thread menu" aria-expanded={show} onClick={() => (show ? close() : setShow(true))}>
         ⋯
       </button>
-      {sheet && (
-        <div className="sheet-backdrop" onClick={() => setSheet(false)}>
-          <div className="sheet thread-menu" onClick={(e) => e.stopPropagation()}>
-            <h2>Thread</h2>
-            {error && <p className="error">{error}</p>}
-
-            {renaming !== null ? (
-              <form
-                className="rename-row"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void run(() => session.renameThread(threadId, renaming));
+      {show && (
+        <div className="popover-card menu right" role="menu">
+          {error && <p className="error small menu-error">{error}</p>}
+          {renaming !== null ? (
+            <form
+              className="rename-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(() => session.renameThread(threadId, renaming));
+              }}
+            >
+              <input autoFocus value={renaming} placeholder="Thread name" onChange={(e) => setRenaming(e.target.value)} />
+              <button className="primary" type="submit" disabled={busy || !renaming.trim()}>
+                Save
+              </button>
+            </form>
+          ) : (
+            <>
+              <MenuItem icon={<PencilIcon />} label="Rename" disabled={busy} onClick={() => setRenaming("")} />
+              <MenuItem
+                icon={<CopyIcon />}
+                label="Copy as Markdown"
+                disabled={busy || open.view.items.length === 0}
+                onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
+              />
+              <MenuItem
+                icon={<BranchIcon size={20} />}
+                label="Fork"
+                disabled={busy || !ready}
+                onClick={() => void run(async () => navigate({ name: "thread", id: await session.forkThread(threadId) }))}
+              />
+              <div className="menu-sep" />
+              <MenuItem icon={<ReviewIcon />} label="Review changes" disabled={busy || !ready || running} onClick={() => void run(() => session.startReview())} />
+              <MenuItem
+                icon={<CompressIcon />}
+                label="Compact context"
+                hint={contextPct !== null ? `· ${contextPct}% full` : undefined}
+                disabled={busy || !ready || running}
+                onClick={() => void run(() => session.compactThread())}
+              />
+              <div className="menu-sep" />
+              <MenuItem
+                icon={<ArchiveIcon />}
+                label="Archive"
+                danger
+                disabled={busy}
+                onClick={() => {
+                  if (confirm(running ? "Stop and archive this thread?" : "Archive this thread?")) {
+                    void run(async () => {
+                      await session.archiveThread(threadId);
+                      navigate({ name: "list" });
+                    });
+                  }
                 }}
-              >
-                <input autoFocus value={renaming} placeholder="Thread name" onChange={(e) => setRenaming(e.target.value)} />
-                <button className="primary" type="submit" disabled={busy || !renaming.trim()}>
-                  Save
-                </button>
-              </form>
-            ) : (
-              <ul className="menu-list">
-                <li>
-                  <button onClick={() => setRenaming("")}>Rename</button>
-                </li>
-                <li>
-                  <button disabled={busy || !ready} onClick={() => void run(async () => navigate({ name: "thread", id: await session.forkThread(threadId) }))}>
-                    Fork into a new thread
-                  </button>
-                </li>
-                <li>
-                  <button disabled={busy || !ready || running} onClick={() => void run(() => session.startReview())}>
-                    Review uncommitted changes
-                  </button>
-                </li>
-                <li>
-                  <button
-                    disabled={busy || open.view.items.length === 0}
-                    onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
-                  >
-                    Copy as Markdown
-                  </button>
-                </li>
-                <li>
-                  <button disabled={busy || !ready || running} onClick={() => void run(() => session.compactThread())}>
-                    Compact context{contextPct !== null && <span className="muted small"> · {contextPct}% full</span>}
-                  </button>
-                </li>
-                <li>
-                  <button
-                    className="danger"
-                    disabled={busy}
-                    onClick={() => {
-                      if (confirm(running ? "Stop and archive this thread?" : "Archive this thread?")) void run(async () => {
-                        await session.archiveThread(threadId);
-                        navigate({ name: "list" });
-                      });
-                    }}
-                  >
-                    Archive
-                  </button>
-                </li>
-              </ul>
-            )}
-
-            <h3>While a turn is running</h3>
-            <div className="segmented" role="radiogroup" aria-label="Follow-up mode">
-              <button className={followUp === "steer" ? "active" : ""} onClick={() => session.setFollowUpMode("steer")}>
-                Steer
-              </button>
-              <button className={followUp === "queue" ? "active" : ""} onClick={() => session.setFollowUpMode("queue")}>
-                Queue
-              </button>
-            </div>
-            <p className="muted small">{followUp === "steer" ? "New messages are folded into the running turn." : "New messages wait for the current turn to finish."}</p>
-
-            <h3>Advanced permissions</h3>
-            {isGranular && <p className="muted small">This thread uses a custom approval policy; picking one below replaces it.</p>}
-            <div className="segmented" role="radiogroup" aria-label="Approval policy">
-              {APPROVALS.map((a) => (
-                <button
-                  key={a.value}
-                  className={perms?.approval === a.value ? "active" : ""}
-                  disabled={!ready}
-                  onClick={() => session.setPermissions(a.value, perms?.sandbox ?? "workspace-write")}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-            <div className="segmented" role="radiogroup" aria-label="Sandbox">
-              {SANDBOXES.map((s) => (
-                <button
-                  key={s.value}
-                  className={perms?.sandbox === s.value ? "active" : ""}
-                  disabled={!ready}
-                  onClick={() => session.setPermissions(perms?.approval ?? "on-request", s.value)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            {open.permissionOverride && <p className="muted small">Applies when you send the next message.</p>}
-          </div>
+              />
+            </>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }
