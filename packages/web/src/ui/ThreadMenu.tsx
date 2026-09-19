@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { isPinned, togglePin } from "../state/pins.js";
 import { useStore } from "../state/store.js";
-import { transcriptMarkdown } from "../state/turns.js";
 import { ChangesSheet } from "./ChangesSheet.js";
 import { FilesSheet } from "./FilesSheet.js";
 import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon } from "./icons.js";
@@ -11,7 +10,7 @@ import { navigate } from "./route.js";
 
 // "⋯" in the thread topbar, laid out like the official iOS app's thread
 // menu: title, Pin / Rename / Copy thread ID / Archive, then Changes and
-// Files. Fork and Copy as Markdown come from the desktop menu.
+// Files. Forking lives on each answer's action row, as in the official app.
 export function ThreadMenu({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
   const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
@@ -34,7 +33,6 @@ export function ThreadMenu({ session }: { session: Session }) {
 
   if (!open) return null;
   const threadId = open.view.threadId;
-  const ready = open.state === "ready";
   const running = open.view.activeTurnId !== null;
   const pinned = isPinned(threadId);
 
@@ -126,19 +124,6 @@ export function ThreadMenu({ session }: { session: Session }) {
                   setSheet("files");
                   close();
                 }}
-              />
-              <div className="menu-sep thick" />
-              <MenuItem
-                icon={<BranchIcon size={22} />}
-                label="Fork"
-                disabled={busy || !ready}
-                onClick={() => void run(async () => navigate({ name: "thread", id: await session.forkThread(threadId) }))}
-              />
-              <MenuItem
-                icon={<CopyIcon />}
-                label="Copy as Markdown"
-                disabled={busy || open.view.items.length === 0}
-                onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
               />
             </>
           )}
