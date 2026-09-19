@@ -340,15 +340,12 @@ export class Session {
     try {
       const resumed = await this.rpc.request<v2.ThreadResumeResponse>("thread/resume", { threadId, excludeTurns: true });
       if (generation !== this.openGeneration) return;
-      const [page, turns] = await Promise.all([
-        this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", { threadId, limit: HISTORY_PAGE, sortDirection: "desc" }),
-        this.loadTurnMeta(threadId),
-      ]);
+      const history = await this.loadHistory(threadId);
       if (generation !== this.openGeneration) return;
       this.store.set((s) => {
         if (!s.open || s.open.view.threadId !== threadId) return s;
         // History replaces what we had: after a reconnect it is the truth.
-        const fresh = mergeTurns(prependHistory(initialThreadState(threadId), page.data.slice().reverse()), turns);
+        const fresh = mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns);
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals };
         return {
           ...s,
@@ -359,7 +356,7 @@ export class Session {
             model: resumed.model,
             effort: resumed.reasoningEffort,
             cwd: resumed.cwd,
-            olderCursor: page.nextCursor,
+            olderCursor: history.olderCursor,
             permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox), reviewer: resumed.approvalsReviewer },
             serviceTier: resumed.serviceTier,
           },
@@ -372,6 +369,29 @@ export class Session {
           ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: describe(err) } }
           : s,
       );
+    }
+  }
+
+  // Newest page of history, oldest first. Until a thread's first turn has
+  // been persisted Codex rejects the paginated endpoints ("not supported
+  // yet"), so fall back to a full read, and failing that start empty: live
+  // notifications fill the view in either case.
+  private async loadHistory(threadId: string): Promise<{ entries: v2.ThreadItemEntry[]; turns: v2.Turn[]; olderCursor: string | null }> {
+    try {
+      const [page, turns] = await Promise.all([
+        this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", { threadId, limit: HISTORY_PAGE, sortDirection: "desc" }),
+        this.loadTurnMeta(threadId),
+      ]);
+      return { entries: page.data.slice().reverse(), turns, olderCursor: page.nextCursor };
+    } catch (err) {
+      if (!/not supported/i.test(describe(err))) throw err;
+    }
+    try {
+      const { thread } = await this.rpc.request<v2.ThreadReadResponse>("thread/read", { threadId, includeTurns: true });
+      const entries = thread.turns.flatMap((t) => t.items.map((item) => ({ turnId: t.id, item })));
+      return { entries, turns: thread.turns, olderCursor: null };
+    } catch {
+      return { entries: [], turns: [], olderCursor: null };
     }
   }
 

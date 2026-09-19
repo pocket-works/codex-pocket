@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { setToken } from "../state/auth.js";
 import { disablePush, enablePush, pushStatus, type PushStatus } from "../state/push.js";
+import { dictationSupported } from "../state/dictation.js";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
@@ -88,6 +89,10 @@ export function SettingsScreen({ session }: { session: Session }) {
                 <span className="muted small">{push === "needs-install" ? "Add to Home Screen first" : push === "denied" ? "Blocked in system settings" : "Not supported here"}</span>
               )}
             </span>
+          </div>
+          <div className="setting-row">
+            <span>Dictation</span>
+            <span className="setting-value muted">{dictationSupported() ? "Available" : window.isSecureContext ? "Not offered by this browser" : "Needs HTTPS"}</span>
           </div>
           {pushError && <p className="error small setting-note">{pushError}</p>}
           {(push === "on" || push === "off") && <p className="muted small setting-note">Finished turns, approvals and questions, when this app is not open on the thread.</p>}
