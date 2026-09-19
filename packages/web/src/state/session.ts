@@ -198,6 +198,22 @@ export class Session {
     });
     rpc.onNotification((n) => this.handleNotification(n));
     rpc.onServerRequest((req) => this.onServerRequest(req));
+    // The host mutes push notifications for the thread on screen.
+    let lastThread: string | null = null;
+    this.store.subscribe(() => {
+      const threadId = this.store.get().open?.view.threadId || null;
+      if (threadId === lastThread) return;
+      lastThread = threadId;
+      this.reportClientState();
+    });
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => this.reportClientState());
+  }
+
+  private reportClientState(): void {
+    if (this.store.get().connection !== "open") return;
+    const threadId = this.store.get().open?.view.threadId || null;
+    const visible = typeof document === "undefined" || document.visibilityState === "visible";
+    this.rpc.notify("pocket/client/state", { threadId, visible });
   }
 
   start(): void {
@@ -699,6 +715,7 @@ export class Session {
     const open = this.store.get().open;
     if (open) void this.openThread(open.view.threadId, { force: true });
     void this.loadRateLimits();
+    this.reportClientState();
   }
 
   /** Public so tests can feed notifications without a socket. */

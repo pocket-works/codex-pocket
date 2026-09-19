@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
 import { codexConnector } from "./codex/target.js";
-import { adminToken, certsDir, devicesFile, findCertFiles, uploadsDir, writeRuntimeInfo } from "./config/paths.js";
+import { adminToken, devicesFile, findCertFiles, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
+import { PushNotifier } from "./push/notifier.js";
+import { loadOrCreateVapidKeys } from "./push/vapid.js";
+import webpush from "web-push";
 import { codexSettings, parsePublicUrl, readSettings } from "./config/settings.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
@@ -25,6 +28,8 @@ export interface ServeOptions {
 }
 
 export const DEFAULT_PORT = 7333;
+// VAPID wants a contact for the push services; the project page will do.
+const VAPID_SUBJECT = "https://github.com/jerryan999/codex-pocket";
 
 function defaultStaticDir(): string {
   // packages/host/dist/serve.js -> packages/web/dist
@@ -45,7 +50,20 @@ export async function serve(opts: ServeOptions): Promise<void> {
 
   const deviceStore = new DeviceStore(devicesFile());
   const codex = codexSettings();
-  const proxy = new CodexProxy({ connect: codexConnector(codex, log), log });
+  const vapid = loadOrCreateVapidKeys(vapidFile());
+  const notifier = new PushNotifier({
+    store: deviceStore,
+    send: (subscription, payload) =>
+      webpush
+        .sendNotification(subscription, payload, { vapidDetails: { subject: VAPID_SUBJECT, ...vapid }, TTL: 60 * 60 })
+        .then(() => undefined),
+    threadTitle: async (threadId) => {
+      const { thread } = await proxy.call<{ thread: { name: string | null; preview: string } }>("thread/read", { threadId });
+      return (thread.name ?? thread.preview).replace(/\s+/g, " ").trim() || null;
+    },
+    log,
+  });
+  const proxy = new CodexProxy({ connect: codexConnector(codex, log), log, tap: (msg) => void notifier.handle(msg) });
   const publicUrl = fixedUrl ?? `${scheme}://${lanIp}:${opts.port}`;
   const server = createLanServer({
     port: opts.port,
@@ -57,6 +75,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     proxy,
     adminToken: adminToken(),
     pairingUrl: (code) => pairingUrl(publicUrl, code),
+    push: { vapidPublicKey: vapid.publicKey, notifier },
     log,
   });
 

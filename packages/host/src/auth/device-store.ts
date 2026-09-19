@@ -9,8 +9,16 @@ export interface Device {
   lastSeenAt: number;
 }
 
+/** What `PushManager.subscribe` returns, as sent by the phone. */
+export interface PushSubscription {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  expirationTime?: number | null;
+}
+
 interface StoredDevice extends Device {
   tokenHash: string;
+  pushSubscription?: PushSubscription;
 }
 
 interface PairingCode {
@@ -109,6 +117,21 @@ export class DeviceStore {
     return (await this.load()).map(publicView);
   }
 
+  /** Replaces (or with null, removes) the device's Web Push subscription. */
+  async setPushSubscription(deviceId: string, subscription: PushSubscription | null): Promise<boolean> {
+    const devices = await this.load();
+    const found = devices.find((d) => d.id === deviceId);
+    if (!found) return false;
+    if (subscription) found.pushSubscription = subscription;
+    else delete found.pushSubscription;
+    await this.save(devices);
+    return true;
+  }
+
+  async listPushSubscriptions(): Promise<{ deviceId: string; subscription: PushSubscription }[]> {
+    return (await this.load()).flatMap((d) => (d.pushSubscription ? [{ deviceId: d.id, subscription: d.pushSubscription }] : []));
+  }
+
   async revoke(deviceId: string): Promise<boolean> {
     const devices = await this.load();
     const idx = devices.findIndex((d) => d.id === deviceId);
@@ -135,12 +158,20 @@ export class DeviceStore {
     return this.devices;
   }
 
-  private async save(devices: StoredDevice[]): Promise<void> {
+  // Writes are serialized: two concurrent saves (a token touch racing a
+  // subscription update) would otherwise fight over the same temp file.
+  private saving: Promise<void> = Promise.resolve();
+
+  private save(devices: StoredDevice[]): Promise<void> {
     this.devices = devices;
-    await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
-    const tmp = `${this.path}.tmp`;
-    await writeFile(tmp, JSON.stringify({ devices }, null, 2), { mode: 0o600 });
-    await rename(tmp, this.path);
+    const run = async () => {
+      await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
+      const tmp = `${this.path}.tmp`;
+      await writeFile(tmp, JSON.stringify({ devices: this.devices }, null, 2), { mode: 0o600 });
+      await rename(tmp, this.path);
+    };
+    this.saving = this.saving.catch(() => {}).then(run);
+    return this.saving;
   }
 }
 

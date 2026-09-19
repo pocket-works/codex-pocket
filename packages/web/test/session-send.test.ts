@@ -8,9 +8,13 @@ import { initialThreadState } from "../src/state/thread-reducer.js";
 // Just enough of RpcClient for Session: records requests, answers from a table.
 function stubRpc(answer: (method: string, params: unknown) => unknown) {
   const calls: { method: string; params: unknown }[] = [];
+  const notes: { method: string; params: unknown }[] = [];
   const rpc = {
     connectionState: "open",
     start() {},
+    notify(method: string, params: unknown) {
+      notes.push({ method, params });
+    },
     request(method: string, params: unknown) {
       calls.push({ method, params });
       const r = answer(method, params);
@@ -27,7 +31,7 @@ function stubRpc(answer: (method: string, params: unknown) => unknown) {
       return () => {};
     },
   };
-  return { rpc: rpc as unknown as RpcClient, calls };
+  return { rpc: rpc as unknown as RpcClient, calls, notes };
 }
 
 function readySession(rpc: RpcClient, activeTurnId: string | null): Session {
@@ -253,5 +257,16 @@ describe("git via command/exec", () => {
     const path = await new Session(rpc).gitWorktreeAdd("/Users/me/Projects/flow", "/Users/me", "main", "Fix the login bug");
     expect(path).toMatch(/^\/Users\/me\/\.codex\/worktrees\/[0-9a-f]{4}\/flow$/);
     expect(calls[0].params).toMatchObject({ command: ["git", "worktree", "add", "-b", "codex/fix-the-login-bug", path, "main"], cwd: "/Users/me/Projects/flow" });
+  });
+});
+
+describe("client state for push", () => {
+  it("tells the host which thread is on screen whenever it changes", () => {
+    const { rpc, notes } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    expect(notes.at(-1)).toEqual({ method: "pocket/client/state", params: { threadId: "t1", visible: true } });
+    session.store.set((s) => ({ ...s, open: null }));
+    expect(notes.at(-1)).toEqual({ method: "pocket/client/state", params: { threadId: null, visible: true } });
+    expect(notes.length).toBe(2);
   });
 });

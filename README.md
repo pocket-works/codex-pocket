@@ -12,7 +12,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Image attachments, `@file` mentions, `/skills`, model questions, plan and usage display
 - Rename, archive (swipe), fork and review threads
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
-- Not yet: Web Push notifications
+- Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
 
 ## Security model
 
@@ -36,7 +36,7 @@ pnpm dev:host revoke <id>
 
 A `Makefile` wraps the common tasks (`make start`, `make pair`, `make status`, …); run `make help` for the list.
 
-State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes only), `admin.token`, `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone) and `host.log` (launchd mode).
+State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone) and `host.log` (launchd mode).
 
 ## Deploying: HTTPS via Tailscale, run at login
 
@@ -53,6 +53,7 @@ The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of 
 
 3. `pnpm dev:host pair` now prints a QR pointing at `https://<mac>.<tailnet>.ts.net/#pair=…`; scan it on the phone (Tailscale connected). Tailscale issues and renews the certificate.
 4. For the full-screen experience use "Add to Home Screen" in Safari. iOS gives home-screen apps their own storage, so the installed app asks to pair once more: run `pair` again and scan the QR from inside the app, or type the 8-character code it prints.
+5. In the app's Settings, turn on **Notifications**. The host pushes when a turn finishes, Codex asks for approval or input, or a turn fails — unless the app is open on that thread.
 
 `pnpm dev:host config` shows the current settings; `config unset <key>` restores a default.
 

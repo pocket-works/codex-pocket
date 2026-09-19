@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { setToken } from "../state/auth.js";
+import { disablePush, enablePush, pushStatus, type PushStatus } from "../state/push.js";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
@@ -14,6 +15,24 @@ export function SettingsScreen({ session }: { session: Session }) {
   const upstream = useStore(session.store, (s) => s.upstreamConnected);
   const [me, setMe] = useState<Me | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [push, setPush] = useState<PushStatus | "busy">("off");
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void pushStatus().then(setPush);
+  }, []);
+
+  async function togglePush() {
+    const was = push;
+    setPush("busy");
+    setPushError(null);
+    try {
+      setPush(await (was === "on" ? disablePush() : enablePush()));
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : String(err));
+      setPush(was);
+    }
+  }
 
   useEffect(() => {
     const token = localStorage.getItem("codex-pocket.token");
@@ -58,6 +77,20 @@ export function SettingsScreen({ session }: { session: Session }) {
               <span className="setting-value muted">{new Date(me.device.createdAt).toLocaleDateString()}</span>
             </div>
           )}
+        </div>
+        <div className="setting-group">
+          <div className="setting-row">
+            <span>Notifications</span>
+            <span className="setting-value">
+              {push === "on" || push === "off" || push === "busy" ? (
+                <button role="switch" aria-checked={push === "on"} className={`switch ${push === "on" ? "on" : ""}`} disabled={push === "busy"} onClick={() => void togglePush()} aria-label="Notifications" />
+              ) : (
+                <span className="muted small">{push === "needs-install" ? "Add to Home Screen first" : push === "denied" ? "Blocked in system settings" : "Not supported here"}</span>
+              )}
+            </span>
+          </div>
+          {pushError && <p className="error small setting-note">{pushError}</p>}
+          {(push === "on" || push === "off") && <p className="muted small setting-note">Finished turns, approvals and questions, when this app is not open on the thread.</p>}
         </div>
         <div className="setting-group">
           {confirm ? (

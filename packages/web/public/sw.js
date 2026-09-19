@@ -33,3 +33,40 @@ function cachePut(request, response) {
   }
   return response;
 }
+
+// Web Push from the host: {title, body, threadId, tag}. Tapping opens (or
+// focuses) the app on that thread.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const threadId = data.threadId || null;
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Codex", {
+      body: data.body || "",
+      tag: data.tag || threadId || undefined,
+      icon: "/icon-180.png",
+      badge: "/icon-180.png",
+      data: { threadId },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const threadId = event.notification.data && event.notification.data.threadId;
+  const url = threadId ? `/#/t/${encodeURIComponent(threadId)}` : "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const client = list[0];
+      if (client) {
+        client.navigate(url).catch(() => {});
+        return client.focus();
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

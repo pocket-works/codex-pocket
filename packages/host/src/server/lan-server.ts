@@ -8,7 +8,8 @@ import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { JsonRpcMessage } from "@codex-pocket/protocol";
-import type { DeviceStore } from "../auth/device-store.js";
+import type { Device, DeviceStore, PushSubscription } from "../auth/device-store.js";
+import type { PushNotifier } from "../push/notifier.js";
 import type { CodexProxy } from "../proxy/codex-proxy.js";
 import { serveStatic } from "./static-files.js";
 
@@ -30,8 +31,13 @@ export interface LanServerOptions {
   adminToken: string;
   /** Builds the URL a phone should open for a given pairing code. */
   pairingUrl: (code: string) => string;
+  /** Web Push: public key handed to phones, and where their subscriptions/state go. Absent = push disabled. */
+  push?: { vapidPublicKey: string; notifier: PushNotifier } | null;
   log?: (msg: string) => void;
 }
+
+/** Phones tell the host what they are looking at, so push can stay quiet for it. */
+export const CLIENT_STATE_METHOD = "pocket/client/state";
 
 export interface LanServer {
   listen(): Promise<AddressInfo>;
@@ -78,13 +84,16 @@ export function createLanServer(opts: LanServerOptions): LanServer {
     });
   });
 
-  wss.on("connection", (ws: WebSocket, req: IncomingMessage & { deviceName?: string }) => {
+  let nextConnId = 1;
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage & { device?: Device }) => {
+    const connId = String(nextConnId++);
+    const device = req.device;
     const handle = opts.proxy.attach({
       send: (msg) => {
         if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
       },
     });
-    log(`phone connected: ${req.deviceName ?? "?"}`);
+    log(`phone connected: ${device?.name ?? "?"}`);
     ws.on("message", (raw) => {
       let msg: JsonRpcMessage;
       try {
@@ -92,11 +101,18 @@ export function createLanServer(opts: LanServerOptions): LanServer {
       } catch {
         return;
       }
+      // Host-level messages never go upstream.
+      if ("method" in msg && msg.method === CLIENT_STATE_METHOD) {
+        const p = (msg.params ?? {}) as { threadId?: unknown; visible?: unknown };
+        if (device && opts.push) opts.push.notifier.setClientState(connId, device.id, { threadId: typeof p.threadId === "string" ? p.threadId : null, visible: p.visible === true });
+        return;
+      }
       handle.receive(msg);
     });
     ws.on("close", () => {
       handle.detach();
-      log(`phone disconnected: ${req.deviceName ?? "?"}`);
+      opts.push?.notifier.clearClient(connId);
+      log(`phone disconnected: ${device?.name ?? "?"}`);
     });
   });
 
@@ -140,7 +156,7 @@ async function handleUpgrade(
   const tokenEntry = offered.find((p) => p.startsWith(WS_TOKEN_PREFIX));
   const device = tokenEntry ? await opts.deviceStore.verifyToken(tokenEntry.slice(WS_TOKEN_PREFIX.length)) : null;
   if (!device || !offered.includes(WS_PROTOCOL)) return rejectUpgrade(socket, 401, "Unauthorized");
-  (req as IncomingMessage & { deviceName?: string }).deviceName = device.name;
+  (req as IncomingMessage & { device?: Device }).device = device;
   wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
 }
 
@@ -193,6 +209,28 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     return sendJson(res, 200, { path: file });
   }
 
+  if (path === "/api/push/vapid" && method === "GET") {
+    const device = await opts.deviceStore.verifyToken(bearerToken(req));
+    if (!device) return sendJson(res, 401, { error: "unauthorized" });
+    if (!opts.push) return sendJson(res, 404, { error: "push disabled" });
+    return sendJson(res, 200, { publicKey: opts.push.vapidPublicKey });
+  }
+
+  if (path === "/api/push/subscription" && (method === "PUT" || method === "DELETE")) {
+    const device = await opts.deviceStore.verifyToken(bearerToken(req));
+    if (!device) return sendJson(res, 401, { error: "unauthorized" });
+    if (!opts.push) return sendJson(res, 404, { error: "push disabled" });
+    if (method === "DELETE") {
+      await opts.deviceStore.setPushSubscription(device.id, null);
+      return sendJson(res, 200, { ok: true });
+    }
+    const body = await readJsonBody(req);
+    const sub = parsePushSubscription(body);
+    if (!sub) return sendJson(res, 400, { error: "invalid subscription" });
+    await opts.deviceStore.setPushSubscription(device.id, sub);
+    return sendJson(res, 200, { ok: true });
+  }
+
   if (path.startsWith("/api/admin/")) {
     if (!isLoopback(req) || !constantTimeEqual(bearerToken(req), opts.adminToken)) {
       return sendJson(res, 401, { error: "unauthorized" });
@@ -222,6 +260,13 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
 function bearerToken(req: IncomingMessage): string {
   const h = req.headers.authorization ?? "";
   return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+}
+
+function parsePushSubscription(raw: unknown): PushSubscription | null {
+  const o = raw as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown }; expirationTime?: unknown } | null;
+  if (!o || typeof o.endpoint !== "string" || !/^https:\/\//.test(o.endpoint)) return null;
+  if (typeof o.keys?.p256dh !== "string" || typeof o.keys?.auth !== "string") return null;
+  return { endpoint: o.endpoint, keys: { p256dh: o.keys.p256dh, auth: o.keys.auth }, expirationTime: typeof o.expirationTime === "number" ? o.expirationTime : null };
 }
 
 function isLoopback(req: IncomingMessage): boolean {
