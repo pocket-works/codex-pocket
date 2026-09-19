@@ -6,6 +6,7 @@ import type { ThreadItem, ThreadViewState, TurnMeta } from "./thread-reducer.js"
 // reasoning, tool calls and interim commentary, then the final answer.
 
 export type AgentMessage = Extract<ThreadItem, { type: "agentMessage" }>;
+export type FileChange = Extract<ThreadItem, { type: "fileChange" }>;
 
 export interface TurnGroup {
   turnId: string;
@@ -13,6 +14,8 @@ export interface TurnGroup {
   inProgress: boolean;
   userMessages: ThreadItem[];
   work: ThreadItem[];
+  /** Edits made this turn; shown as a "N files changed" card under the answer. */
+  fileChanges: FileChange[];
   final: AgentMessage | null;
 }
 
@@ -29,11 +32,12 @@ export function groupTurns(view: ThreadViewState): TurnGroup[] {
     let g = byId.get(turnId);
     if (!g) {
       const meta = view.turns[turnId] ?? null;
-      g = { turnId, meta, inProgress: view.activeTurnId === turnId || meta?.status === "inProgress", userMessages: [], work: [], final: null };
+      g = { turnId, meta, inProgress: view.activeTurnId === turnId || meta?.status === "inProgress", userMessages: [], work: [], fileChanges: [], final: null };
       byId.set(turnId, g);
       groups.push(g);
     }
     if (item.type === "userMessage") g.userMessages.push(item);
+    else if (item.type === "fileChange") g.fileChanges.push(item);
     else g.work.push(item);
   }
   for (const g of groups) promoteFinal(g);
@@ -116,7 +120,33 @@ export function stripShellWrapper(command: string): string {
 }
 
 export function isToolItem(item: ThreadItem): boolean {
-  return item.type === "commandExecution" || item.type === "mcpToolCall" || item.type === "dynamicToolCall" || item.type === "fileChange" || item.type === "webSearch" || item.type === "imageView";
+  return item.type === "commandExecution" || item.type === "mcpToolCall" || item.type === "dynamicToolCall" || item.type === "webSearch" || item.type === "imageView";
+}
+
+// Codex automations append `::inbox-item{...}` directives for the desktop
+// inbox; they are not part of the answer.
+export function stripDirectives(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => !/^::[a-z-]+\{/.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+
+/** Totals across every file edited in a turn. */
+export function changeTotals(changes: FileChange[], stats: (diff: string) => { added: number; removed: number }): { files: number; added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  const files = new Set<string>();
+  for (const c of changes) {
+    for (const f of c.changes) {
+      files.add(f.path);
+      const s = stats(f.diff);
+      added += s.added;
+      removed += s.removed;
+    }
+  }
+  return { files: files.size, added, removed };
 }
 
 export type TurnMetaLike = v2.Turn;

@@ -47,6 +47,7 @@ body,
 .app {
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .screen {
@@ -204,8 +205,12 @@ code,
 
 .thread-project {
   flex: 1;
+  min-width: 0;
   font-weight: 600;
   color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .thread-title {
@@ -1289,6 +1294,9 @@ pre.diff {
 
 .search-pill {
   flex: 1;
+  /* Flex items default to min-width:auto, so the search input's intrinsic
+     width could push the Chat button off a narrow screen. */
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1302,6 +1310,7 @@ pre.diff {
 
 .search-pill input {
   flex: 1;
+  width: 100%;
   min-width: 0;
   font: inherit;
   color: var(--fg);
@@ -1312,6 +1321,7 @@ pre.diff {
 }
 
 .chat-btn {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1640,4 +1650,68 @@ pre.diff {
 /* The user's message keeps its bubble; everything else is flush like the app. */
 .items {
   gap: 18px;
+}
+
+/* "N files changed" card under the final answer */
+.changes-card {
+  background: var(--card);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.changes-card.failed {
+  border: 1px solid var(--danger);
+}
+
+.changes-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 12px 14px;
+  font-size: 16px;
+  text-align: left;
+}
+
+.changes-title {
+  flex: 1;
+}
+
+.changes-card .file-diff {
+  border-top: 1px solid var(--line);
+}
+
+.changes-card .file-diff .tool-head {
+  padding: 10px 14px;
+}
+
+.changes-card .file-diff .tool-label {
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.thread-row.compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 12px 44px;
+  font-size: 15px;
+}
+
+.thread-row.compact .thread-title {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.thread-row.compact .thread-time {
+  flex: none;
+  font-size: 13px;
+}
+
+.thread-list.nested {
+  padding-left: 0;
 }

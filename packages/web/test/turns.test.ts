@@ -68,3 +68,10 @@ describe("labels", () => {
     expect(toolLabel(js)).toBe('Js "查看可用浏览器"');
   });
 });
+
+describe("stripDirectives", () => {
+  it("drops ::inbox-item lines and keeps the answer", async () => {
+    const { stripDirectives } = await import("../src/state/turns.js");
+    expect(stripDirectives('Done.\n\n::inbox-item{title="x" summary="y"}\n')).toBe("Done.");
+  });
+});

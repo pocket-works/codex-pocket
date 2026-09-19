@@ -7,8 +7,12 @@ function kindLabel(kind: v2.PatchChangeKind): string {
   return kind.type;
 }
 
+// Relative to the project when inside it; otherwise keep the tail so the
+// file name stays visible on a phone ("…/automations/sub2api/memory.md").
 function shortPath(path: string, cwd?: string): string {
-  return cwd && path.startsWith(cwd + "/") ? path.slice(cwd.length + 1) : path;
+  if (cwd && path.startsWith(cwd + "/")) return path.slice(cwd.length + 1);
+  const parts = path.split("/").filter(Boolean);
+  return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : path;
 }
 
 // One file of a patch: header with +/- counts, tap to expand the diff.
