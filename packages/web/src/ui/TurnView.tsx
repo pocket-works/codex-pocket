@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
-import { changeTotals, formatDuration, groupTurns, isToolItem, stripDirectives, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
+import { changeTotals, formatDuration, groupTurns, isToolItem, stripDirectives, summarizeTools, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
@@ -72,9 +72,10 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
   );
 }
 
-// Consecutive tool calls collapse under one "Called N tools" heading, as in
-// the official app. Reasoning between tool calls does not split the batch;
-// it is folded into one "Thinking" row ahead of it.
+// Consecutive tool calls collapse under one activity summary ("Read 3
+// files · Ran a command"), as in the official app. Reasoning between tool
+// calls does not split the batch; it is folded into one "Thinking" row
+// ahead of it.
 function WorkSection({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
   const rows: React.ReactNode[] = [];
   let tools: ThreadItem[] = [];
@@ -109,14 +110,19 @@ function WorkSection({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
   return <div className="work">{rows}</div>;
 }
 
+// Collapsed by default; while a call is still running the heading names
+// it (the official app's "Editing files" style) instead of the summary.
 function ToolBatch({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} />;
+  const running = items.find((item) => "status" in item && (item as { status: string }).status === "inProgress");
+  const failed = items.some(toolFailed);
   return (
-    <div className="tool-batch">
+    <div className={`tool-batch ${failed ? "failed" : ""}`}>
       <button className="tool-row heading" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <TerminalGlyph />
-        <span className="tool-text">Called {items.length} tools</span>
+        <span className="tool-text">{running && !open ? toolLabel(running) : summarizeTools(items)}</span>
+        {running && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
         <span className={`chev ${open ? "down" : ""}`}>
           <ChevronIcon />
         </span>
@@ -129,7 +135,7 @@ function ToolBatch({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
 function ToolRow({ item, cwd }: { item: ThreadItem; cwd: string }) {
   const [open, setOpen] = useState(false);
   const status = "status" in item ? (item as { status: string }).status : null;
-  const failed = status === "failed" || status === "declined" || ("exitCode" in item && item.exitCode !== null && item.exitCode !== 0);
+  const failed = toolFailed(item);
   return (
     <div className={`tool-item ${failed ? "failed" : ""}`}>
       <button className="tool-row" onClick={() => setOpen((o) => !o)} aria-expanded={open}>

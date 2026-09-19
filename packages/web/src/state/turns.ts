@@ -119,6 +119,60 @@ export function stripShellWrapper(command: string): string {
   return m ? m[2] : command;
 }
 
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : `${n} ${many}`;
+}
+
+export function toolFailed(item: ThreadItem): boolean {
+  const status = "status" in item ? (item as { status: string }).status : null;
+  if (status === "failed" || status === "declined") return true;
+  return "exitCode" in item && item.exitCode !== null && item.exitCode !== 0;
+}
+
+/**
+ * One line for a batch of tool calls, in the official app's style:
+ * "Read 3 files · Searched · Ran a command · 1 failed".
+ */
+export function summarizeTools(items: ThreadItem[]): string {
+  const reads = new Set<string>();
+  let searches = 0;
+  let commands = 0;
+  let images = 0;
+  const tools: string[] = [];
+  let failed = 0;
+  for (const item of items) {
+    if (toolFailed(item)) failed++;
+    switch (item.type) {
+      case "commandExecution": {
+        const action = item.commandActions?.[0];
+        if (action?.type === "read") reads.add(action.path ?? action.name);
+        else if (action?.type === "search" || action?.type === "listFiles") searches++;
+        else commands++;
+        break;
+      }
+      case "webSearch":
+        searches++;
+        break;
+      case "imageView":
+        images++;
+        break;
+      case "mcpToolCall":
+      case "dynamicToolCall":
+        tools.push(item.tool);
+        break;
+    }
+  }
+  const parts: string[] = [];
+  if (reads.size > 0) parts.push(`Read ${plural(reads.size, "a file", "files")}`);
+  if (searches > 0) parts.push("Searched");
+  if (commands > 0) parts.push(`Ran ${plural(commands, "a command", "commands")}`);
+  if (images > 0) parts.push(`Viewed ${plural(images, "an image", "images")}`);
+  if (tools.length === 1) parts.push(`Called ${tools[0]}`);
+  else if (tools.length > 1) parts.push(`Called ${tools.length} tools`);
+  if (failed > 0) parts.push(`${failed} failed`);
+  return parts.join(" · ") || `Called ${plural(items.length, "a tool", "tools")}`;
+}
+
 export function isToolItem(item: ThreadItem): boolean {
   return item.type === "commandExecution" || item.type === "mcpToolCall" || item.type === "dynamicToolCall" || item.type === "webSearch" || item.type === "imageView";
 }

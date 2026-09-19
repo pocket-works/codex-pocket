@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, stripShellWrapper, toolLabel, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, toolLabel, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -66,6 +66,25 @@ describe("labels", () => {
   it("quotes the first descriptive argument of dynamic tools", () => {
     const js = { type: "dynamicToolCall", id: "d", tool: "Js", arguments: { title: "查看可用浏览器", code: "…" }, status: "completed" } as unknown as ThreadItem;
     expect(toolLabel(js)).toBe('Js "查看可用浏览器"');
+  });
+});
+
+describe("summarizeTools", () => {
+  const read = (id: string, name: string): ThreadItem => ({ ...cmd(id, `cat ${name}`), commandActions: [{ type: "read", command: `cat ${name}`, name, path: `/x/${name}` }] } as unknown as ThreadItem);
+  const search = (id: string): ThreadItem => ({ ...cmd(id, "rg foo"), commandActions: [{ type: "search", command: "rg foo", query: "foo", path: null }] } as unknown as ThreadItem);
+  const mcp = (id: string, tool: string): ThreadItem => ({ type: "mcpToolCall", id, server: "s", tool, arguments: {}, status: "completed", result: null, error: null } as unknown as ThreadItem);
+
+  it("describes what a batch of tool calls did, like the official activity summary", () => {
+    expect(summarizeTools([read("1", "a.py"), read("2", "b.py"), read("3", "a.py")])).toBe("Read 2 files");
+    expect(summarizeTools([read("1", "a.py")])).toBe("Read a file");
+    expect(summarizeTools([search("1"), search("2"), cmd("3", "pnpm test")])).toBe("Searched · Ran a command");
+    expect(summarizeTools([cmd("1", "ls"), cmd("2", "pwd"), mcp("3", "fetch")])).toBe("Ran 2 commands · Called fetch");
+    expect(summarizeTools([mcp("1", "a"), mcp("2", "b")])).toBe("Called 2 tools");
+  });
+
+  it("counts failures", () => {
+    const failed = { ...cmd("1", "make"), exitCode: 2 } as unknown as ThreadItem;
+    expect(summarizeTools([failed, cmd("2", "ls")])).toBe("Ran 2 commands · 1 failed");
   });
 });
 
