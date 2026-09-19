@@ -47,8 +47,8 @@ export function PermissionsButton({ session, disabled }: { session: Session; dis
 
   return (
     <div className="tool-anchor" ref={ref}>
-      <button className="icon-btn" aria-label="Approval policy" disabled={disabled} onClick={() => setShow((v) => !v)}>
-        <GearIcon />
+      <button className={`icon-btn perm-btn ${active ?? "custom"}`} aria-label="Approval policy" disabled={disabled} onClick={() => setShow((v) => !v)}>
+        <ShieldBadge preset={active} />
       </button>
       {show && (
         <div className="popover-card" role="menu">
@@ -220,11 +220,21 @@ export function EffortGauge({ session, disabled }: { session: Session; disabled:
   );
 }
 
-function GearIcon() {
+// Shield with a check (ask), a tick-in-circle feel for auto-review, or "!"
+// for full access, tinted like the official app.
+function ShieldBadge({ preset }: { preset: PermissionPreset | null }) {
+  const mark = preset === "full" ? "!" : preset === "auto" ? "✓" : "";
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      {mark === "!" && (
+        <>
+          <path d="M12 8v4" />
+          <path d="M12 16h.01" />
+        </>
+      )}
+      {mark === "✓" && <path d="m9 12 2 2 4-4" />}
+      {mark === "" && <path d="M12 8v0" />}
     </svg>
   );
 }

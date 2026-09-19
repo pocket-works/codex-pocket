@@ -483,6 +483,43 @@ code,
   padding: 6px 8px 6px;
 }
 
+/* Idle: one row — attach, text, mic — in a pill. */
+.composer-box.collapsed {
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 6px;
+}
+
+.composer-box.collapsed textarea {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 4px;
+}
+
+.composer-box.collapsed .icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  flex: none;
+}
+
+.perm-btn.full {
+  color: #f0a060;
+}
+
+.perm-btn.auto {
+  color: #3b82f6;
+}
+
 .composer textarea {
   display: block;
   width: 100%;
