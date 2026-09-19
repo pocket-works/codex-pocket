@@ -100,6 +100,18 @@ export function Composer({
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function onPaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const images = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (images.length === 0) return;
+    e.preventDefault();
+    const list = new DataTransfer();
+    for (const file of images) list.items.add(file);
+    void attach(list.files);
+  }
+
   function removeImage(img: DraftImage) {
     URL.revokeObjectURL(img.previewUrl);
     setDraft((d) => ({ ...d, images: d.images.filter((i) => i.id !== img.id) }));
@@ -179,6 +191,7 @@ export function Composer({
           placeholder={disabled ? "Thread not ready" : busy ? "Add to the running turn…" : (placeholder ?? `Work on ${project}`)}
           disabled={disabled}
           onChange={(e) => onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+          onPaste={onPaste}
           onKeyDown={(e) => {
             if (e.key === "Escape") setPopover(null);
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
