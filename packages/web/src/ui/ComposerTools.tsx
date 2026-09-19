@@ -243,26 +243,37 @@ function fmtK(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
 }
 
-// Microphone toggle: while listening, the running transcript from the host's
-// dictation relay is appended to whatever was in the box when it started.
-export function DictationButton({ session, disabled, text, onText, onError }: { session: Session; disabled: boolean; text: string; onText: (text: string) => void; onError: (msg: string) => void }) {
+// Dictation session owned by the composer (the mic button is mounted in two
+// places, so the session must outlive either one). While listening, the
+// running transcript is appended to whatever was in the box when it started.
+export interface DictationControl {
+  listening: boolean;
+  /** Start listening, or stop if already listening. */
+  toggle(text: string): void;
+  /** Stop and drop any transcript still in flight (the message was sent). */
+  discard(): void;
+}
+
+export function useDictation({ session, onText, onError }: { session: Session; onText: (text: string) => void; onError: (msg: string) => void }): DictationControl {
   const [listening, setListening] = useState(false);
   const active = useRef<Dictation | null>(null);
   const base = useRef("");
+  const discarded = useRef(false);
 
   useEffect(() => () => active.current?.stop(), []);
 
-  if (!dictationSupported()) return null;
-
-  function toggle() {
+  function toggle(text: string) {
     if (active.current) {
       active.current.stop();
       return;
     }
     base.current = text ? (/\s$/.test(text) ? text : `${text} `) : "";
+    discarded.current = false;
     try {
       active.current = startDictation(session.rpc, {
-        onText: (t) => onText(base.current + t),
+        onText: (t) => {
+          if (!discarded.current) onText(base.current + t);
+        },
         onEnd: (error) => {
           active.current = null;
           setListening(false);
@@ -275,8 +286,22 @@ export function DictationButton({ session, disabled, text, onText, onError }: { 
     }
   }
 
+  function discard() {
+    if (!active.current) return;
+    // The host still sends the final transcript after a stop; it belongs to
+    // the message that was just sent, not to the empty box.
+    discarded.current = true;
+    active.current.stop();
+  }
+
+  return { listening, toggle, discard };
+}
+
+export function DictationButton({ dictation, disabled, text }: { dictation: DictationControl; disabled: boolean; text: string }) {
+  if (!dictationSupported()) return null;
+  const { listening } = dictation;
   return (
-    <button className={`icon-btn mic-btn ${listening ? "active" : ""}`} aria-label={listening ? "Stop dictation" : "Dictate"} aria-pressed={listening} disabled={disabled} onClick={toggle}>
+    <button className={`icon-btn mic-btn ${listening ? "active" : ""}`} aria-label={listening ? "Stop dictation" : "Dictate"} aria-pressed={listening} disabled={disabled} onClick={() => dictation.toggle(text)}>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <rect x="9" y="3" width="6" height="11" rx="3" fill={listening ? "currentColor" : "none"} />
         <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { emptyDraft, mentionQuery, sendBlocker, type Draft, type DraftImage } from "../state/compose.js";
 import { Session, type FileMatch, type Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
-import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton } from "./ComposerTools.js";
+import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton, useDictation } from "./ComposerTools.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -50,6 +50,16 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
+  const dictation = useDictation({ session, onText: (text) => setDraft((d) => ({ ...d, text })), onError: setError });
+
+  // Grow the box with its content up to the CSS max-height, whichever way the
+  // text got there (typing, paste, dictation, or clearing after send).
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    el.style.height = "0";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft.text]);
 
   const project = useStore(session.store, (s) => s.open?.cwd.split("/").filter(Boolean).pop() ?? "this project");
   const followUp = useStore(session.store, (s) => s.followUp);
@@ -149,6 +159,8 @@ export function Composer({
 
   async function send() {
     if (!canSend) return;
+    // Sending ends dictation: the mic has nothing left to fill in.
+    dictation.discard();
     setSending(true);
     setError(null);
     try {
@@ -268,7 +280,7 @@ export function Composer({
             }
           }}
         />
-        {!expanded && <DictationButton session={session} disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />}
+        {!expanded && <DictationButton dictation={dictation} disabled={disabled} text={draft.text} />}
         {expanded && (
         <div className="composer-tools">
           <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
@@ -279,7 +291,7 @@ export function Composer({
           <ContextRing session={session} />
           <FastButton session={session} disabled={disabled} />
           <EffortGauge session={session} disabled={disabled} />
-          <DictationButton session={session} disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />
+          <DictationButton dictation={dictation} disabled={disabled} text={draft.text} />
           {showStop ? (
             <button className="primary send-btn stop-btn" onClick={onStop} aria-label="Stop">
               <span className="stop-glyph" aria-hidden="true" />
