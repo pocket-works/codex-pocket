@@ -216,12 +216,12 @@ export function ThreadRow({
   return (
     <SwipeRow onArchive={() => onArchive(thread.id)}>
       <button className="thread-row" onClick={open}>
-        <div className="thread-row-top">
-          {showProject && <span className="thread-project">{projectName(thread.cwd)}</span>}
-          <ThreadStateMark thread={thread} />
-          {!plain && <span className="thread-time">{relativeTime(thread.updatedAt)}</span>}
+        <div className="thread-row-body">
+          {showProject && <div className="thread-project">{projectName(thread.cwd)}</div>}
+          <div className="thread-title">{thread.title}</div>
         </div>
-        <div className="thread-title">{thread.title}</div>
+        <ThreadStateMark thread={thread} />
+        {!plain && <span className="thread-time muted">{relativeTime(thread.updatedAt)}</span>}
       </button>
     </SwipeRow>
   );
@@ -293,8 +293,10 @@ function SwipeRow({ children, onArchive }: { children: ReactNode; onArchive: () 
     const dx = t.clientX - st.x;
     const dy = t.clientY - st.y;
     if (!st.axis) {
-      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-      st.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      // Only a clearly sideways move starts a swipe; a fast, slightly slanted
+      // scroll flick stays a scroll.
+      st.axis = Math.abs(dx) > Math.abs(dy) * 2 ? "x" : "y";
       if (st.axis === "x") setDragging(true);
     }
     if (st.axis !== "x") return;
@@ -306,6 +308,14 @@ function SwipeRow({ children, onArchive }: { children: ReactNode; onArchive: () 
     start.current = null;
     setDragging(false);
     if (st?.axis === "x") setOffset((o) => (o < -SWIPE_REVEAL / 2 ? -SWIPE_REVEAL : 0));
+  }
+
+  function onTouchCancel() {
+    // The browser took the gesture (it started scrolling): never leave the
+    // row half-open on the scroll's account.
+    start.current = null;
+    setDragging(false);
+    setOffset(0);
   }
 
   return (
@@ -327,7 +337,7 @@ function SwipeRow({ children, onArchive }: { children: ReactNode; onArchive: () 
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
+        onTouchCancel={onTouchCancel}
         onClickCapture={(e) => {
           // A tap while revealed just closes the row.
           if (offset < 0) {

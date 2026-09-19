@@ -191,8 +191,12 @@ code,
   overflow-y: auto;
 }
 
+/* Project name over the title on the left; the state mark (and time, where
+   shown) sits on the right, centred on the whole row like the official sidebar. */
 .thread-row {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   background: none;
@@ -202,17 +206,18 @@ code,
   padding: 12px 16px;
 }
 
-.thread-row-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.thread-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.thread-time {
+  flex: none;
   font-size: 13px;
-  color: var(--muted);
 }
 
 .thread-project {
-  flex: 1;
-  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
   color: var(--fg);
   white-space: nowrap;
@@ -2347,6 +2352,8 @@ pre.diff {
   position: relative;
   background: var(--bg);
   transition: transform 0.2s ease-out;
+  /* Vertical scrolling stays native; sideways touches belong to the swipe. */
+  touch-action: pan-y;
 }
 
 .swipe-content.dragging {
