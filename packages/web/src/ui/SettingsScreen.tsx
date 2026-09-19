@@ -9,6 +9,8 @@ import { navigate } from "./route.js";
 interface Me {
   device: { id: string; name: string; createdAt: number };
   upstream: boolean;
+  /** The host can relay dictation (Codex is signed in with ChatGPT). */
+  dictation?: boolean;
 }
 
 export function SettingsScreen({ session }: { session: Session }) {
@@ -92,7 +94,7 @@ export function SettingsScreen({ session }: { session: Session }) {
           </div>
           <div className="setting-row">
             <span>Dictation</span>
-            <span className="setting-value muted">{dictationSupported() ? "Available" : window.isSecureContext ? "Not offered by this browser" : "Needs HTTPS"}</span>
+            <span className="setting-value muted">{!dictationSupported() ? (window.isSecureContext ? "Not offered by this browser" : "Needs HTTPS") : me == null ? "…" : me.dictation ? "Via ChatGPT (Codex login)" : "Sign in to Codex with ChatGPT"}</span>
           </div>
           {pushError && <p className="error small setting-note">{pushError}</p>}
           {(push === "on" || push === "off") && <p className="muted small setting-note">Finished turns, approvals and questions, when this app is not open on the thread.</p>}

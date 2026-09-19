@@ -9,7 +9,7 @@
 - 线程列表按项目分组，实时跟随桌面端更新；对话流式输出、推理/工具调用折叠、Diff 视图
 - 审批（含审批策略切换）、中断、`turn/steer`、服务端消息队列（`thread/queue/*`，与桌面端共享）、模型与推理强度、Fast 档
 - 新建线程：项目 / 无项目 Chat、Work locally / New worktree、切换分支
-- 图片附件、`@文件`、`/技能`、语音听写（Safari 内置识别）、模型提问弹层、计划与用量显示
+- 图片附件、`@文件`、`/技能`、语音听写（经 host 流式转发到桌面端听写用的同一个 ChatGPT 语音后端，标识符和中英混说都能识别对）、模型提问弹层、计划与用量显示
 - 线程改名 / 归档（左滑）/ fork / review
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
 - Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
@@ -20,6 +20,7 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 
 - 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
+- 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。
 
 ## 开发
 

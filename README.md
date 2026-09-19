@@ -9,7 +9,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Thread list grouped by project, updated live as the desktop works; streamed replies with collapsible reasoning and tool calls; diff view
 - Approvals (with policy switching), interrupt, `turn/steer`, the server-side follow-up queue (`thread/queue/*`, shared with the desktop app), model and reasoning effort, Fast tier
 - New thread: project or project-less chat, work locally or in a new worktree, pick a branch
-- Image attachments, `@file` mentions, `/skills`, dictation (Safari's built-in speech recognition), model questions, plan and usage display
+- Image attachments, `@file` mentions, `/skills`, dictation (streamed through the host to the same ChatGPT speech backend the desktop app's dictation uses, so identifiers and mixed-language speech come out right), model questions, plan and usage display
 - Rename, archive (swipe), fork and review threads
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
@@ -20,6 +20,7 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 
 - Reach it over Tailscale (or the LAN) only. With `bindHost 127.0.0.1` the port is not exposed on the LAN at all. **Do not** put it on the public internet (Cloudflare Tunnel, port forwarding, …) without an extra layer of authentication.
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
+- Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up.
 
 ## Development
 
