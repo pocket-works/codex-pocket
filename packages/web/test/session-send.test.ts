@@ -270,3 +270,36 @@ describe("client state for push", () => {
     expect(notes.length).toBe(2);
   });
 });
+
+describe("Session.openThread", () => {
+  const resumed = { thread: { id: "t2" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+
+  it("falls back to thread/read while the first turn is not persisted yet", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return resumed;
+      if (method === "thread/items/list") return new RpcError(-32000, "thread/items/list is not supported yet");
+      if (method === "thread/read") return { thread: { turns: [{ id: "u1", status: "inProgress", items: [{ id: "m1", type: "userMessage", content: [{ type: "text", text: "hi" }] }] }] } };
+      return {};
+    });
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    const open = session.store.get().open!;
+    expect(open.state).toBe("ready");
+    expect(open.view.items.map((i) => i.id)).toEqual(["m1"]);
+    expect(open.view.itemTurns.m1).toBe("u1");
+  });
+
+  it("opens with an empty view when neither history call works", async () => {
+    const { rpc } = stubRpc((method) => (method === "thread/resume" ? resumed : new RpcError(-32000, "thread/items/list is not supported yet")));
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    expect(session.store.get().open).toMatchObject({ state: "ready", cwd: "/proj" });
+  });
+
+  it("still surfaces other history errors", async () => {
+    const { rpc } = stubRpc((method) => (method === "thread/resume" ? resumed : new RpcError(-32000, "disk on fire")));
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    expect(session.store.get().open).toMatchObject({ state: "error", error: expect.stringContaining("disk on fire") });
+  });
+});
