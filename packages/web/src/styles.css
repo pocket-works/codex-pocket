@@ -474,6 +474,17 @@ code,
   color: #3b82f6;
 }
 
+.mic-btn.active {
+  color: #ef4444;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .ring-high,
 .gauge-fill {
   color: #3b82f6;

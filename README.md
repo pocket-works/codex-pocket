@@ -9,7 +9,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Thread list grouped by project, updated live as the desktop works; streamed replies with collapsible reasoning and tool calls; diff view
 - Approvals (with policy switching), interrupt, `turn/steer`, model and reasoning effort, Fast tier
 - New thread: project or project-less chat, work locally or in a new worktree, pick a branch
-- Image attachments, `@file` mentions, `/skills`, model questions, plan and usage display
+- Image attachments, `@file` mentions, `/skills`, dictation (Safari's built-in speech recognition), model questions, plan and usage display
 - Rename, archive (swipe), fork and review threads
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)

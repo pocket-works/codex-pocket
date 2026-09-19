@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { permissionPreset, Session, type PermissionPreset } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ModelSheet } from "./ModelSheet.js";
+import { dictationSupported, startDictation, type Dictation } from "../state/dictation.js";
 
 // Small controls on the composer toolbar, mirroring the official app:
 // a permissions popover, a context-window ring and an effort gauge.
@@ -171,4 +172,46 @@ function GearIcon() {
 
 function fmtK(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
+}
+
+// Microphone toggle: while listening, the recogniser's running transcript is
+// appended to whatever was in the box when it started.
+export function DictationButton({ disabled, text, onText, onError }: { disabled: boolean; text: string; onText: (text: string) => void; onError: (msg: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const session = useRef<Dictation | null>(null);
+  const base = useRef("");
+
+  useEffect(() => () => session.current?.stop(), []);
+
+  if (!dictationSupported()) return null;
+
+  function toggle() {
+    if (session.current) {
+      session.current.stop();
+      return;
+    }
+    base.current = text ? (/\s$/.test(text) ? text : `${text} `) : "";
+    try {
+      session.current = startDictation({
+        onText: (t) => onText(base.current + t),
+        onEnd: (error) => {
+          session.current = null;
+          setListening(false);
+          if (error) onError(`Dictation stopped: ${error}`);
+        },
+      });
+      setListening(true);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return (
+    <button className={`icon-btn mic-btn ${listening ? "active" : ""}`} aria-label={listening ? "Stop dictation" : "Dictate"} aria-pressed={listening} disabled={disabled} onClick={toggle}>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="9" y="3" width="6" height="11" rx="3" fill={listening ? "currentColor" : "none"} />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+      </svg>
+    </button>
+  );
 }
