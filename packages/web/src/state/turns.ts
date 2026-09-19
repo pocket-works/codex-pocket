@@ -188,34 +188,6 @@ export function stripDirectives(text: string): string {
 }
 
 /**
- * The thread as Markdown for sharing: user messages, the tool calls as a
- * bullet list, then the answer. Diffs and outputs are left out on purpose.
- */
-export function transcriptMarkdown(view: ThreadViewState): string {
-  const out: string[] = [];
-  for (const g of groupTurns(view)) {
-    for (const m of g.userMessages) {
-      if (m.type !== "userMessage") continue;
-      const text = m.content.map((c) => (c.type === "text" ? c.text : c.type === "mention" || c.type === "skill" ? `@${c.name}` : `[${c.type}]`)).join("");
-      out.push("## User", "", text, "");
-    }
-    const work = g.work
-      .map((item) => {
-        if (item.type === "agentMessage" || item.type === "plan") return `- ${stripDirectives(item.text)}`;
-        if (isToolItem(item)) return `- \`${toolLabel(item)}\``;
-        return null;
-      })
-      .filter((line): line is string => line !== null);
-    const edits = g.fileChanges.map((c) => `- Edited ${c.changes.map((f) => f.path.split("/").pop()).join(", ")}`);
-    if (work.length + edits.length > 0 || g.final) out.push("## Assistant", "");
-    if (work.length + edits.length > 0) out.push(...work, ...edits, "");
-    if (g.final) out.push(stripDirectives(g.final.text), "");
-  }
-  while (out[out.length - 1] === "") out.pop();
-  return out.join("\n");
-}
-
-/**
  * Every file the thread has edited, for the "Changes" view: the latest
  * edit of each path wins, ordered by most recently touched.
  */

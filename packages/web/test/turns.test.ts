@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, threadChanges, toolLabel, transcriptMarkdown, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, threadChanges, toolLabel, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -105,22 +105,6 @@ describe("threadChanges", () => {
       ["/p/a.ts", "+e2"],
       ["/p/b.ts", "+e1"],
     ]);
-  });
-});
-
-describe("transcriptMarkdown", () => {
-  it("renders user and assistant turns with tool work as a list", () => {
-    let s = initialThreadState(T);
-    s = prependHistory(s, [
-      { turnId: "t1", item: user("u1", "weather?") },
-      { turnId: "t1", item: agent("a1", "Let me check.", "commentary") },
-      { turnId: "t1", item: cmd("c1", "curl wttr.in") },
-      { turnId: "t1", item: agent("a2", "It is **sunny**.\n\n::inbox-item{x=1}", "final_answer") },
-      { turnId: "t2", item: user("u2", "thanks") },
-    ]);
-    expect(transcriptMarkdown(s)).toBe(
-      ["## User", "", "weather?", "", "## Assistant", "", "- Let me check.", "- `curl wttr.in`", "", "It is **sunny**.", "", "## User", "", "thanks"].join("\n"),
-    );
   });
 });
 
