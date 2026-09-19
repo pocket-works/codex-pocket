@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
 import { codexConnector } from "./codex/target.js";
 import { adminToken, certsDir, devicesFile, findCertFiles, uploadsDir, writeRuntimeInfo } from "./config/paths.js";
-import { codexSettings, readSettings } from "./config/settings.js";
+import { codexSettings, parsePublicUrl, readSettings } from "./config/settings.js";
 import { CloudflareDns } from "./dns/cloudflare.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
@@ -18,6 +18,11 @@ export interface ServeOptions {
   host?: string;
   /** Hostname phones should use; defaults to the LAN IP. Stage 5 sets this to the DNS name. */
   publicHost?: string;
+  /**
+   * Full origin phones should use, when a reverse proxy such as
+   * `tailscale serve` terminates TLS in front of us (e.g. https://mac.tailnet.ts.net).
+   */
+  publicUrl?: string;
   noTls?: boolean;
   staticDir?: string;
   log?: (msg: string) => void;
@@ -53,13 +58,15 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const certFiles = opts.noTls || managed ? null : findCertFiles();
   const tls = managed ?? (certFiles ? { key: readFileSync(certFiles.key), cert: readFileSync(certFiles.cert) } : null);
   const scheme = tls ? "https" : "http";
-  const publicHost = opts.publicHost ?? (manager ? readSettings().tls?.hostname : undefined) ?? primaryLanAddress();
-  if (!publicHost) throw new Error("no LAN IPv4 address found; pass --public-host");
+  const settings = readSettings();
+  const publicHost = opts.publicHost ?? (manager ? settings.tls?.hostname : undefined) ?? primaryLanAddress();
+  const fixedUrl = opts.publicUrl ? parsePublicUrl(opts.publicUrl) : settings.publicUrl;
+  if (!publicHost && !fixedUrl) throw new Error("no LAN IPv4 address found; pass --public-host or --public-url");
 
   const deviceStore = new DeviceStore(devicesFile());
   const codex = codexSettings();
   const proxy = new CodexProxy({ connect: codexConnector(codex, log), log });
-  const publicUrl = `${scheme}://${publicHost}:${opts.port}`;
+  const publicUrl = fixedUrl ?? `${scheme}://${publicHost}:${opts.port}`;
   const server = createLanServer({
     port: opts.port,
     host: opts.host,
@@ -75,7 +82,8 @@ export async function serve(opts: ServeOptions): Promise<void> {
 
   const addr = await server.listen();
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
-  log(`listening on ${publicUrl}${tls ? "" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)"}`);
+  const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
+  log(`listening on ${publicUrl}${note}`);
   if (manager) {
     manager.onCertificate((m) => server.setTls(m));
     manager.start();

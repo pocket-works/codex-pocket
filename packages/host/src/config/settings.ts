@@ -33,6 +33,22 @@ export const DEFAULT_CODEX_SETTINGS: CodexSettings = { mode: "shared", port: 735
 export interface Settings {
   tls?: TlsSettings;
   codex?: CodexSettings;
+  /** Origin phones use when a reverse proxy (e.g. `tailscale serve`) fronts the host. */
+  publicUrl?: string;
+}
+
+export function parsePublicUrl(raw: unknown): string {
+  if (typeof raw !== "string") throw new Error("publicUrl must be a string");
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`publicUrl is not a valid URL: ${raw}`);
+  }
+  if (!/^https?:$/.test(url.protocol) || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error(`publicUrl must be a plain http(s) origin, got ${raw}`);
+  }
+  return url.origin;
 }
 
 function settingsFile(): string {
@@ -76,6 +92,7 @@ export function readSettings(): Settings {
   return {
     ...(raw.tls ? { tls: parseTlsSettings(raw.tls) } : {}),
     ...(raw.codex ? { codex: parseCodexSettings(raw.codex) } : {}),
+    ...(raw.publicUrl ? { publicUrl: parsePublicUrl(raw.publicUrl) } : {}),
   };
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CODEX_SETTINGS, parseCodexSettings } from "../src/config/settings.js";
+import { DEFAULT_CODEX_SETTINGS, parseCodexSettings, parsePublicUrl } from "../src/config/settings.js";
 import { desktopEnvPlist, DESKTOP_ENV_LABEL } from "../src/launchd.js";
 
 describe("parseCodexSettings", () => {
@@ -14,6 +14,19 @@ describe("parseCodexSettings", () => {
   it("rejects unknown modes and bad ports", () => {
     expect(() => parseCodexSettings({ mode: "cloud" })).toThrow(/mode/);
     expect(() => parseCodexSettings({ port: 70000 })).toThrow(/port/);
+  });
+});
+
+describe("parsePublicUrl", () => {
+  it("keeps an http(s) origin without a trailing slash", () => {
+    expect(parsePublicUrl("https://mac.tailnet.ts.net/")).toBe("https://mac.tailnet.ts.net");
+    expect(parsePublicUrl("http://10.0.0.2:7333")).toBe("http://10.0.0.2:7333");
+  });
+
+  it("rejects anything that is not an http(s) origin", () => {
+    expect(() => parsePublicUrl("mac.tailnet.ts.net")).toThrow(/publicUrl/);
+    expect(() => parsePublicUrl("https://mac.tailnet.ts.net/app")).toThrow(/publicUrl/);
+    expect(() => parsePublicUrl(42)).toThrow(/publicUrl/);
   });
 });
 
