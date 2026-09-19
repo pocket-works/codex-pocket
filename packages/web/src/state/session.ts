@@ -11,10 +11,10 @@ import {
   removeApproval,
   type ThreadViewState,
 } from "./thread-reducer.js";
-import { applyThreadListNotification, mergeThreadList, type ThreadSummary } from "./thread-list.js";
+import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
 import { buildUserInput, type Draft } from "./compose.js";
 
-export type { ThreadStatus, ThreadSummary } from "./thread-list.js";
+export type { ThreadStatus, ThreadSummary, WaitingFor } from "./thread-list.js";
 
 export interface RateLimitWindow {
   usedPercent: number;
@@ -349,6 +349,7 @@ export class Session {
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals };
         return {
           ...s,
+          threads: markRead(s.threads, threadId),
           open: {
             ...s.open,
             view,
@@ -756,7 +757,12 @@ export class Session {
       return;
     }
     this.store.set((s) => {
-      const threads = applyThreadListNotification(s.threads, n, Date.now());
+      let threads = applyThreadListNotification(s.threads, n, Date.now());
+      // A turn that finishes while its thread is on screen is already read.
+      const onScreen = s.open?.view.threadId;
+      if (n.method === "turn/completed" && onScreen !== undefined && (n.params as { threadId?: string }).threadId === onScreen) {
+        threads = markRead(threads, onScreen);
+      }
       return threads === s.threads ? s : { ...s, threads };
     });
     this.store.set((s) => {

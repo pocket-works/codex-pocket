@@ -4,7 +4,18 @@ import { groupByProject, isScratchThread } from "../src/ui/ThreadList.js";
 import { optionLabels, scratchDir } from "../src/ui/NewThread.js";
 import type { ThreadSummary } from "../src/state/session.js";
 
-const t = (id: string, cwd: string, updatedAt: number): ThreadSummary => ({ id, cwd, title: id, preview: "", updatedAt, model: null, status: "idle", branch: null });
+const t = (id: string, cwd: string, updatedAt: number): ThreadSummary => ({
+  id,
+  cwd,
+  title: id,
+  preview: "",
+  updatedAt,
+  model: null,
+  status: "idle",
+  waitingFor: null,
+  unread: false,
+  branch: null,
+});
 
 describe("groupByProject", () => {
   it("groups by cwd, newest group and newest thread first", () => {
