@@ -540,6 +540,17 @@ code,
   background: currentColor;
 }
 
+/* Resume replaces send when the thread is idle with a paused queue. */
+.composer-tools .resume-btn .resume-glyph {
+  display: block;
+  width: 0;
+  height: 0;
+  margin: 0 auto 0 calc(50% - 5px);
+  border-style: solid;
+  border-width: 7px 0 7px 12px;
+  border-color: transparent transparent transparent currentColor;
+}
+
 .fast-btn.active {
   color: #3b82f6;
 }
@@ -1062,11 +1073,53 @@ code,
   border: none;
 }
 
-.msg.user.queued {
-  opacity: 0.6;
+/* Server-side follow-up queue under the transcript. */
+.queued-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.queued-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.msg.user.queued {
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queued-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.queued-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.queued-actions .icon-btn {
+  width: 28px;
+  font-size: 18px;
+  color: inherit;
+}
+
+button.link-btn {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  color: inherit;
+  font-weight: 600;
 }
 
 /* --- stage 9: diffs, thread menu, folder browser --- */

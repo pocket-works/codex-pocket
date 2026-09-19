@@ -7,7 +7,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 ## Features
 
 - Thread list grouped by project, updated live as the desktop works; streamed replies with collapsible reasoning and tool calls; diff view
-- Approvals (with policy switching), interrupt, `turn/steer`, model and reasoning effort, Fast tier
+- Approvals (with policy switching), interrupt, `turn/steer`, the server-side follow-up queue (`thread/queue/*`, shared with the desktop app), model and reasoning effort, Fast tier
 - New thread: project or project-less chat, work locally or in a new worktree, pick a branch
 - Image attachments, `@file` mentions, `/skills`, dictation (Safari's built-in speech recognition), model questions, plan and usage display
 - Rename, archive (swipe), fork and review threads

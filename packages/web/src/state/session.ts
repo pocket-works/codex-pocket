@@ -13,6 +13,17 @@ import {
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
 import { buildUserInput, type Draft } from "./compose.js";
+import {
+  getFollowUpMode,
+  setFollowUpMode,
+  summarizeQueued,
+  type FollowUpMode,
+  type QueuedMessage,
+  type ThreadQueueAddResponse,
+  type ThreadQueueDeleteResponse,
+  type ThreadQueueListResponse,
+  type ThreadQueueStartResponse,
+} from "./queue.js";
 
 export type { ThreadStatus, ThreadSummary, WaitingFor } from "./thread-list.js";
 
@@ -85,8 +96,8 @@ export interface OpenThread {
   cwd: string;
   olderCursor: string | null;
   loadingOlder: boolean;
-  /** Messages Codex accepted while busy; they run after the current turn. */
-  queued: string[];
+  /** The app-server's follow-up queue for this thread, in order. */
+  queue: QueuedMessage[];
   /** Current approval/sandbox (from resume/start); null when unknown. */
   permissions: Permissions | null;
   /** Pending user choice applied on the next turn/start. */
@@ -109,6 +120,8 @@ export interface SessionState {
   rateLimits: RateLimits | null;
   /** Warnings not tied to a thread; shown app-wide until dismissed. */
   notices: Notice[];
+  /** What the send button does while a turn runs (per device). */
+  followUp: FollowUpMode;
 }
 
 const HISTORY_PAGE = 40;
@@ -191,6 +204,7 @@ export class Session {
       open: null,
       rateLimits: null,
       notices: [],
+      followUp: getFollowUpMode(),
     });
     rpc.onStateChange((connection) => {
       this.store.set((s) => ({ ...s, connection, upstreamConnected: connection === "open" ? s.upstreamConnected : false }));
@@ -293,7 +307,7 @@ export class Session {
           cwd,
           olderCursor: null,
           loadingOlder: false,
-          queued: [],
+          queue: [],
           // Codex's own default; thread/start reports the real one.
           permissions: PERMISSION_PRESETS.ask,
           permissionOverride: null,
@@ -330,7 +344,7 @@ export class Session {
         cwd: current?.cwd ?? "",
         olderCursor: null,
         loadingOlder: false,
-        queued: current?.view.threadId === threadId ? current.queued : [],
+        queue: current?.view.threadId === threadId ? current.queue : [],
         permissions: current?.view.threadId === threadId ? current.permissions : null,
         permissionOverride: current?.view.threadId === threadId ? current.permissionOverride : null,
         serviceTier: current?.view.threadId === threadId ? current.serviceTier : null,
@@ -363,6 +377,7 @@ export class Session {
           },
         };
       });
+      void this.loadQueue(threadId);
     } catch (err) {
       if (generation !== this.openGeneration) return;
       this.store.set((s) =>
@@ -502,17 +517,22 @@ export class Session {
     const input = buildUserInput(draft);
     if (input.length === 0) return;
 
-    // While a turn runs, steer it; Codex folds the input into the current
-    // turn. Review/compact turns cannot be steered, so fall back to a queued
-    // turn/start which runs when the current one ends.
+    // While a turn runs, either steer it (Codex folds the input into the
+    // current turn) or queue it for the next one, per the user's preference.
+    // Review/compact turns cannot be steered, so steering falls back to the
+    // queue.
     const activeTurnId = open.view.activeTurnId;
     if (activeTurnId) {
-      try {
-        await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input, expectedTurnId: activeTurnId });
-        return;
-      } catch (err) {
-        if (!(err instanceof RpcError)) throw err;
+      if (this.store.get().followUp === "steer") {
+        try {
+          await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input, expectedTurnId: activeTurnId });
+          return;
+        } catch (err) {
+          if (!(err instanceof RpcError)) throw err;
+        }
       }
+      await this.enqueue(threadId, input);
+      return;
     }
 
     // Only send overrides the user actually chose: Codex treats a model
@@ -537,9 +557,84 @@ export class Session {
       if (open.override) Object.assign(next, { model: open.override.model, effort: open.override.effort, override: null });
       if (perms) Object.assign(next, { permissions: perms, permissionOverride: null });
       if (tier) Object.assign(next, { serviceTier: tier === "default" ? null : tier, serviceTierOverride: null });
-      if (activeTurnId) next.queued = [...next.queued, draft.text.trim() || "(attachment)"];
       return { ...s, open: next };
     });
+  }
+
+  // --- follow-up queue (thread/queue/*) -----------------------------------
+
+  setFollowUpMode(mode: FollowUpMode): void {
+    setFollowUpMode(mode);
+    this.store.set((s) => ({ ...s, followUp: mode }));
+  }
+
+  private setQueue(threadId: string, update: (queue: QueuedMessage[]) => QueuedMessage[]): void {
+    this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, queue: update(s.open.queue) } } : s));
+  }
+
+  private async enqueue(threadId: string, input: v2.UserInput[]): Promise<void> {
+    const res = await this.rpc.request<ThreadQueueAddResponse>("thread/queue/add", {
+      threadId,
+      input,
+      clientUserMessageId: `pocket-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    });
+    const item = summarizeQueued(res.queuedSubmission);
+    this.setQueue(threadId, (queue) => (queue.some((q) => q.id === item.id) ? queue : [...queue, item]));
+  }
+
+  /** Full queue from the server; also the answer to `thread/queue/changed`. */
+  private async loadQueue(threadId: string): Promise<void> {
+    const items: QueuedMessage[] = [];
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: ThreadQueueListResponse = await this.rpc.request<ThreadQueueListResponse>("thread/queue/list", { threadId, cursor });
+        items.push(...page.data.map(summarizeQueued));
+        cursor = page.nextCursor;
+      } while (cursor);
+    } catch {
+      // Older Codex without the queue API: the list just stays empty.
+      return;
+    }
+    this.setQueue(threadId, () => items);
+  }
+
+  async deleteQueued(id: string): Promise<void> {
+    const open = this.store.get().open;
+    if (!open) return;
+    const threadId = open.view.threadId;
+    await this.rpc.request<ThreadQueueDeleteResponse>("thread/queue/delete", { threadId, queuedSubmissionId: id });
+    this.setQueue(threadId, (queue) => queue.filter((q) => q.id !== id));
+  }
+
+  /**
+   * Sends a queued message without waiting: steered into the running turn
+   * (and taken off the queue), or started as a turn when the thread is idle.
+   */
+  async sendQueuedNow(id: string): Promise<void> {
+    const open = this.store.get().open;
+    const item = open?.queue.find((q) => q.id === id);
+    if (!open || !item) return;
+    const threadId = open.view.threadId;
+    const activeTurnId = open.view.activeTurnId;
+    if (activeTurnId) {
+      await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input: item.input, expectedTurnId: activeTurnId });
+      await this.rpc.request<ThreadQueueDeleteResponse>("thread/queue/delete", { threadId, queuedSubmissionId: id });
+    } else {
+      await this.rpc.request<ThreadQueueStartResponse>("thread/queue/start", { threadId, queuedSubmissionId: id });
+    }
+    this.setQueue(threadId, (queue) => queue.filter((q) => q.id !== id));
+  }
+
+  /**
+   * Codex only drains the queue after a turn that completed; after an
+   * interrupt the queue waits for this.
+   */
+  async resumeQueue(): Promise<void> {
+    const open = this.store.get().open;
+    const first = open?.queue[0];
+    if (!open || !first || open.view.activeTurnId) return;
+    await this.sendQueuedNow(first.id);
   }
 
   private searchToken = 0;
@@ -596,7 +691,7 @@ export class Session {
         cwd: res.cwd,
         olderCursor: null,
         loadingOlder: false,
-        queued: [],
+        queue: [],
         permissions: { approval: res.approvalPolicy, sandbox: sandboxMode(res.sandbox), reviewer: res.approvalsReviewer },
         permissionOverride: null,
         serviceTier: res.serviceTier,
@@ -756,6 +851,11 @@ export class Session {
       this.notify(message);
       return;
     }
+    if (n.method === "thread/queue/changed") {
+      const { threadId } = n.params as v2.ThreadQueueChangedNotification;
+      if (this.store.get().open?.view.threadId === threadId) void this.loadQueue(threadId);
+      return;
+    }
     this.store.set((s) => {
       let threads = applyThreadListNotification(s.threads, n, Date.now());
       // A turn that finishes while its thread is on screen is already read.
@@ -773,8 +873,7 @@ export class Session {
       // (e.g. "no rollout" on a thread that had not been written yet).
       const started = n.method === "turn/started";
       const state = s.open.state === "error" && started ? "ready" : s.open.state;
-      const queued = started ? [] : s.open.queued;
-      return { ...s, open: { ...s.open, view, state, queued, error: state === "ready" ? null : s.open.error } };
+      return { ...s, open: { ...s.open, view, state, error: state === "ready" ? null : s.open.error } };
     });
   }
 

@@ -65,7 +65,8 @@ export class CodexClient {
         title: "Codex Pocket",
         version: opts.clientVersion ?? "0.1.0",
       },
-      capabilities: { experimentalApi: false, requestAttestation: false },
+      // The desktop app sets this too; thread/queue/* is gated behind it.
+      capabilities: { experimentalApi: true, requestAttestation: false },
     };
     let serverInfo: InitializeResponse;
     try {

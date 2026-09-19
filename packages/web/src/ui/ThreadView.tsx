@@ -9,6 +9,7 @@ import { ThreadMenu } from "./ThreadMenu.js";
 import { navigate } from "./route.js";
 import { UserInputSheet } from "./UserInputSheet.js";
 import { USER_INPUT_METHOD } from "../state/thread-reducer.js";
+import { QueuedList } from "./QueuedList.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
@@ -83,19 +84,20 @@ export function ThreadView({ session }: { session: Session }) {
         {open.state === "loading" && items.length === 0 && <p className="muted center">Loading…</p>}
         <Transcript session={session} view={open.view} cwd={open.cwd} />
         {open.view.plan && <PlanView plan={open.view.plan} />}
-        {open.queued.map((q, i) => (
-          <div key={i} className="msg user queued">
-            {q}
-            <span className="muted small">Queued</span>
-          </div>
-        ))}
+        {open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}
         {open.view.lastTurnError && <p className="error">{open.view.lastTurnError}</p>}
       </div>
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
-      <Composer session={session} disabled={open.state !== "ready"} busy={busy} onStop={() => void session.interrupt()} />
+      <Composer
+        session={session}
+        disabled={open.state !== "ready"}
+        busy={busy}
+        onStop={() => void session.interrupt()}
+        onResume={open.queue.length > 0 ? () => void session.resumeQueue() : undefined}
+      />
     </main>
   );
 }
