@@ -4,3 +4,4 @@ dist/
 .DS_Store
 .env
 .pnpm-store/
+.claude/settings.local.json

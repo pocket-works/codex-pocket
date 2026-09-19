@@ -17,13 +17,21 @@ async function boot(): Promise<void> {
       setToken(await redeemPairingCode(code));
       history.replaceState(null, "", "/#/");
     } catch (err) {
-      root.render(<PairScreen error={err instanceof Error ? err.message : String(err)} />);
+      root.render(
+        <div className="app">
+          <PairScreen error={err instanceof Error ? err.message : String(err)} />
+        </div>,
+      );
       return;
     }
   }
   const token = getToken();
   if (!token) {
-    root.render(<PairScreen />);
+    root.render(
+      <div className="app">
+        <PairScreen />
+      </div>,
+    );
     return;
   }
   const session = new Session(new RpcClient({ url: wsUrl(), token }));
