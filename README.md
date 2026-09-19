@@ -2,19 +2,22 @@
 
 手机上的 PWA，经 Tailscale（或局域网）直连 Mac 上桌面 Codex 的 app-server。扫码即登录，秒级重连。
 
-## 现状
+## 功能
 
-- [x] Stage 1：`packages/host` 直连桌面 Codex（`pnpm dev:host threads`）
-- [x] Stage 2：局域网 HTTPS/WSS + 扫码配对 + 鉴权转发（`pnpm dev:host serve`）
-- [x] Stage 3：PWA 线程列表 / 对话 / 流式
-- [x] Stage 4：审批 / 中断 / 新建线程 / 模型切换
-- [x] Stage 5：HTTPS（`tailscale serve` 终止 TLS）+ launchd 常驻
-- [x] Stage 6：实时性与可见性（列表实时更新 / 计划与用量 / 错误提示 / 模型提问）
-- [x] Stage 7：输入增强（图片附件 / turn/steer / @文件 / 技能）
-- [ ] Stage 8：Web Push 通知（依赖 HTTPS）
-- [x] Stage 9：Diff 视图 / 线程管理 / 审批策略 / review
+- 线程列表按项目分组，实时跟随桌面端更新；对话流式输出、推理/工具调用折叠、Diff 视图
+- 审批（含审批策略切换）、中断、`turn/steer`、模型与推理强度、Fast 档
+- 新建线程：项目 / 无项目 Chat、Work locally / New worktree、切换分支
+- 图片附件、`@文件`、`/技能`、模型提问弹层、计划与用量显示
+- 线程改名 / 归档（左滑）/ fork / review
+- 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
+- 待做：Web Push 通知
 
-详见 [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)。
+## 安全模型
+
+host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 Mac 上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
+
+- 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
+- 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
 
 ## 开发
 
@@ -86,3 +89,7 @@ codex-pocket desktop        # 查看链接状态
 ```bash
 pnpm --filter @codex-pocket/protocol generate
 ```
+
+## 许可
+
+MIT。`packages/protocol/src/generated` 由 OpenAI Codex CLI（Apache-2.0）的 `codex app-server generate-ts` 生成，原样收录，见 [packages/protocol/NOTICE](./packages/protocol/NOTICE)。
