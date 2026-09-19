@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getListView, setListView, type ListView } from "../state/list-prefs.js";
 import { getPins } from "../state/pins.js";
 import { describe, type Session, type ThreadStatus, type ThreadSummary } from "../state/session.js";
+import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { ArchiveIcon, BranchIcon, CheckIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
@@ -23,49 +24,13 @@ export function projectName(cwd: string): string {
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
 }
 
-// The desktop app starts project-less chats in a scratch dir under
-// ~/Documents/Codex/<date>/<slug>; those go under "Chats", everything else under "Projects".
-export function isScratchThread(t: ThreadSummary): boolean {
-  return /\/Documents\/Codex\/[^/]+\/[^/]+/.test(t.cwd);
-}
-
-interface ProjectGroup {
-  cwd: string;
-  threads: ThreadSummary[];
-  updatedAt: number;
-}
-
-// Desktop-app worktrees live at ~/.codex/worktrees/<id>/<repo>. The PWA cannot
-// read their .git file, so they are folded into the project with the same name.
-export function isWorktree(cwd: string): boolean {
-  return /\/\.codex\/worktrees\/[^/]+\/[^/]+$/.test(cwd);
-}
-
-export function groupByProject(threads: ThreadSummary[]): ProjectGroup[] {
-  const groups = new Map<string, ProjectGroup>();
-  const add = (key: string, t: ThreadSummary) => {
-    const g = groups.get(key);
-    if (g) {
-      g.threads.push(t);
-      g.updatedAt = Math.max(g.updatedAt, t.updatedAt);
-    } else groups.set(key, { cwd: key, threads: [t], updatedAt: t.updatedAt });
-  };
-  const worktrees: ThreadSummary[] = [];
-  for (const t of threads) {
-    if (isWorktree(t.cwd)) worktrees.push(t);
-    else add(t.cwd, t);
-  }
-  for (const t of worktrees) {
-    const name = projectName(t.cwd);
-    const home = [...groups.keys()].find((cwd) => !isWorktree(cwd) && projectName(cwd) === name);
-    add(home ?? t.cwd, t);
-  }
-  for (const g of groups.values()) g.threads.sort((a, b) => b.updatedAt - a.updatedAt);
-  return [...groups.values()].sort((a, b) => b.updatedAt - a.updatedAt);
-}
+// Re-exported for the archived list and tests; the real logic lives in
+// state/projects.ts, which groups by app-server's projects rather than by cwd.
+export { groupByProject, isScratchThread, isWorktree };
 
 export function ThreadList({ session }: { session: Session }) {
   const threads = useStore(session.store, (s) => s.threads);
+  const projects = useStore(session.store, (s) => s.projects);
   const loading = useStore(session.store, (s) => s.threadsLoading);
   const error = useStore(session.store, (s) => s.threadsError);
   const connection = useStore(session.store, (s) => s.connection);
@@ -74,7 +39,9 @@ export function ThreadList({ session }: { session: Session }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    if (connection === "open") void session.loadThreads();
+    if (connection !== "open") return;
+    void session.loadThreads();
+    void session.loadProjects();
   }, [connection, session]);
 
   const archive = (id: string) => void session.archiveThread(id).catch((err) => session.notify(describe(err)));
@@ -86,15 +53,32 @@ export function ThreadList({ session }: { session: Session }) {
 
   const q = query.trim().toLowerCase();
   const filtered = useMemo(
-    () => (q ? threads.filter((t) => t.title.toLowerCase().includes(q) || projectName(t.cwd).toLowerCase().includes(q)) : threads),
-    [threads, q],
+    () =>
+      q
+        ? threads.filter((t) => {
+            const project = projectForCwd(t.cwd, projects, t.projectId);
+            return (
+              t.title.toLowerCase().includes(q) ||
+              projectName(t.cwd).toLowerCase().includes(q) ||
+              (project?.name.toLowerCase().includes(q) ?? false)
+            );
+          })
+        : threads,
+    [threads, projects, q],
   );
   // Pinned threads sit in their own section and nowhere else (unless searching).
   const pinIds = getPins().join(",");
   const pinned = useMemo(() => (q ? [] : pinIds.split(",").map((id) => filtered.find((t) => t.id === id)).filter((t): t is ThreadSummary => t !== undefined)), [filtered, pinIds, q]);
   const rest = useMemo(() => (pinned.length > 0 ? filtered.filter((t) => !pinned.includes(t)) : filtered), [filtered, pinned]);
   const chats = useMemo(() => rest.filter(isScratchThread), [rest]);
-  const groups = useMemo(() => groupByProject(rest.filter((t) => !isScratchThread(t))), [rest]);
+  const grouped0 = useMemo(() => groupByProject(rest.filter((t) => !isScratchThread(t)), projects), [rest, projects]);
+  // Project-less threads: no project and not a scratch chat. Listed under
+  // "Chats" like the official app instead of inventing a project from the cwd.
+  const chatsExtra = useMemo(
+    () => [...chats, ...grouped0.ungrouped].sort((a, b) => b.updatedAt - a.updatedAt),
+    [chats, grouped0],
+  );
+  const groups = grouped0.groups;
   const grouped = view === "project" && !q;
 
   return (
@@ -121,11 +105,11 @@ export function ThreadList({ session }: { session: Session }) {
         )}
         {grouped ? (
           <>
-            {chats.length > 0 && (
+            {chatsExtra.length > 0 && (
               <>
                 <h2 className="section-title">Chats</h2>
                 <ul className="thread-list">
-                  {chats.map((t) => (
+                  {chatsExtra.map((t) => (
                     <ThreadRow key={t.id} thread={t} plain onArchive={archive} />
                   ))}
                 </ul>
@@ -134,20 +118,28 @@ export function ThreadList({ session }: { session: Session }) {
             <h2 className="section-title">Projects</h2>
             <ul className="project-list">
               {groups.map((g) => (
-                <li key={g.cwd}>
+                <li key={g.project.id}>
                   <div className="project-row">
-                    <button className="project-main" aria-expanded={expanded === g.cwd} onClick={() => setExpanded((e) => (e === g.cwd ? null : g.cwd))}>
+                    <button
+                      className="project-main"
+                      aria-expanded={expanded === g.project.id}
+                      onClick={() => setExpanded((e) => (e === g.project.id ? null : g.project.id))}
+                    >
                       <span className="project-icon">
                         <FolderIcon />
                       </span>
-                      <span className="project-name">{projectName(g.cwd)}</span>
+                      <span className="project-name">{g.project.name}</span>
                       <span className="muted small">{g.threads.length}</span>
                     </button>
-                    <button className="icon-btn" aria-label={`New thread in ${projectName(g.cwd)}`} onClick={() => navigate({ name: "new", cwd: g.cwd })}>
+                    <button
+                      className="icon-btn"
+                      aria-label={`New thread in ${g.project.name}`}
+                      onClick={() => navigate({ name: "new", cwd: g.project.roots[0] ?? "" })}
+                    >
                       <ComposeIcon />
                     </button>
                   </div>
-                  {expanded === g.cwd && (
+                  {expanded === g.project.id && (
                     <ul className="thread-list nested">
                       {g.threads.map((t) => (
                         <ThreadRow key={t.id} thread={t} compact onArchive={archive} />

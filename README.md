@@ -6,7 +6,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 
 ## Features
 
-- Thread list grouped by project, updated live as the desktop works; streamed replies with collapsible reasoning and tool calls; diff view
+- Thread list grouped by the desktop app's real projects (`project/list`), so adding or deleting a project on the Mac shows up here immediately instead of leaving a stale folder behind; streamed replies with collapsible reasoning and tool calls; diff view
 - Approvals (with policy switching), interrupt, `turn/steer`, the server-side follow-up queue (`thread/queue/*`, shared with the desktop app), model and reasoning effort, Fast tier
 - New thread: project or project-less chat, work locally or in a new worktree, pick a branch
 - Image attachments, `@file` mentions, `/skills`, dictation (streamed through the host to the same ChatGPT speech backend the desktop app's dictation uses, so identifiers and mixed-language speech come out right), model questions, plan and usage display

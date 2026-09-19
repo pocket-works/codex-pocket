@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getToken } from "../state/auth.js";
 import type { Draft } from "../state/compose.js";
 import { slugify, type Session } from "../state/session.js";
+import { projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
 import { BranchIcon, ChatIcon, CheckIcon, ChevronsIcon, FolderIcon, LaptopIcon, MonitorIcon, WorktreeIcon } from "./icons.js";
@@ -47,8 +48,16 @@ interface GitState {
 // draft `open`), and the thread is only created when the first message is sent.
 export function NewThread({ session, presetCwd }: { session: Session; presetCwd?: string }) {
   const threads = useStore(session.store, (s) => s.threads);
+  const projects = useStore(session.store, (s) => s.projects);
   const connection = useStore(session.store, (s) => s.connection);
-  const cwds = session.knownCwds();
+  // Every project root is offered, so multi-folder and empty projects are
+  // reachable; recent folders from the thread list fill in the gaps.
+  const cwds = useMemo(() => {
+    const out: string[] = [];
+    for (const p of projects) for (const root of p.roots) if (!out.includes(root)) out.push(root);
+    for (const c of session.knownCwds()) if (!out.includes(c)) out.push(c);
+    return out;
+  }, [projects, session]);
   const [me, setMe] = useState<{ host?: string; home?: string } | null>(null);
   const [target, setTarget] = useState<Target>(presetCwd ? { kind: "project", cwd: presetCwd } : { kind: "chat" });
   const [mode, setMode] = useState<Mode>("local");
@@ -60,8 +69,9 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
   useEffect(() => {
     if (connection !== "open") return;
     if (threads.length === 0) void session.loadThreads();
+    if (projects.length === 0) void session.loadProjects();
     void session.loadModels().catch(() => {});
-  }, [connection, session, threads.length]);
+  }, [connection, session, threads.length, projects.length]);
 
   useEffect(() => {
     session.setDraftCwd(cwd);
@@ -112,7 +122,10 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
     const model = picked?.override ?? null;
     const perms = picked?.permissionOverride ?? null;
     const tier = picked?.serviceTierOverride ?? null;
-    const id = await session.startThread(dir, model?.model ?? null, model?.effort ?? null, tier === "default" ? null : tier);
+    // A project-less chat must stay project-less even when its scratch folder
+    // happens to sit under a project root, so only pass an id when picked.
+    const projectId = target.kind === "project" ? (projectForCwd(cwd, projects, null)?.id ?? null) : null;
+    const id = await session.startThread(dir, model?.model ?? null, model?.effort ?? null, tier === "default" ? null : tier, projectId);
     if (perms) session.setPermissions(perms.approval, perms.sandbox, perms.reviewer);
     await session.sendMessage(draft);
     navigate({ name: "thread", id });

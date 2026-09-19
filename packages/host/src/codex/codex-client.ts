@@ -6,6 +6,8 @@ import { ensureDaemon, type DaemonRunner } from "./locate.js";
 // Response types for the client methods we call. The generated union only
 // covers params, so the result side is declared here for the subset we use.
 export interface ResponseMap {
+  "project/list": v2.ProjectListResponse;
+  "project/read": v2.ProjectReadResponse;
   "thread/list": v2.ThreadListResponse;
   "thread/start": v2.ThreadStartResponse;
   "thread/resume": v2.ThreadResumeResponse;
@@ -17,6 +19,8 @@ export interface ResponseMap {
 }
 
 export interface ParamsMap {
+  "project/list": v2.ProjectListParams;
+  "project/read": v2.ProjectReadParams;
   "thread/list": v2.ThreadListParams;
   "thread/start": v2.ThreadStartParams;
   "thread/resume": v2.ThreadResumeParams;
