@@ -7,6 +7,8 @@ import { DeviceStore } from "../src/auth/device-store.js";
 import { PushNotifier } from "../src/push/notifier.js";
 import { CodexClient } from "../src/codex/codex-client.js";
 import { CodexProxy } from "../src/proxy/codex-proxy.js";
+import type { DictationSession, DictationSessionOptions } from "../src/dictation/chatgpt-dictation.js";
+import { DICTATION_AUDIO, DICTATION_START, DICTATION_STOP, DICTATION_TRANSCRIPT, DictationService } from "../src/dictation/dictation-service.js";
 import { createLanServer, WS_PROTOCOL, type LanServer } from "../src/server/lan-server.js";
 import { startFakeAppServer, type FakeAppServer } from "./helpers.js";
 
@@ -19,8 +21,10 @@ describe("LanServer", () => {
   let base: string;
   let store: DeviceStore;
   let uploadsDir: string;
+  let dictationSessions: Array<{ opts: DictationSessionOptions; audio: string[] }>;
 
   beforeEach(async () => {
+    dictationSessions = [];
     fake = await startFakeAppServer();
     fake.wss.on("connection", (sock) => {
       sock.on("message", (raw) => {
@@ -45,6 +49,22 @@ describe("LanServer", () => {
       adminToken: ADMIN,
       pairingUrl: (code) => `http://example.test/#pair=${code}`,
       push: { vapidPublicKey: "PUBKEY", notifier: new PushNotifier({ store, send: async () => {}, threadTitle: async () => null }) },
+      // Dictation with a scripted upstream: echoes every audio chunk back as a final transcript.
+      dictation: new DictationService({
+        readAuth: () => ({ accessToken: "tok", accountId: null }),
+        open: async (opts) => {
+          const fake = { opts, audio: [] as string[] };
+          dictationSessions.push(fake);
+          return {
+            appendAudio: (a: string) => {
+              fake.audio.push(a);
+              opts.onEvent({ type: "transcript", utteranceId: `u${fake.audio.length}`, text: Buffer.from(a, "base64").toString(), final: true });
+            },
+            stop: async () => opts.onEvent({ type: "ended" }),
+            abort: () => {},
+          } as unknown as DictationSession;
+        },
+      }),
     });
     const addr = await server.listen();
     base = `http://127.0.0.1:${addr.port}`;
@@ -91,7 +111,7 @@ describe("LanServer", () => {
     const token = await pair("Pixel");
     const me = await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
     expect(me.status).toBe(200);
-    expect(await me.json()).toMatchObject({ device: { name: "Pixel" }, host: hostname(), home: homedir() });
+    expect(await me.json()).toMatchObject({ device: { name: "Pixel" }, host: hostname(), home: homedir(), dictation: true });
     expect((await fetch(`${base}/api/me`)).status).toBe(401);
   });
 
@@ -138,6 +158,36 @@ describe("LanServer", () => {
     });
     ws.send(JSON.stringify({ id: 1, method: "thread/list", params: {} }));
     expect(await reply).toMatchObject({ id: 1, result: { echo: "thread/list" } });
+    ws.close();
+  });
+
+  it("relays dictation over /ws without touching the Codex upstream", async () => {
+    const token = await pair();
+    // Listen before the handshake completes: the proxy's greeting can share a TCP read with the 101.
+    const ws = new WebSocket(`${base.replace("http", "ws")}/ws`, [WS_PROTOCOL, `tok.${token}`]);
+    const inbox: unknown[] = [];
+    const waiting: Array<(m: unknown) => void> = [];
+    ws.on("message", (raw) => {
+      const msg = JSON.parse(raw.toString());
+      const w = waiting.shift();
+      if (w) w(msg);
+      else inbox.push(msg);
+    });
+    const next = () => (inbox.length ? Promise.resolve(inbox.shift()) : new Promise<unknown>((r) => waiting.push(r)));
+    await new Promise<void>((resolve) => ws.once("open", resolve));
+    expect(await next()).toMatchObject({ method: "pocket/upstream/status" });
+
+    ws.send(JSON.stringify({ id: 1, method: DICTATION_START, params: { sampleRateHz: 44100 } }));
+    const started = (await next()) as { id: number; result: { sessionId: string } };
+    expect(started).toMatchObject({ id: 1, result: { sessionId: expect.any(String) } });
+    expect(dictationSessions[0].opts.sampleRateHz).toBe(44100);
+
+    ws.send(JSON.stringify({ method: DICTATION_AUDIO, params: { sessionId: started.result.sessionId, audio: Buffer.from("hello").toString("base64") } }));
+    expect(await next()).toEqual({ jsonrpc: "2.0", method: DICTATION_TRANSCRIPT, params: { sessionId: started.result.sessionId, utteranceId: "u1", text: "hello", final: true } });
+
+    ws.send(JSON.stringify({ id: 2, method: DICTATION_STOP, params: { sessionId: started.result.sessionId } }));
+    expect(await next()).toMatchObject({ method: "pocket/dictation/ended" });
+    expect(await next()).toMatchObject({ id: 2, result: {} });
     ws.close();
   });
 
