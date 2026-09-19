@@ -10,12 +10,16 @@ import { navigate } from "./route.js";
 import { UserInputSheet } from "./UserInputSheet.js";
 import { USER_INPUT_METHOD } from "../state/thread-reducer.js";
 import { QueuedList } from "./QueuedList.js";
+import { WorkspaceSheet } from "./WorkspaceSheet.js";
+import { threadChangeTotals } from "../state/turns.js";
+import { diffStats } from "../state/diff.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
 
   const items = open?.view.items ?? [];
   const lastItem = items[items.length - 1];
@@ -54,6 +58,7 @@ export function ThreadView({ session }: { session: Session }) {
   if (!open) return null;
   const busy = open.view.activeTurnId !== null;
   const pending = open.view.approvals[0];
+  const totals = threadChangeTotals(open.view, diffStats);
 
   return (
     <main className="screen thread">
@@ -112,6 +117,20 @@ export function ThreadView({ session }: { session: Session }) {
           ↓
         </button>
       )}
+
+      {totals.files > 0 && open.cwd && (
+        <div className="changes-pill-row">
+          <button className="changes-pill" onClick={() => setShowChanges(true)} aria-label="Show changes">
+            <span>
+              {totals.files} file{totals.files === 1 ? "" : "s"}
+            </span>
+            <span className="diff-stats">
+              <span className="add">+{totals.added}</span> <span className="del">−{totals.removed}</span>
+            </span>
+          </button>
+        </div>
+      )}
+      {showChanges && <WorkspaceSheet session={session} cwd={open.cwd} initialTab="modified" onClose={() => setShowChanges(false)} />}
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}

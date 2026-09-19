@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { v2 } from "@codex-pocket/protocol";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
 import { emptyDraft } from "../src/state/compose.js";
 import { isDraft, Session } from "../src/state/session.js";
 import { initialThreadState } from "../src/state/thread-reducer.js";
+import { getLastModel, setLastModel } from "../src/state/model-prefs.js";
+
+// The test environment is node; a Map is all the preference code needs.
+const memory = new Map<string, string>();
+globalThis.localStorage = {
+  getItem: (k: string) => memory.get(k) ?? null,
+  setItem: (k: string, v: string) => void memory.set(k, v),
+  removeItem: (k: string) => void memory.delete(k),
+  clear: () => memory.clear(),
+} as unknown as Storage;
 
 // Just enough of RpcClient for Session: records requests, answers from a table.
 function stubRpc(answer: (method: string, params: unknown) => unknown) {
@@ -337,6 +347,18 @@ describe("Session.listDirectory", () => {
 describe("draft thread (new-thread screen)", () => {
   const model = (m: string, isDefault: boolean) =>
     ({ id: m, model: m, displayName: m, isDefault, hidden: false, defaultReasoningEffort: "medium", supportedReasoningEfforts: [] }) as never;
+  const started = (m: string, effort: string) => ({
+    thread: { id: "t2" },
+    model: m,
+    reasoningEffort: effort,
+    cwd: "/proj",
+    approvalPolicy: "on-request",
+    sandbox: { type: "workspaceWrite" },
+    approvalsReviewer: "user",
+    serviceTier: null,
+  });
+
+  beforeEach(() => localStorage.clear());
 
   it("opens a placeholder with the default model and keeps toolbar picks until thread/start", () => {
     const { rpc, calls } = stubRpc(() => ({}));
@@ -366,6 +388,50 @@ describe("draft thread (new-thread screen)", () => {
     expect(session.store.get().open!.model).toBe("");
     await session.loadModels();
     expect(session.store.get().open!.model).toBe("x");
+  });
+
+  it("starts a new draft from the model used last time, not Codex's default", async () => {
+    setLastModel({ model: "a", effort: "high" });
+    const { rpc } = stubRpc((m) => (m === "model/list" ? { data: [model("a", false), model("b", true)] } : {}));
+    const session = new Session(rpc);
+    session.openDraft("/proj");
+    await session.loadModels();
+    const open = session.store.get().open!;
+    expect(open.model).toBe("b");
+    expect(open.override).toEqual({ model: "a", effort: "high" });
+  });
+
+  it("falls back to the default when the remembered model is gone or is the default", () => {
+    const { rpc } = stubRpc(() => ({}));
+    setLastModel({ model: "retired", effort: "low" });
+    const session = new Session(rpc);
+    session.store.set((s) => ({ ...s, models: [model("b", true)] }));
+    session.openDraft("/proj");
+    expect(session.store.get().open!.override).toBeNull();
+    setLastModel({ model: "b", effort: "medium" });
+    session.openDraft("/proj");
+    expect(session.store.get().open!.override).toBeNull();
+  });
+
+  it("remembers the model a thread starts with and the one a turn switches to", async () => {
+    const { rpc } = stubRpc((m) => (m === "thread/start" ? started("a", "high") : {}));
+    const session = new Session(rpc);
+    await session.startThread("/proj", "a", null);
+    expect(getLastModel()).toEqual({ model: "a", effort: "high" });
+    session.setModel("c", "low");
+    await session.sendMessage({ ...emptyDraft, text: "hi" });
+    expect(getLastModel()).toEqual({ model: "c", effort: "low" });
+  });
+
+  it("does not carry a draft's pending pick into an existing thread", async () => {
+    setLastModel({ model: "a", effort: "high" });
+    const { rpc } = stubRpc((m) => (m === "thread/resume" ? new RpcError(-1, "boom") : {}));
+    const session = new Session(rpc);
+    session.store.set((s) => ({ ...s, models: [model("a", false), model("b", true)] }));
+    session.openDraft("/proj");
+    expect(session.store.get().open!.override).not.toBeNull();
+    await session.openThread("t9");
+    expect(session.store.get().open!.override).toBeNull();
   });
 
   it("does not unsubscribe a draft when closing it", async () => {
