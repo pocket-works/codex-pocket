@@ -152,13 +152,17 @@ export function Composer({
 
   const visibleSkills = popover?.kind === "skills" ? skills.filter((s) => s.name.toLowerCase().includes(popover.query.toLowerCase())) : [];
   // Built-in slash commands, listed with the skills like the official app.
-  const showCompact = popover?.kind === "skills" && !onSend && "compact".startsWith(popover.query.toLowerCase());
+  const COMMANDS: { name: string; description: string; run: () => Promise<void> }[] = [
+    { name: "compact", description: "Compact this chat's context", run: () => session.compactThread() },
+    { name: "review", description: "Review uncommitted changes", run: () => session.startReview() },
+  ];
+  const visibleCommands = popover?.kind === "skills" && !onSend ? COMMANDS.filter((c) => c.name.startsWith(popover.query.toLowerCase())) : [];
 
-  async function compact() {
+  async function runCommand(cmd: (typeof COMMANDS)[number]) {
     setPopover(null);
     setError(null);
     try {
-      await session.compactThread();
+      await cmd.run();
       setDraft((d) => ({ ...d, text: "" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -181,16 +185,16 @@ export function Composer({
           ))}
         </ul>
       )}
-      {popover?.kind === "skills" && (visibleSkills.length > 0 || showCompact) && (
+      {popover?.kind === "skills" && (visibleSkills.length > 0 || visibleCommands.length > 0) && (
         <ul className="popover" role="listbox">
-          {showCompact && (
-            <li>
-              <button type="button" onClick={() => void compact()}>
-                <span className="option-label">/compact</span>
-                <span className="muted small">{busy ? "Compact this chat's context (disabled while a turn runs)" : "Compact this chat's context"}</span>
+          {visibleCommands.map((c) => (
+            <li key={c.name}>
+              <button type="button" onClick={() => void runCommand(c)}>
+                <span className="option-label">/{c.name}</span>
+                <span className="muted small">{busy ? `${c.description} (disabled while a turn runs)` : c.description}</span>
               </button>
             </li>
-          )}
+          ))}
           {visibleSkills.slice(0, 8).map((s) => (
             <li key={s.path}>
               <button type="button" onClick={() => pickSkill(s)}>

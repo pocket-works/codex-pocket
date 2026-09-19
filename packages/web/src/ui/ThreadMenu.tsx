@@ -1,20 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
+import { isPinned, togglePin } from "../state/pins.js";
 import { useStore } from "../state/store.js";
 import { transcriptMarkdown } from "../state/turns.js";
-import { ArchiveIcon, BranchIcon, CompressIcon, CopyIcon, PencilIcon, ReviewIcon } from "./icons.js";
+import { ChangesSheet } from "./ChangesSheet.js";
+import { FilesSheet } from "./FilesSheet.js";
+import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon } from "./icons.js";
 import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
-// "⋯" in the thread topbar: a compact anchored menu like the official app's
-// thread header (rename / copy / fork / archive). Approval policy and the
-// follow-up mode live with the composer's permissions button instead.
+// "⋯" in the thread topbar, laid out like the official iOS app's thread
+// menu: title, Pin / Rename / Copy thread ID / Archive, then Changes and
+// Files. Fork and Copy as Markdown come from the desktop menu.
 export function ThreadMenu({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
+  const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const [show, setShow] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<"changes" | "files" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [, bump] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,8 +36,7 @@ export function ThreadMenu({ session }: { session: Session }) {
   const threadId = open.view.threadId;
   const ready = open.state === "ready";
   const running = open.view.activeTurnId !== null;
-  const usage = open.view.tokenUsage;
-  const contextPct = usage?.contextWindow ? Math.min(100, Math.round((usage.contextTokens / usage.contextWindow) * 100)) : null;
+  const pinned = isPinned(threadId);
 
   function close() {
     setShow(false);
@@ -58,7 +63,10 @@ export function ThreadMenu({ session }: { session: Session }) {
         ⋯
       </button>
       {show && (
-        <div className="popover-card menu right" role="menu">
+        <div className="popover-card menu right ios" role="menu">
+          <div className="menu-title" title={title ?? threadId}>
+            {title ?? "Thread"}
+          </div>
           {error && <p className="error small menu-error">{error}</p>}
           {renaming !== null ? (
             <form
@@ -75,29 +83,18 @@ export function ThreadMenu({ session }: { session: Session }) {
             </form>
           ) : (
             <>
-              <MenuItem icon={<PencilIcon />} label="Rename" disabled={busy} onClick={() => setRenaming("")} />
               <MenuItem
-                icon={<CopyIcon />}
-                label="Copy as Markdown"
-                disabled={busy || open.view.items.length === 0}
-                onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
+                icon={<PinIcon />}
+                label={pinned ? "Unpin" : "Pin"}
+                onClick={() => {
+                  togglePin(threadId);
+                  bump((n) => n + 1);
+                  session.touchThreads();
+                  close();
+                }}
               />
-              <MenuItem
-                icon={<BranchIcon size={20} />}
-                label="Fork"
-                disabled={busy || !ready}
-                onClick={() => void run(async () => navigate({ name: "thread", id: await session.forkThread(threadId) }))}
-              />
-              <div className="menu-sep" />
-              <MenuItem icon={<ReviewIcon />} label="Review changes" disabled={busy || !ready || running} onClick={() => void run(() => session.startReview())} />
-              <MenuItem
-                icon={<CompressIcon />}
-                label="Compact context"
-                hint={contextPct !== null ? `· ${contextPct}% full` : undefined}
-                disabled={busy || !ready || running}
-                onClick={() => void run(() => session.compactThread())}
-              />
-              <div className="menu-sep" />
+              <MenuItem icon={<PencilIcon />} label="Rename" disabled={busy} onClick={() => setRenaming(title ?? "")} />
+              <MenuItem icon={<CopyIcon />} label="Copy thread ID" disabled={busy} onClick={() => void run(() => navigator.clipboard.writeText(threadId))} />
               <MenuItem
                 icon={<ArchiveIcon />}
                 label="Archive"
@@ -112,10 +109,43 @@ export function ThreadMenu({ session }: { session: Session }) {
                   }
                 }}
               />
+              <div className="menu-sep thick" />
+              <MenuItem
+                icon={<BranchIcon size={22} />}
+                label="Changes"
+                onClick={() => {
+                  setSheet("changes");
+                  close();
+                }}
+              />
+              <MenuItem
+                icon={<FolderIcon />}
+                label="Files"
+                disabled={!open.cwd}
+                onClick={() => {
+                  setSheet("files");
+                  close();
+                }}
+              />
+              <div className="menu-sep thick" />
+              <MenuItem
+                icon={<BranchIcon size={22} />}
+                label="Fork"
+                disabled={busy || !ready}
+                onClick={() => void run(async () => navigate({ name: "thread", id: await session.forkThread(threadId) }))}
+              />
+              <MenuItem
+                icon={<CopyIcon />}
+                label="Copy as Markdown"
+                disabled={busy || open.view.items.length === 0}
+                onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view)))}
+              />
             </>
           )}
         </div>
       )}
+      {sheet === "changes" && <ChangesSheet view={open.view} cwd={open.cwd} onClose={() => setSheet(null)} />}
+      {sheet === "files" && <FilesSheet session={session} root={open.cwd} onClose={() => setSheet(null)} />}
     </div>
   );
 }
