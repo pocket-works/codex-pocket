@@ -5,9 +5,11 @@ import { getToken, pairingCodeFromUrl, redeemPairingCode, setToken, wsUrl } from
 import { Session } from "./state/session.js";
 import { RpcClient } from "./rpc/client.js";
 import { PairScreen } from "./ui/PairScreen.js";
+import { installKeyboardFix } from "./ui/keyboard-fix.js";
 import "./styles.css";
 
 async function boot(): Promise<void> {
+  installKeyboardFix();
   const root = createRoot(document.getElementById("root")!);
   const code = pairingCodeFromUrl();
   if (code) {

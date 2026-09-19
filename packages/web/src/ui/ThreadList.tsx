@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getListView, setListView, type ListView } from "../state/list-prefs.js";
-import type { Session, ThreadSummary } from "../state/session.js";
+import { describe, type Session, type ThreadSummary } from "../state/session.js";
 import { useStore } from "../state/store.js";
-import { ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
-
-const RECENT_CHATS = 6;
 
 export function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -24,21 +22,44 @@ export function projectName(cwd: string): string {
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
 }
 
+// The desktop app starts project-less chats in a scratch dir under
+// ~/Documents/Codex/<date>/<slug>; those go under "Chats", everything else under "Projects".
+export function isScratchThread(t: ThreadSummary): boolean {
+  return /\/Documents\/Codex\/[^/]+\/[^/]+/.test(t.cwd);
+}
+
 interface ProjectGroup {
   cwd: string;
   threads: ThreadSummary[];
   updatedAt: number;
 }
 
+// Desktop-app worktrees live at ~/.codex/worktrees/<id>/<repo>. The PWA cannot
+// read their .git file, so they are folded into the project with the same name.
+export function isWorktree(cwd: string): boolean {
+  return /\/\.codex\/worktrees\/[^/]+\/[^/]+$/.test(cwd);
+}
+
 export function groupByProject(threads: ThreadSummary[]): ProjectGroup[] {
   const groups = new Map<string, ProjectGroup>();
-  for (const t of threads) {
-    const g = groups.get(t.cwd);
+  const add = (key: string, t: ThreadSummary) => {
+    const g = groups.get(key);
     if (g) {
       g.threads.push(t);
       g.updatedAt = Math.max(g.updatedAt, t.updatedAt);
-    } else groups.set(t.cwd, { cwd: t.cwd, threads: [t], updatedAt: t.updatedAt });
+    } else groups.set(key, { cwd: key, threads: [t], updatedAt: t.updatedAt });
+  };
+  const worktrees: ThreadSummary[] = [];
+  for (const t of threads) {
+    if (isWorktree(t.cwd)) worktrees.push(t);
+    else add(t.cwd, t);
   }
+  for (const t of worktrees) {
+    const name = projectName(t.cwd);
+    const home = [...groups.keys()].find((cwd) => !isWorktree(cwd) && projectName(cwd) === name);
+    add(home ?? t.cwd, t);
+  }
+  for (const g of groups.values()) g.threads.sort((a, b) => b.updatedAt - a.updatedAt);
   return [...groups.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -55,6 +76,8 @@ export function ThreadList({ session }: { session: Session }) {
     if (connection === "open") void session.loadThreads();
   }, [connection, session]);
 
+  const archive = (id: string) => void session.archiveThread(id).catch((err) => session.notify(describe(err)));
+
   function changeView(v: ListView) {
     setListView(v);
     setView(v);
@@ -65,7 +88,8 @@ export function ThreadList({ session }: { session: Session }) {
     () => (q ? threads.filter((t) => t.title.toLowerCase().includes(q) || projectName(t.cwd).toLowerCase().includes(q)) : threads),
     [threads, q],
   );
-  const groups = useMemo(() => groupByProject(filtered), [filtered]);
+  const chats = useMemo(() => filtered.filter(isScratchThread), [filtered]);
+  const groups = useMemo(() => groupByProject(filtered.filter((t) => !isScratchThread(t))), [filtered]);
   const grouped = view === "project" && !q;
 
   return (
@@ -82,12 +106,16 @@ export function ThreadList({ session }: { session: Session }) {
       <div className="list-scroll">
         {grouped ? (
           <>
-            <h2 className="section-title">Chats</h2>
-            <ul className="thread-list">
-              {filtered.slice(0, RECENT_CHATS).map((t) => (
-                <ThreadRow key={t.id} thread={t} showProject plain />
-              ))}
-            </ul>
+            {chats.length > 0 && (
+              <>
+                <h2 className="section-title">Chats</h2>
+                <ul className="thread-list">
+                  {chats.map((t) => (
+                    <ThreadRow key={t.id} thread={t} plain onArchive={archive} />
+                  ))}
+                </ul>
+              </>
+            )}
             <h2 className="section-title">Projects</h2>
             <ul className="project-list">
               {groups.map((g) => (
@@ -107,7 +135,7 @@ export function ThreadList({ session }: { session: Session }) {
                   {expanded === g.cwd && (
                     <ul className="thread-list nested">
                       {g.threads.map((t) => (
-                        <ThreadRow key={t.id} thread={t} compact />
+                        <ThreadRow key={t.id} thread={t} compact onArchive={archive} />
                       ))}
                     </ul>
                   )}
@@ -118,7 +146,7 @@ export function ThreadList({ session }: { session: Session }) {
         ) : (
           <ul className="thread-list">
             {filtered.map((t) => (
-              <ThreadRow key={t.id} thread={t} showProject plain />
+              <ThreadRow key={t.id} thread={t} showProject={!isScratchThread(t)} plain onArchive={archive} />
             ))}
             {q && filtered.length === 0 && <p className="muted center">No matches.</p>}
           </ul>
@@ -143,37 +171,113 @@ export function ThreadRow({
   showProject,
   compact,
   plain,
+  onArchive,
 }: {
   thread: ThreadSummary;
   showProject?: boolean;
   compact?: boolean;
   /** Title and project only, like the official "Chats" section. */
   plain?: boolean;
+  onArchive: (id: string) => void;
 }) {
+  const open = () => navigate({ name: "thread", id: thread.id });
   if (compact) {
-    // Inside a project: one line, title left, branch and time right.
+    // Inside a project: one line, title left, time right.
     return (
-      <li>
-        <button className="thread-row compact" onClick={() => navigate({ name: "thread", id: thread.id })}>
+      <SwipeRow onArchive={() => onArchive(thread.id)}>
+        <button className="thread-row compact" onClick={open}>
           <span className="thread-title">{thread.title}</span>
-          {thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
+          {isWorktree(thread.cwd) && (
+            <span className="thread-worktree muted" title="Worktree">
+              <BranchIcon size={14} />
+            </span>
+          )}
           {thread.status === "active" && <span className="dot active" title="Running" />}
           <span className="thread-time muted">{relativeTime(thread.updatedAt)}</span>
         </button>
-      </li>
+      </SwipeRow>
     );
   }
   return (
-    <li>
-      <button className="thread-row" onClick={() => navigate({ name: "thread", id: thread.id })}>
+    <SwipeRow onArchive={() => onArchive(thread.id)}>
+      <button className="thread-row" onClick={open}>
         <div className="thread-row-top">
           {showProject && <span className="thread-project">{projectName(thread.cwd)}</span>}
-          {!plain && thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
           {thread.status === "active" && <span className="dot active" title="Running" />}
           {!plain && <span className="thread-time">{relativeTime(thread.updatedAt)}</span>}
         </div>
         <div className="thread-title">{thread.title}</div>
       </button>
+    </SwipeRow>
+  );
+}
+
+const SWIPE_REVEAL = 96;
+
+// Swipe a row left to reveal an Archive button, as in the official app.
+// Touch only: a mouse gets no hint, so desktop keeps the thread menu.
+function SwipeRow({ children, onArchive }: { children: ReactNode; onArchive: () => void }) {
+  const [offset, setOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const start = useRef<{ x: number; y: number; offset: number; axis: "x" | "y" | null } | null>(null);
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    start.current = { x: t.clientX, y: t.clientY, offset, axis: null };
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    const st = start.current;
+    if (!st) return;
+    const t = e.touches[0];
+    const dx = t.clientX - st.x;
+    const dy = t.clientY - st.y;
+    if (!st.axis) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      st.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (st.axis === "x") setDragging(true);
+    }
+    if (st.axis !== "x") return;
+    setOffset(Math.max(-SWIPE_REVEAL - 20, Math.min(0, st.offset + dx)));
+  }
+
+  function onTouchEnd() {
+    const st = start.current;
+    start.current = null;
+    setDragging(false);
+    if (st?.axis === "x") setOffset((o) => (o < -SWIPE_REVEAL / 2 ? -SWIPE_REVEAL : 0));
+  }
+
+  return (
+    <li className={`swipe-row ${offset < 0 ? "open" : ""}`}>
+      <button
+        className="swipe-action"
+        tabIndex={offset < 0 ? 0 : -1}
+        aria-hidden={offset === 0}
+        onClick={() => {
+          setOffset(0);
+          onArchive();
+        }}
+      >
+        <ArchiveIcon /> Archive
+      </button>
+      <div
+        className={`swipe-content ${dragging ? "dragging" : ""}`}
+        style={{ transform: `translateX(${offset}px)` }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+        onClickCapture={(e) => {
+          // A tap while revealed just closes the row.
+          if (offset < 0) {
+            e.stopPropagation();
+            setOffset(0);
+          }
+        }}
+      >
+        {children}
+      </div>
     </li>
   );
 }

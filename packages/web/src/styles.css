@@ -44,6 +44,11 @@ body,
   color: var(--fg);
 }
 
+/* Track the visible area on mobile browsers whose toolbars come and go. */
+.app {
+  height: 100dvh;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -465,6 +470,10 @@ code,
   margin-left: 4px;
 }
 
+.fast-btn.active {
+  color: #3b82f6;
+}
+
 .ring-high,
 .gauge-fill {
   color: #3b82f6;
@@ -771,14 +780,6 @@ code,
   margin: 0;
   display: flex;
   gap: 10px;
-}
-
-.thread-branch {
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40%;
 }
 
 .alert {
@@ -1137,10 +1138,8 @@ pre.diff {
   color: var(--accent-fg);
 }
 
-.folder-browser {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
+.sheet.folder-browser {
+  padding-top: 8px;
 }
 
 .folder-path {
@@ -1712,6 +1711,142 @@ pre.diff {
   font-size: 13px;
 }
 
+.thread-worktree {
+  flex: none;
+  display: flex;
+}
+
 .thread-list.nested {
   padding-left: 0;
+}
+
+/* --- new thread, official-app style --- */
+
+.new-thread .spacer {
+  flex: 1;
+}
+
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 8px;
+}
+
+.setup-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 8px;
+  font-size: 17px;
+  color: var(--muted);
+}
+
+.setup-value {
+  color: var(--fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-value.select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: var(--fg);
+  max-width: 100%;
+}
+
+.setup-value.select > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-value.select svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.target-anchor {
+  min-width: 0;
+}
+
+.target-menu {
+  bottom: 40px;
+  left: -8px;
+  padding: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.target-menu .popover-option {
+  align-items: center;
+  font-size: 16px;
+  padding: 10px 8px;
+}
+
+.target-menu .popover-option > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-menu hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 4px 8px;
+}
+
+.popover-check {
+  width: 18px;
+  flex: none;
+  display: inline-flex;
+  justify-content: center;
+}
+
+/* --- swipe to archive --- */
+
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+}
+
+.swipe-content {
+  position: relative;
+  background: var(--bg);
+  transition: transform 0.2s ease-out;
+}
+
+.swipe-content.dragging {
+  transition: none;
+}
+
+.swipe-action {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: 12px;
+  width: 84px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: none;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+  padding: 0;
+}
+
+.swipe-action svg {
+  width: 18px;
+  height: 18px;
 }

@@ -17,6 +17,7 @@ export function App({ session }: { session: Session }) {
   // Keep the open thread in sync with the URL.
   useEffect(() => {
     if (route.name === "thread") void session.openThread(route.id);
+    else if (route.name === "new") session.openDraft(route.cwd ?? "");
     else void session.closeThread();
   }, [route.name === "thread" ? route.id : route.name, session]);
 

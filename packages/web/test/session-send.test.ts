@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
 import { emptyDraft } from "../src/state/compose.js";
-import { Session } from "../src/state/session.js";
+import { isDraft, Session } from "../src/state/session.js";
 import { initialThreadState } from "../src/state/thread-reducer.js";
 
 // Just enough of RpcClient for Session: records requests, answers from a table.
@@ -47,6 +47,8 @@ function readySession(rpc: RpcClient, activeTurnId: string | null): Session {
       queued: [],
       permissions: null,
       permissionOverride: null,
+      serviceTier: null,
+      serviceTierOverride: null,
     },
   }));
   return session;
@@ -147,6 +149,22 @@ describe("thread management", () => {
     expect(calls[0].params).toMatchObject({ approvalPolicy: "never", sandboxPolicy: { type: "workspaceWrite" } });
     expect(session.store.get().open?.permissionOverride).toBeNull();
   });
+
+  it("switches the service tier on the next turn and remembers it", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
+    const session = readySession(rpc, null);
+    session.setServiceTier("priority");
+    expect(Session.isFast(session.store.get().open!)).toBe(true);
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[0].params).toMatchObject({ serviceTier: "priority" });
+    expect(session.store.get().open).toMatchObject({ serviceTier: "priority", serviceTierOverride: null });
+    // Back to standard: Codex wants an explicit "default".
+    session.setServiceTier(null);
+    expect(Session.isFast(session.store.get().open!)).toBe(false);
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[1].params).toMatchObject({ serviceTier: "default" });
+    expect(session.store.get().open?.serviceTier).toBeNull();
+  });
 });
 
 describe("Session.listDirectory", () => {
@@ -160,5 +178,80 @@ describe("Session.listDirectory", () => {
       ],
     }));
     expect(await readySession(rpc, null).listDirectory("/proj")).toEqual(["alpha", "zeta"]);
+  });
+});
+
+describe("draft thread (new-thread screen)", () => {
+  const model = (m: string, isDefault: boolean) =>
+    ({ id: m, model: m, displayName: m, isDefault, hidden: false, defaultReasoningEffort: "medium", supportedReasoningEfforts: [] }) as never;
+
+  it("opens a placeholder with the default model and keeps toolbar picks until thread/start", () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = new Session(rpc);
+    session.store.set((s) => ({ ...s, models: [model("a", false), model("b", true)] }));
+    session.openDraft("/proj");
+    const open = session.store.get().open!;
+    expect(isDraft(open)).toBe(true);
+    expect(open.model).toBe("b");
+    expect(open.cwd).toBe("/proj");
+    session.setModel("a", null);
+    session.setPermissionPreset("full");
+    session.setServiceTier("priority");
+    session.setDraftCwd("/other");
+    const picked = session.store.get().open!;
+    expect(picked.override).toEqual({ model: "a", effort: null });
+    expect(picked.serviceTierOverride).toBe("priority");
+    expect(picked.permissionOverride?.sandbox).toBe("danger-full-access");
+    expect(picked.cwd).toBe("/other");
+    expect(calls).toEqual([]);
+  });
+
+  it("fills in the default model once models load", async () => {
+    const { rpc } = stubRpc((m) => (m === "model/list" ? { data: [model("x", true)] } : {}));
+    const session = new Session(rpc);
+    session.openDraft("/proj");
+    expect(session.store.get().open!.model).toBe("");
+    await session.loadModels();
+    expect(session.store.get().open!.model).toBe("x");
+  });
+
+  it("does not unsubscribe a draft when closing it", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = new Session(rpc);
+    session.openDraft("/proj");
+    await session.closeThread();
+    expect(calls).toEqual([]);
+    expect(session.store.get().open).toBeNull();
+  });
+});
+
+describe("git via command/exec", () => {
+  it("reads the current branch and the local branch list", async () => {
+    const { rpc, calls } = stubRpc((_m, params) => {
+      const argv = (params as { command: string[] }).command.join(" ");
+      if (argv.includes("rev-parse")) return { exitCode: 0, stdout: "main\n", stderr: "" };
+      return { exitCode: 0, stdout: "feat/x\nmain\n", stderr: "" };
+    });
+    const info = await new Session(rpc).gitInfo("/proj");
+    expect(info).toEqual({ branch: "main", branches: ["feat/x", "main"] });
+    expect(calls.every((c) => c.method === "command/exec" && (c.params as { cwd: string }).cwd === "/proj")).toBe(true);
+  });
+
+  it("reports a non-repo as null", async () => {
+    const { rpc } = stubRpc(() => ({ exitCode: 128, stdout: "", stderr: "fatal: not a git repository" }));
+    expect(await new Session(rpc).gitInfo("/tmp")).toBeNull();
+  });
+
+  it("switches branches and surfaces git's error", async () => {
+    const { rpc, calls } = stubRpc(() => ({ exitCode: 1, stdout: "", stderr: "error: Your local changes would be overwritten" }));
+    await expect(new Session(rpc).gitSwitch("/proj", "feat/x")).rejects.toThrow(/local changes/);
+    expect(calls[0].params).toMatchObject({ command: ["git", "switch", "feat/x"], cwd: "/proj" });
+  });
+
+  it("creates a worktree on a fresh codex/ branch under ~/.codex/worktrees", async () => {
+    const { rpc, calls } = stubRpc(() => ({ exitCode: 0, stdout: "", stderr: "" }));
+    const path = await new Session(rpc).gitWorktreeAdd("/Users/me/Projects/flow", "/Users/me", "main", "Fix the login bug");
+    expect(path).toMatch(/^\/Users\/me\/\.codex\/worktrees\/[0-9a-f]{4}\/flow$/);
+    expect(calls[0].params).toMatchObject({ command: ["git", "worktree", "add", "-b", "codex/fix-the-login-bug", path, "main"], cwd: "/Users/me/Projects/flow" });
   });
 });

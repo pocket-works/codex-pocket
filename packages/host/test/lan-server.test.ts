@@ -1,5 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
@@ -89,7 +89,7 @@ describe("LanServer", () => {
     const token = await pair("Pixel");
     const me = await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
     expect(me.status).toBe(200);
-    expect(await me.json()).toMatchObject({ device: { name: "Pixel" } });
+    expect(await me.json()).toMatchObject({ device: { name: "Pixel" }, host: hostname(), home: homedir() });
     expect((await fetch(`${base}/api/me`)).status).toBe(401);
   });
 
