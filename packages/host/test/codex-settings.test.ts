@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CODEX_SETTINGS, parseCodexSettings, parsePublicUrl } from "../src/config/settings.js";
+import { DEFAULT_CODEX_SETTINGS, parseCodexSettings, parsePublicUrl, setSetting, unsetSetting } from "../src/config/settings.js";
 import { desktopEnvPlist, DESKTOP_ENV_LABEL } from "../src/launchd.js";
 
 describe("parseCodexSettings", () => {
@@ -27,6 +27,22 @@ describe("parsePublicUrl", () => {
     expect(() => parsePublicUrl("mac.tailnet.ts.net")).toThrow(/publicUrl/);
     expect(() => parsePublicUrl("https://mac.tailnet.ts.net/app")).toThrow(/publicUrl/);
     expect(() => parsePublicUrl(42)).toThrow(/publicUrl/);
+  });
+});
+
+describe("config set/unset", () => {
+  it("validates and stores the known keys", () => {
+    let s = setSetting({}, "publicUrl", "https://mac.tailnet.ts.net/");
+    s = setSetting(s, "bindHost", " 127.0.0.1 ");
+    expect(s).toEqual({ publicUrl: "https://mac.tailnet.ts.net", bindHost: "127.0.0.1" });
+    expect(unsetSetting(s, "publicUrl")).toEqual({ bindHost: "127.0.0.1" });
+  });
+
+  it("rejects unknown keys and bad values", () => {
+    expect(() => setSetting({}, "colour", "red")).toThrow(/unknown setting/);
+    expect(() => setSetting({}, "bindHost", "")).toThrow(/bindHost/);
+    expect(() => setSetting({}, "bindHost", "10.0.0.1 evil")).toThrow(/bindHost/);
+    expect(() => unsetSetting({}, "codex")).toThrow(/unknown setting/);
   });
 });
 

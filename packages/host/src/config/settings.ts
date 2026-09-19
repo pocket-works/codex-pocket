@@ -20,6 +20,36 @@ export interface Settings {
   codex?: CodexSettings;
   /** Origin phones use when a reverse proxy (e.g. `tailscale serve`) fronts the host. */
   publicUrl?: string;
+  /** Address `serve` binds; 127.0.0.1 keeps the host off the LAN when a proxy fronts it. */
+  bindHost?: string;
+}
+
+export function parseBindHost(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v || /\s/.test(v)) throw new Error(`bindHost must be an IP address or hostname, got ${JSON.stringify(raw)}`);
+  return v;
+}
+
+// Keys `codex-pocket config set/unset` may touch; the nested codex block is
+// edited by hand.
+const SETTABLE: Record<"publicUrl" | "bindHost", (raw: unknown) => string> = { publicUrl: parsePublicUrl, bindHost: parseBindHost };
+
+type SettableKey = keyof typeof SETTABLE;
+
+function settableKey(key: string): SettableKey {
+  if (!(key in SETTABLE)) throw new Error(`unknown setting "${key}"; known: ${Object.keys(SETTABLE).join(", ")}`);
+  return key as SettableKey;
+}
+
+export function setSetting(settings: Settings, key: string, value: string): Settings {
+  const k = settableKey(key);
+  return { ...settings, [k]: SETTABLE[k](value) };
+}
+
+export function unsetSetting(settings: Settings, key: string): Settings {
+  const k = settableKey(key);
+  const { [k]: _drop, ...rest } = settings;
+  return rest;
 }
 
 export function parsePublicUrl(raw: unknown): string {
@@ -57,6 +87,7 @@ export function readSettings(): Settings {
   return {
     ...(raw.codex ? { codex: parseCodexSettings(raw.codex) } : {}),
     ...(raw.publicUrl ? { publicUrl: parsePublicUrl(raw.publicUrl) } : {}),
+    ...(raw.bindHost ? { bindHost: parseBindHost(raw.bindHost) } : {}),
   };
 }
 

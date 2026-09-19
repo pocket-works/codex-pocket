@@ -3,7 +3,7 @@ import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { certsDir } from "./config/paths.js";
-import { parsePublicUrl, readSettings, writeSettings } from "./config/settings.js";
+import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, linkDesktop, uninstallLaunchAgent, unlinkDesktop } from "./launchd.js";
 import { sharedAppServerUrl } from "./codex/shared-app-server.js";
 import { codexConnector } from "./codex/target.js";
@@ -16,13 +16,15 @@ const USAGE = `Usage: codex-pocket <command> [options]
 Commands:
   serve             Serve the PWA on the LAN and proxy to the Codex desktop app-server
     --port <n>        Port to listen on (default ${DEFAULT_PORT})
-    --host <addr>     Address to bind (default 0.0.0.0)
-    --public-host <h> Hostname/IP printed in the pairing URL (default: LAN IP)
-    --public-url <u>  Full origin for the pairing URL when a reverse proxy fronts us
-                      (persist it with: public-url set <u>)
+    --host <addr>     Address to bind (default: bindHost setting, else 0.0.0.0)
+    --public-url <u>  Origin for the pairing URL (default: publicUrl setting, else http://<LAN IP>:<port>)
     --no-tls          Serve plain HTTP even if certificates exist
     --static <dir>    Directory with the built web app
-  public-url [set <u>|clear]  Show/set/clear the origin used in pairing URLs
+  config            Show ~/.codex-pocket/config.json
+  config set <key> <value>    publicUrl: origin phones use when a proxy such as
+                              \`tailscale serve\` fronts the host (https://mac.tailnet.ts.net)
+                              bindHost:  address serve binds; 127.0.0.1 keeps it off the LAN
+  config unset <key>
   pair              Print a QR code to pair a new phone (needs a running serve)
   devices           List paired phones
   revoke <id>       Remove a paired phone
@@ -80,25 +82,26 @@ async function main(argv: string[]): Promise<number> {
       await serve({
         port,
         host: str(flags, "host"),
-        publicHost: str(flags, "public-host"),
         publicUrl: str(flags, "public-url"),
         noTls: flags.values.has("no-tls"),
         staticDir: str(flags, "static"),
       });
       return 0;
     }
-    case "public-url": {
+    case "config": {
       const settings = readSettings();
-      const action = flags.positional[1];
+      const [, action, key, value] = flags.positional;
       if (action === "set") {
-        const url = parsePublicUrl(flags.positional[2] ?? "");
-        writeSettings({ ...settings, publicUrl: url });
-        console.log(`publicUrl = ${url}  (restart serve to apply)`);
-      } else if (action === "clear") {
-        const { publicUrl: _drop, ...rest } = settings;
-        writeSettings(rest);
-        console.log("publicUrl cleared (restart serve to apply)");
-      } else console.log(settings.publicUrl ?? "(not set: pairing URLs use the LAN IP)");
+        if (!key || value === undefined) throw new Error("usage: codex-pocket config set <key> <value>");
+        const file = writeSettings(setSetting(settings, key, value));
+        console.log(`${key} saved to ${file} (restart serve to apply)`);
+      } else if (action === "unset") {
+        if (!key) throw new Error("usage: codex-pocket config unset <key>");
+        writeSettings(unsetSetting(settings, key));
+        console.log(`${key} removed (restart serve to apply)`);
+      } else if (action === undefined) {
+        console.log(JSON.stringify(settings, null, 2));
+      } else throw new Error("usage: codex-pocket config [set <key> <value> | unset <key>]");
       return 0;
     }
     case "pair": {
