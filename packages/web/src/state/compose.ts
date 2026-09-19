@@ -63,3 +63,17 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
   if (/\s/.test(query)) return null;
   return { start: at, query };
 }
+
+/**
+ * Why the draft cannot be sent right now, or null. Mirrors the official
+ * app's submit blockers, shown under the composer instead of a generic
+ * error after the fact.
+ */
+export function sendBlocker(args: { draft: Draft; uploading: number; model: string; models: Pick<v2.Model, "model" | "inputModalities">[] }): string | null {
+  if (args.uploading > 0) return "Files uploading…";
+  if (args.draft.images.length > 0) {
+    const m = args.models.find((x) => x.model === args.model);
+    if (m && !m.inputModalities.includes("image")) return "Remove images or switch models to send this message";
+  }
+  return null;
+}
