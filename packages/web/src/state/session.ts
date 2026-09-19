@@ -867,6 +867,26 @@ export class Session {
       this.notify(message);
       return;
     }
+    // In shared mode the desktop app may change the thread's model or
+    // permissions; mirror them so the toolbar and the next turn agree.
+    if (n.method === "thread/settings/updated") {
+      const { threadId, threadSettings: t } = n.params as v2.ThreadSettingsUpdatedNotification;
+      this.store.set((s) =>
+        s.open && s.open.view.threadId === threadId
+          ? {
+              ...s,
+              open: {
+                ...s.open,
+                model: t.model,
+                effort: t.effort,
+                serviceTier: t.serviceTier,
+                permissions: { approval: t.approvalPolicy, sandbox: sandboxMode(t.sandboxPolicy), reviewer: t.approvalsReviewer },
+              },
+            }
+          : s,
+      );
+      return;
+    }
     if (n.method === "thread/queue/changed") {
       const { threadId } = n.params as v2.ThreadQueueChangedNotification;
       if (this.store.get().open?.view.threadId === threadId) void this.loadQueue(threadId);

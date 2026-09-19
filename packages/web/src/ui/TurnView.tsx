@@ -17,13 +17,13 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
   return (
     <>
       {groups.map((g, i) => (
-        <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} />
+        <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} progress={view.toolProgress} />
       ))}
     </>
   );
 }
 
-function TurnBlock({ group, session, cwd, latest }: { group: TurnGroup; session: Session; cwd: string; latest: boolean }) {
+function TurnBlock({ group, session, cwd, latest, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; progress: Record<string, string> }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const expanded = open ?? (latest || group.inProgress);
   const hasWork = group.work.length > 0;
@@ -35,7 +35,7 @@ function TurnBlock({ group, session, cwd, latest }: { group: TurnGroup; session:
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
-          {expanded && <WorkSection items={group.work} cwd={cwd} />}
+          {expanded && <WorkSection items={group.work} cwd={cwd} progress={progress} />}
           {group.final && <hr className="turn-sep" />}
         </>
       )}
@@ -76,7 +76,7 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
 // files · Ran a command"), as in the official app. Reasoning between tool
 // calls does not split the batch; it is folded into one "Thinking" row
 // ahead of it.
-function WorkSection({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
+function WorkSection({ items, cwd, progress }: { items: ThreadItem[]; cwd: string; progress: Record<string, string> }) {
   const rows: React.ReactNode[] = [];
   let tools: ThreadItem[] = [];
   let thoughts: Extract<ThreadItem, { type: "reasoning" }>[] = [];
@@ -89,7 +89,7 @@ function WorkSection({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
     if (tools.length > 0) {
       const batch = tools;
       tools = [];
-      rows.push(<ToolBatch key={batch[0].id} items={batch} cwd={cwd} />);
+      rows.push(<ToolBatch key={batch[0].id} items={batch} cwd={cwd} progress={progress} />);
     }
   };
   for (const item of items) {
@@ -112,27 +112,27 @@ function WorkSection({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
 
 // Collapsed by default; while a call is still running the heading names
 // it (the official app's "Editing files" style) instead of the summary.
-function ToolBatch({ items, cwd }: { items: ThreadItem[]; cwd: string }) {
+function ToolBatch({ items, cwd, progress }: { items: ThreadItem[]; cwd: string; progress: Record<string, string> }) {
   const [open, setOpen] = useState(false);
-  if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} />;
+  if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} progress={progress[items[0].id]} />;
   const running = items.find((item) => "status" in item && (item as { status: string }).status === "inProgress");
   const failed = items.some(toolFailed);
   return (
     <div className={`tool-batch ${failed ? "failed" : ""}`}>
       <button className="tool-row heading" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <TerminalGlyph />
-        <span className="tool-text">{running && !open ? toolLabel(running) : summarizeTools(items)}</span>
+        <span className="tool-text">{running && !open ? (progress[running.id] ?? toolLabel(running)) : summarizeTools(items)}</span>
         {running && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
         <span className={`chev ${open ? "down" : ""}`}>
           <ChevronIcon />
         </span>
       </button>
-      {open && items.map((item) => <ToolRow key={item.id} item={item} cwd={cwd} />)}
+      {open && items.map((item) => <ToolRow key={item.id} item={item} cwd={cwd} progress={progress[item.id]} />)}
     </div>
   );
 }
 
-function ToolRow({ item, cwd }: { item: ThreadItem; cwd: string }) {
+function ToolRow({ item, cwd, progress }: { item: ThreadItem; cwd: string; progress?: string }) {
   const [open, setOpen] = useState(false);
   const status = "status" in item ? (item as { status: string }).status : null;
   const failed = toolFailed(item);
@@ -140,7 +140,10 @@ function ToolRow({ item, cwd }: { item: ThreadItem; cwd: string }) {
     <div className={`tool-item ${failed ? "failed" : ""}`}>
       <button className="tool-row" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <TerminalGlyph />
-        <span className="tool-text">{toolLabel(item)}</span>
+        <span className="tool-text">
+          {toolLabel(item)}
+          {status === "inProgress" && progress && <span className="muted"> · {progress}</span>}
+        </span>
         {status === "inProgress" && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
         <span className={`chev ${open ? "down" : ""}`}>
           <ChevronIcon />

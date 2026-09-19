@@ -101,6 +101,42 @@ describe("Session.sendMessage", () => {
   });
 });
 
+describe("thread/settings/updated", () => {
+  const settings = {
+    cwd: "/proj",
+    approvalPolicy: "never",
+    approvalsReviewer: "user",
+    sandboxPolicy: { type: "dangerFullAccess" },
+    activePermissionProfile: null,
+    model: "big",
+    modelProvider: "openai",
+    serviceTier: "priority",
+    effort: "high",
+    summary: null,
+    collaborationMode: "default",
+    personality: null,
+  };
+
+  it("adopts model, effort, permissions and tier changed from another client", () => {
+    const { rpc } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    session.handleNotification({ method: "thread/settings/updated", params: { threadId: "t1", threadSettings: settings } });
+    expect(session.store.get().open).toMatchObject({
+      model: "big",
+      effort: "high",
+      serviceTier: "priority",
+      permissions: { approval: "never", sandbox: "danger-full-access", reviewer: "user" },
+    });
+  });
+
+  it("ignores settings of other threads", () => {
+    const { rpc } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    session.handleNotification({ method: "thread/settings/updated", params: { threadId: "other", threadSettings: settings } });
+    expect(session.store.get().open?.model).toBe("m");
+  });
+});
+
 describe("server-side queue", () => {
   const sub = (id: string, text: string) => ({ id, clientUserMessageId: `c-${id}`, input: [{ type: "text", text, text_elements: [] }] });
 
