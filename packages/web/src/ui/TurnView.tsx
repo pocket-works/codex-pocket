@@ -135,7 +135,7 @@ function ToolRow({ item, cwd }: { item: ThreadItem; cwd: string }) {
       <button className="tool-row" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <TerminalGlyph />
         <span className="tool-text">{toolLabel(item)}</span>
-        {status === "inProgress" && <span className="dot active" />}
+        {status === "inProgress" && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
         <span className={`chev ${open ? "down" : ""}`}>
           <ChevronIcon />
         </span>

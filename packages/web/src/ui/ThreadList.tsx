@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getListView, setListView, type ListView } from "../state/list-prefs.js";
-import { describe, type Session, type ThreadSummary } from "../state/session.js";
+import { describe, type Session, type ThreadStatus, type ThreadSummary } from "../state/session.js";
 import { useStore } from "../state/store.js";
-import { ArchiveIcon, BranchIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, CheckIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
@@ -192,7 +192,7 @@ export function ThreadRow({
               <BranchIcon size={14} />
             </span>
           )}
-          {thread.status === "active" && <span className="dot active" title="Running" />}
+          <ThreadStateMark thread={thread} />
           <span className="thread-time muted">{relativeTime(thread.updatedAt)}</span>
         </button>
       </SwipeRow>
@@ -203,13 +203,58 @@ export function ThreadRow({
       <button className="thread-row" onClick={open}>
         <div className="thread-row-top">
           {showProject && <span className="thread-project">{projectName(thread.cwd)}</span>}
-          {thread.status === "active" && <span className="dot active" title="Running" />}
+          <ThreadStateMark thread={thread} />
           {!plain && <span className="thread-time">{relativeTime(thread.updatedAt)}</span>}
         </div>
         <div className="thread-title">{thread.title}</div>
       </button>
     </SwipeRow>
   );
+}
+
+// Mirrors the official sidebar: a spinner while a turn runs, an amber chip
+// when Codex is blocked on you, red on a system error, a green check once a
+// finished turn has not been read yet. Green is never used for "busy".
+const STATE_LABEL: Record<ThreadStatus, string> = {
+  running: "Working",
+  waiting: "Needs input",
+  error: "Task encountered a system error",
+  idle: "",
+  unknown: "",
+};
+
+function ThreadStateMark({ thread }: { thread: ThreadSummary }) {
+  const { status, unread, waitingFor } = thread;
+  if (status === "running") {
+    return (
+      <span className="thread-state running" role="status" aria-label={STATE_LABEL.running} title={STATE_LABEL.running}>
+        <span className="spinner" aria-hidden="true" />
+      </span>
+    );
+  }
+  if (status === "waiting") {
+    const label = waitingFor === "approval" ? "Needs approval" : STATE_LABEL.waiting;
+    return (
+      <span className="thread-state waiting" role="status" aria-label={label} title={label}>
+        <span className="thread-state-chip">{label}</span>
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="thread-state error" role="status" aria-label={STATE_LABEL.error} title={STATE_LABEL.error}>
+        <span className="dot" aria-hidden="true" />
+      </span>
+    );
+  }
+  if (unread) {
+    return (
+      <span className="thread-state ready" role="status" aria-label="Ready" title="Ready">
+        <CheckIcon size={14} />
+      </span>
+    );
+  }
+  return null;
 }
 
 const SWIPE_REVEAL = 96;

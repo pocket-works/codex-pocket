@@ -16,7 +16,7 @@ export const RefreshIcon = () => <Icon d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6" />
 export const ComposeIcon = ({ size = 22 }: { size?: number }) => <Icon size={size} d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />;
 export const SearchIcon = () => <Icon d="M21 21l-4.3-4.3M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" />;
 export const MenuIcon = () => <Icon d="M4 7h16M4 12h10M4 17h16" />;
-export const CheckIcon = () => <Icon size={18} d="M20 6 9 17l-5-5" />;
+export const CheckIcon = ({ size = 18 }: { size?: number }) => <Icon size={size} d="M20 6 9 17l-5-5" />;
 export const BranchIcon = ({ size = 22 }: { size?: number }) => <Icon size={size} d="M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9" />;
 export const MonitorIcon = () => <Icon d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 21h8M12 17v4" />;
 export const ShieldIcon = () => <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;

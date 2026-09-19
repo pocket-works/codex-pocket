@@ -114,7 +114,7 @@ describe("thread management", () => {
   it("renames the open thread and updates the list optimistically", async () => {
     const { rpc, calls } = stubRpc(() => ({}));
     const session = readySession(rpc, null);
-    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "old", preview: "old", updatedAt: 1, model: null, status: "idle", branch: null }] }));
+    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "old", preview: "old", updatedAt: 1, model: null, status: "idle", waitingFor: null, unread: false, branch: null }] }));
     await session.renameThread("t1", "  New name ");
     expect(calls).toEqual([{ method: "thread/name/set", params: { threadId: "t1", name: "New name" } }]);
     expect(session.store.get().threads[0].title).toBe("New name");
@@ -123,7 +123,7 @@ describe("thread management", () => {
   it("archives a thread, drops it from the list and closes it if open", async () => {
     const { rpc, calls } = stubRpc(() => ({}));
     const session = readySession(rpc, null);
-    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "x", preview: "x", updatedAt: 1, model: null, status: "idle", branch: null }] }));
+    session.store.set((s) => ({ ...s, threads: [{ id: "t1", cwd: "/proj", title: "x", preview: "x", updatedAt: 1, model: null, status: "idle", waitingFor: null, unread: false, branch: null }] }));
     await session.archiveThread("t1");
     expect(calls.map((c) => c.method)).toEqual(["thread/archive", "thread/unsubscribe"]);
     expect(session.store.get().threads).toEqual([]);

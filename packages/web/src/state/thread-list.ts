@@ -1,6 +1,16 @@
 import type { JsonRpcNotification, v2 } from "@codex-pocket/protocol";
 
-export type ThreadStatus = "idle" | "active" | "unknown";
+/**
+ * What the list shows beside a thread. Mirrors the official ChatGPT desktop
+ * sidebar, which splits Codex's `ThreadStatus` into "working" and "blocked on
+ * you": a spinner means a turn is running, amber means it is waiting for an
+ * approval or an answer, red means the thread hit a system error, and green
+ * means a turn finished while you were not looking. Green never means "busy".
+ */
+export type ThreadStatus = "idle" | "running" | "waiting" | "error" | "unknown";
+
+/** Which kind of input an `active` thread is blocked on. */
+export type WaitingFor = "approval" | "input";
 
 export interface ThreadSummary {
   id: string;
@@ -12,6 +22,10 @@ export interface ThreadSummary {
   updatedAt: number;
   model: string | null;
   status: ThreadStatus;
+  /** Set only while `status` is "waiting". */
+  waitingFor: WaitingFor | null;
+  /** A turn finished since we last opened this thread ("Ready" in the official app). */
+  unread: boolean;
   branch: string | null;
 }
 
@@ -23,11 +37,26 @@ function title(name: string | null | undefined, preview: string): string {
   return clean(name ?? "") || clean(preview) || "(untitled)";
 }
 
-function status(s: v2.ThreadStatus): ThreadStatus {
-  return s.type === "active" ? "active" : s.type === "idle" ? "idle" : "unknown";
+function readStatus(s: v2.ThreadStatus): Pick<ThreadSummary, "status" | "waitingFor"> {
+  switch (s.type) {
+    case "active":
+      // `activeFlags` is the difference between a turn that is really working
+      // and one stopped at an approval or a question. Older app-server builds
+      // omit the field entirely, which just means "plainly working".
+      const flags = s.activeFlags ?? [];
+      if (flags.includes("waitingOnApproval")) return { status: "waiting", waitingFor: "approval" };
+      if (flags.includes("waitingOnUserInput")) return { status: "waiting", waitingFor: "input" };
+      return { status: "running", waitingFor: null };
+    case "idle":
+      return { status: "idle", waitingFor: null };
+    case "systemError":
+      return { status: "error", waitingFor: null };
+    case "notLoaded":
+      return { status: "unknown", waitingFor: null };
+  }
 }
 
-export function summarize(t: v2.Thread): ThreadSummary {
+export function summarize(t: v2.Thread, unread = false): ThreadSummary {
   return {
     id: t.id,
     cwd: t.cwd,
@@ -35,7 +64,8 @@ export function summarize(t: v2.Thread): ThreadSummary {
     preview: t.preview,
     updatedAt: (t.recencyAt ?? t.updatedAt) * 1000,
     model: t.model,
-    status: status(t.status),
+    ...readStatus(t.status),
+    unread,
     branch: t.gitInfo?.branch ?? null,
   };
 }
@@ -44,18 +74,29 @@ function sorted(list: ThreadSummary[]): ThreadSummary[] {
   return list.slice().sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** Fresh page from `thread/list` wins over what we had; Codex may repeat ids. */
-export function mergeThreadList(_current: ThreadSummary[], fresh: v2.Thread[]): ThreadSummary[] {
+/**
+ * Fresh page from `thread/list` wins over what we had; Codex may repeat ids.
+ * `thread/list` cannot report unread state, so carry ours over by id.
+ */
+export function mergeThreadList(current: ThreadSummary[], fresh: v2.Thread[]): ThreadSummary[] {
   const seen = new Set<string>();
-  return sorted(fresh.filter((t) => !seen.has(t.id) && seen.add(t.id)).map(summarize));
+  const unread = new Map(current.map((t) => [t.id, t.unread]));
+  return sorted(fresh.filter((t) => !seen.has(t.id) && seen.add(t.id)).map((t) => summarize(t, unread.get(t.id) ?? false)));
 }
 
 function replace(list: ThreadSummary[], id: string, fn: (t: ThreadSummary) => ThreadSummary): ThreadSummary[] {
   const idx = list.findIndex((t) => t.id === id);
   if (idx < 0) return list;
-  const next = list.slice();
-  next[idx] = fn(list[idx]);
-  return next;
+  const next = fn(list[idx]);
+  if (next === list[idx]) return list;
+  const copy = list.slice();
+  copy[idx] = next;
+  return copy;
+}
+
+/** Clears the "Ready" marker once the user is actually looking at the thread. */
+export function markRead(list: ThreadSummary[], id: string): ThreadSummary[] {
+  return replace(list, id, (t) => (t.unread ? { ...t, unread: false } : t));
 }
 
 // Pure: keeps the list in step with thread-level notifications so the phone
@@ -66,6 +107,18 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
       const { thread } = n.params as v2.ThreadStartedNotification;
       if (list.some((t) => t.id === thread.id)) return list;
       return sorted([summarize(thread), ...list]);
+    }
+    case "turn/started": {
+      // A new turn means the user is engaged again; the old result is no longer news.
+      const { threadId } = n.params as v2.TurnStartedNotification;
+      return replace(list, threadId, (t) => (t.unread ? { ...t, unread: false } : t));
+    }
+    case "turn/completed": {
+      // Matches the official "Ready" state: green once a turn lands while the
+      // phone is not showing that thread. A failed turn already surfaces an error.
+      const { threadId, turn } = n.params as v2.TurnCompletedNotification;
+      if (turn.status !== "completed") return list;
+      return replace(list, threadId, (t) => (t.unread ? t : { ...t, unread: true }));
     }
     case "thread/name/updated": {
       const { threadId, threadName } = n.params as v2.ThreadNameUpdatedNotification;
@@ -79,9 +132,15 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
     }
     case "thread/status/changed": {
       const p = n.params as v2.ThreadStatusChangedNotification;
-      const next = status(p.status);
-      const updated = replace(list, p.threadId, (t) => ({ ...t, status: next, updatedAt: next === "active" ? now : t.updatedAt }));
-      return updated === list || next !== "active" ? updated : sorted(updated);
+      const next = readStatus(p.status);
+      // Running and waiting threads float to the top: those are the ones that
+      // want your attention, exactly as the official sidebar orders them.
+      const busy = next.status === "running" || next.status === "waiting";
+      const changed = list.some((t) => t.id === p.threadId && (t.status !== next.status || t.waitingFor !== next.waitingFor));
+      const updated = replace(list, p.threadId, (t) =>
+        t.status === next.status && t.waitingFor === next.waitingFor ? t : { ...t, ...next, updatedAt: busy ? now : t.updatedAt },
+      );
+      return changed && busy ? sorted(updated) : updated;
     }
     default:
       return list;
