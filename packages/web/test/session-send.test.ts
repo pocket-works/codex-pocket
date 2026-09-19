@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { v2 } from "@codex-pocket/protocol";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
 import { emptyDraft } from "../src/state/compose.js";
@@ -48,7 +49,7 @@ function readySession(rpc: RpcClient, activeTurnId: string | null): Session {
       cwd: "/proj",
       olderCursor: null,
       loadingOlder: false,
-      queued: [],
+      queue: [],
       permissions: null,
       permissionOverride: null,
       serviceTier: null,
@@ -72,20 +73,88 @@ describe("Session.sendMessage", () => {
     expect(calls[0].params).toMatchObject({ threadId: "t1", expectedTurnId: "active" });
   });
 
-  it("falls back to queueing a turn when the active turn cannot be steered", async () => {
-    const { rpc, calls } = stubRpc((m) => (m === "turn/steer" ? new RpcError(-32000, "turn is not steerable") : { turn: { id: "q" } }));
+  it("queues on the server when the active turn cannot be steered", async () => {
+    const { rpc, calls } = stubRpc((m, params) =>
+      m === "turn/steer" ? new RpcError(-32000, "turn is not steerable") : { queuedSubmission: { id: "q1", input: (params as { input: unknown }).input, clientUserMessageId: "c" } },
+    );
     const session = readySession(rpc, "active");
     await session.sendMessage({ ...emptyDraft, text: "later" });
-    expect(calls.map((c) => c.method)).toEqual(["turn/steer", "turn/start"]);
-    expect(session.store.get().open?.queued).toEqual(["later"]);
+    expect(calls.map((c) => c.method)).toEqual(["turn/steer", "thread/queue/add"]);
+    expect(calls[1].params).toMatchObject({ threadId: "t1", input: [{ type: "text", text: "later" }] });
+    expect(session.store.get().open?.queue).toEqual([{ id: "q1", text: "later", imageCount: 0, input: expect.any(Array) }]);
   });
 
-  it("clears locally queued messages once the next turn starts", async () => {
-    const { rpc } = stubRpc((m) => (m === "turn/steer" ? new RpcError(-32000, "no") : { turn: { id: "q" } }));
+  it("queues instead of steering when the follow-up mode is queue", async () => {
+    const { rpc, calls } = stubRpc((_m, params) => ({ queuedSubmission: { id: "q1", input: (params as { input: unknown }).input, clientUserMessageId: "c" } }));
     const session = readySession(rpc, "active");
+    session.setFollowUpMode("queue");
     await session.sendMessage({ ...emptyDraft, text: "later" });
-    session.handleNotification({ method: "turn/started", params: { threadId: "t1", turn: { id: "q" } } });
-    expect(session.store.get().open?.queued).toEqual([]);
+    expect(calls.map((c) => c.method)).toEqual(["thread/queue/add"]);
+  });
+
+  it("starts a turn when idle even if the follow-up mode is queue", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "new" } }));
+    const session = readySession(rpc, null);
+    session.setFollowUpMode("queue");
+    await session.sendMessage({ ...emptyDraft, text: "hi" });
+    expect(calls.map((c) => c.method)).toEqual(["turn/start"]);
+  });
+});
+
+describe("server-side queue", () => {
+  const sub = (id: string, text: string) => ({ id, clientUserMessageId: `c-${id}`, input: [{ type: "text", text, text_elements: [] }] });
+
+  it("re-lists the queue when Codex reports a change on the open thread", async () => {
+    const { rpc, calls } = stubRpc((m) => (m === "thread/queue/list" ? { data: [sub("q1", "one"), sub("q2", "two")], nextCursor: null } : {}));
+    const session = readySession(rpc, "active");
+    session.handleNotification({ method: "thread/queue/changed", params: { threadId: "t1" } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual([{ method: "thread/queue/list", params: { threadId: "t1", cursor: null } }]);
+    expect(session.store.get().open?.queue.map((q) => q.text)).toEqual(["one", "two"]);
+  });
+
+  it("ignores queue changes on other threads", async () => {
+    const { rpc, calls } = stubRpc(() => ({ data: [], nextCursor: null }));
+    const session = readySession(rpc, "active");
+    session.handleNotification({ method: "thread/queue/changed", params: { threadId: "other" } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual([]);
+  });
+
+  it("deletes a queued message", async () => {
+    const { rpc, calls } = stubRpc(() => ({ deleted: true }));
+    const session = readySession(rpc, "active");
+    session.store.set((s) => ({ ...s, open: { ...s.open!, queue: [{ id: "q1", text: "one", imageCount: 0, input: [] }] } }));
+    await session.deleteQueued("q1");
+    expect(calls).toEqual([{ method: "thread/queue/delete", params: { threadId: "t1", queuedSubmissionId: "q1" } }]);
+    expect(session.store.get().open?.queue).toEqual([]);
+  });
+
+  it("sends a queued message now by steering the running turn, then removes it", async () => {
+    const { rpc, calls } = stubRpc((m) => (m === "turn/steer" ? { turnId: "active" } : { deleted: true }));
+    const session = readySession(rpc, "active");
+    const input: v2.UserInput[] = [{ type: "text", text: "one", text_elements: [] }];
+    session.store.set((s) => ({ ...s, open: { ...s.open!, queue: [{ id: "q1", text: "one", imageCount: 0, input }] } }));
+    await session.sendQueuedNow("q1");
+    expect(calls.map((c) => c.method)).toEqual(["turn/steer", "thread/queue/delete"]);
+    expect(calls[0].params).toMatchObject({ threadId: "t1", expectedTurnId: "active", input });
+    expect(session.store.get().open?.queue).toEqual([]);
+  });
+
+  it("starts a queued message directly when the thread is idle", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, open: { ...s.open!, queue: [{ id: "q1", text: "one", imageCount: 0, input: [] }, { id: "q2", text: "two", imageCount: 0, input: [] }] } }));
+    await session.resumeQueue();
+    expect(calls).toEqual([{ method: "thread/queue/start", params: { threadId: "t1", queuedSubmissionId: "q1" } }]);
+  });
+
+  it("does nothing on resume while a turn runs", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = readySession(rpc, "active");
+    session.store.set((s) => ({ ...s, open: { ...s.open!, queue: [{ id: "q1", text: "one", imageCount: 0, input: [] }] } }));
+    await session.resumeQueue();
+    expect(calls).toEqual([]);
   });
 });
 
@@ -287,6 +356,17 @@ describe("Session.openThread", () => {
     expect(open.state).toBe("ready");
     expect(open.view.items.map((i) => i.id)).toEqual(["m1"]);
     expect(open.view.itemTurns.m1).toBe("u1");
+  });
+
+  it("lists the server-side queue after resuming", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return resumed;
+      if (method === "thread/queue/list") return { data: [{ id: "q1", clientUserMessageId: "c", input: [{ type: "text", text: "next", text_elements: [] }] }], nextCursor: null };
+      return { data: [], nextCursor: null };
+    });
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    expect(session.store.get().open?.queue.map((q) => q.text)).toEqual(["next"]);
   });
 
   it("opens with an empty view when neither history call works", async () => {

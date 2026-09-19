@@ -32,7 +32,10 @@ describe("CodexClient.connect", () => {
     // Wait for the trailing `initialized` notification to arrive.
     await new Promise((r) => setTimeout(r, 20));
     expect(received.map((m) => (m as { method: string }).method)).toEqual(["initialize", "initialized"]);
-    expect((received[0] as { params: { clientInfo: { name: string } } }).params.clientInfo.name).toBe("codex-pocket");
+    const params = (received[0] as { params: { clientInfo: { name: string }; capabilities: { experimentalApi: boolean } } }).params;
+    expect(params.clientInfo.name).toBe("codex-pocket");
+    // thread/queue/* and friends are gated behind this capability.
+    expect(params.capabilities.experimentalApi).toBe(true);
     client.close();
   });
 

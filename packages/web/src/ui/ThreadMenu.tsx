@@ -20,6 +20,7 @@ const SANDBOXES: { value: v2.SandboxMode; label: string }[] = [
 // approval + sandbox policy for upcoming turns.
 export function ThreadMenu({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
+  const followUp = useStore(session.store, (s) => s.followUp);
   const [sheet, setSheet] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +101,17 @@ export function ThreadMenu({ session }: { session: Session }) {
                 </li>
               </ul>
             )}
+
+            <h3>While a turn is running</h3>
+            <div className="segmented" role="radiogroup" aria-label="Follow-up mode">
+              <button className={followUp === "steer" ? "active" : ""} onClick={() => session.setFollowUpMode("steer")}>
+                Steer
+              </button>
+              <button className={followUp === "queue" ? "active" : ""} onClick={() => session.setFollowUpMode("queue")}>
+                Queue
+              </button>
+            </div>
+            <p className="muted small">{followUp === "steer" ? "New messages are folded into the running turn." : "New messages wait for the current turn to finish."}</p>
 
             <h3>Advanced permissions</h3>
             {isGranular && <p className="muted small">This thread uses a custom approval policy; picking one below replaces it.</p>}
