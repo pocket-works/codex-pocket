@@ -61,7 +61,8 @@ function MenuItem({ icon, label, checked, onClick }: { icon: React.ReactNode; la
 
 function windowLabel(w: RateLimitWindow): string {
   if (w.durationMins === null) return "";
-  return w.durationMins >= 1440 ? `${Math.round(w.durationMins / 1440)}d` : `${Math.round(w.durationMins / 60)}h`;
+  if (w.durationMins >= 7 * 1440) return "Weekly";
+  return w.durationMins >= 1440 ? `${Math.round(w.durationMins / 1440)}d limit` : `${Math.round(w.durationMins / 60)}h limit`;
 }
 
 function resetLabel(w: RateLimitWindow): string {
@@ -72,21 +73,40 @@ function resetLabel(w: RateLimitWindow): string {
   return h < 48 ? `resets in ${h}h` : `resets in ${Math.round(h / 24)}d`;
 }
 
+// The official app's "Usage remaining" block: one bar per window with how
+// much is left and when it resets, plus the credit balance when there is one.
 function UsageFooter({ limits }: { limits: RateLimits }) {
   const windows = [limits.primary, limits.secondary].filter((w): w is RateLimitWindow => w !== null);
-  if (windows.length === 0) return null;
+  if (windows.length === 0 && !limits.credits) return null;
   return (
     <>
       <div className="menu-sep" />
       <div className="menu-heading">Usage remaining</div>
-      {windows.map((w, i) => (
-        <div key={i} className="menu-usage">
-          <span className={`usage-left ${w.usedPercent >= 90 ? "high" : ""}`}>{Math.max(0, 100 - Math.round(w.usedPercent))}% left</span>
-          <span className="muted small">
-            {windowLabel(w)} {resetLabel(w)}
-          </span>
+      {windows.map((w, i) => {
+        const left = Math.max(0, 100 - Math.round(w.usedPercent));
+        return (
+          <div key={i} className="menu-usage">
+            <div className="usage-row">
+              <span className={`usage-left ${left <= 10 ? "high" : ""}`}>{left}%</span>
+              <span className="muted small">{windowLabel(w)}</span>
+              <span className="spacer" />
+              <span className="muted small">{resetLabel(w)}</span>
+            </div>
+            <div className="usage-bar" role="progressbar" aria-valuenow={left} aria-valuemin={0} aria-valuemax={100}>
+              <div className={`usage-bar-fill ${left <= 10 ? "high" : ""}`} style={{ width: `${left}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      {limits.credits && (
+        <div className="menu-usage">
+          <div className="usage-row">
+            <span className="muted small">Credits</span>
+            <span className="spacer" />
+            <span className="small">{limits.credits}</span>
+          </div>
         </div>
-      ))}
+      )}
     </>
   );
 }

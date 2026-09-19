@@ -1543,17 +1543,46 @@ pre.diff {
 
 .menu-usage {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 16px 10px 40px;
+}
+
+.usage-row {
+  display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 4px 16px 8px 40px;
+  gap: 8px;
+}
+
+.usage-row .spacer {
+  flex: 1;
 }
 
 .usage-left {
   font-size: 18px;
 }
 
-.usage-left.high {
+.usage-left.high,
+.usage-bar-fill.high {
   color: var(--danger);
+  background: var(--danger);
+}
+
+.usage-left.high {
+  background: none;
+}
+
+.usage-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 /* Archived */
