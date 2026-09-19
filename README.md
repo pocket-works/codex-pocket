@@ -40,12 +40,15 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 
    ```bash
    tailscale serve --bg --https=443 http://127.0.0.1:7333
-   pnpm dev:host public-url set https://<mac>.<tailnet>.ts.net
+   pnpm dev:host config set publicUrl https://<mac>.<tailnet>.ts.net
+   pnpm dev:host config set bindHost 127.0.0.1   # 只监听回环：局域网里其他设备碰不到 7333
    ```
 
 3. `pnpm dev:host pair` 生成的二维码就指向 `https://<mac>.<tailnet>.ts.net/#pair=…`，手机（Tailscale 已连接）扫码即可；证书由 Tailscale 自动签发和续期。
 
-不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS，直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
+`pnpm dev:host config` 查看当前设置，`config unset <key>` 恢复默认。
+
+不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
 
 开机常驻（launchd）：
 

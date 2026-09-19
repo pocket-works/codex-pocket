@@ -12,9 +12,8 @@ import { createLanServer } from "./server/lan-server.js";
 
 export interface ServeOptions {
   port: number;
+  /** Bind address; overrides the `bindHost` setting (default 0.0.0.0). */
   host?: string;
-  /** Hostname phones should use; defaults to the LAN IP. */
-  publicHost?: string;
   /**
    * Full origin phones should use, when a reverse proxy such as
    * `tailscale serve` terminates TLS in front of us (e.g. https://mac.tailnet.ts.net).
@@ -40,17 +39,17 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const tls = certFiles ? { key: readFileSync(certFiles.key), cert: readFileSync(certFiles.cert) } : null;
   const scheme = tls ? "https" : "http";
   const settings = readSettings();
-  const publicHost = opts.publicHost ?? primaryLanAddress();
+  const lanIp = primaryLanAddress();
   const fixedUrl = opts.publicUrl ? parsePublicUrl(opts.publicUrl) : settings.publicUrl;
-  if (!publicHost && !fixedUrl) throw new Error("no LAN IPv4 address found; pass --public-host or --public-url");
+  if (!lanIp && !fixedUrl) throw new Error("no LAN IPv4 address found; set publicUrl (codex-pocket config set publicUrl <origin>)");
 
   const deviceStore = new DeviceStore(devicesFile());
   const codex = codexSettings();
   const proxy = new CodexProxy({ connect: codexConnector(codex, log), log });
-  const publicUrl = fixedUrl ?? `${scheme}://${publicHost}:${opts.port}`;
+  const publicUrl = fixedUrl ?? `${scheme}://${lanIp}:${opts.port}`;
   const server = createLanServer({
     port: opts.port,
-    host: opts.host,
+    host: opts.host ?? settings.bindHost,
     tls,
     staticDir: opts.staticDir ?? defaultStaticDir(),
     uploadsDir: uploadsDir(),

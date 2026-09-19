@@ -31,7 +31,7 @@
 **Goal**: 手机拿到无警告的 `https://` 地址，在家和在外都能用；launchd 常驻；README。
 **Success Criteria**: 手机浏览器打开 `https://<mac>.<tailnet>.ts.net` 无证书警告；Mac 换网络后 URL 不变。
 **Tests**: `publicUrl` 设置解析；launchd plist。
-**Status**: Complete（TLS 由 `tailscale serve` 在 host 前面终止，host 通过 `public-url` 设置得知对外地址；原先内置的 ACME DNS-01 + Cloudflare A 记录方案已于 2026-09-19 移除，`certs/` 里的手动 PEM 仍支持）
+**Status**: Complete（TLS 由 `tailscale serve` 在 host 前面终止，host 通过 `config set publicUrl` 得知对外地址；原先内置的 ACME DNS-01 + Cloudflare A 记录方案已于 2026-09-19 移除，`certs/` 里的手动 PEM 仍支持）
 
 ---
 
