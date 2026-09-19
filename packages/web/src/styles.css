@@ -532,6 +532,7 @@ code,
   resize: none;
   max-height: 160px;
   min-height: 40px;
+  overflow-y: auto;
 }
 
 .composer-tools {
