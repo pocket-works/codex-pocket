@@ -101,6 +101,38 @@ describe("Session.sendMessage", () => {
   });
 });
 
+describe("Session.retryLastTurn", () => {
+  it("resends the failed turn's user message", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "again" } }));
+    const session = readySession(rpc, null);
+    const content: v2.UserInput[] = [{ type: "text", text: "do it", text_elements: [] }, { type: "localImage", path: "/p.png" }];
+    session.store.set((s) => ({
+      ...s,
+      open: {
+        ...s.open!,
+        view: {
+          ...s.open!.view,
+          items: [
+            { type: "userMessage", id: "u1", clientId: null, content: [{ type: "text", text: "earlier", text_elements: [] }] },
+            { type: "userMessage", id: "u2", clientId: null, content },
+          ],
+          itemTurns: { u1: "t-a", u2: "t-b" },
+          lastTurnError: "model exploded",
+        },
+      },
+    }));
+    await session.retryLastTurn();
+    expect(calls).toEqual([{ method: "turn/start", params: { threadId: "t1", input: content } }]);
+    expect(session.store.get().open?.view.lastTurnError).toBeNull();
+  });
+
+  it("does nothing without a failed turn", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    await readySession(rpc, null).retryLastTurn();
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("thread/settings/updated", () => {
   const settings = {
     cwd: "/proj",

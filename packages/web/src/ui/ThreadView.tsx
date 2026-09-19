@@ -95,7 +95,16 @@ export function ThreadView({ session }: { session: Session }) {
         <Transcript session={session} view={open.view} cwd={open.cwd} />
         {open.view.plan && <PlanView plan={open.view.plan} />}
         {open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}
-        {open.view.lastTurnError && <p className="error">{open.view.lastTurnError}</p>}
+        {open.view.lastTurnError && (
+          <div className="turn-error">
+            <p className="error">{open.view.lastTurnError}</p>
+            {!busy && open.state === "ready" && (
+              <button className="link-btn" onClick={() => void session.retryLastTurn()}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {awayFromBottom && (
