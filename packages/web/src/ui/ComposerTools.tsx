@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { v2 } from "@codex-pocket/protocol";
 import { permissionPreset, Session, type PermissionPreset } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ModelSheet } from "./ModelSheet.js";
@@ -13,9 +14,23 @@ const PRESETS: { value: PermissionPreset; title: string; hint: string; icon: str
   { value: "full", title: "Full access", hint: "Full computer access (elevated risk)", icon: "⚠️" },
 ];
 
+const APPROVALS: { value: "untrusted" | "on-request" | "never"; label: string }[] = [
+  { value: "untrusted", label: "Ask" },
+  { value: "on-request", label: "On request" },
+  { value: "never", label: "Never" },
+];
+
+const SANDBOXES: { value: v2.SandboxMode; label: string }[] = [
+  { value: "read-only", label: "Read-only" },
+  { value: "workspace-write", label: "Workspace" },
+  { value: "danger-full-access", label: "Full access" },
+];
+
 export function PermissionsButton({ session, disabled }: { session: Session; disabled: boolean }) {
   const open = useStore(session.store, (s) => s.open);
+  const followUp = useStore(session.store, (s) => s.followUp);
   const [show, setShow] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,9 +72,53 @@ export function PermissionsButton({ session, disabled }: { session: Session; dis
             </button>
           ))}
           {active === null && <p className="muted small">This thread uses a custom policy; pick one to replace it.</p>}
+
+          <div className="popover-title popover-section">While a turn is running</div>
+          <div className="segmented" role="radiogroup" aria-label="Follow-up mode">
+            <button className={followUp === "steer" ? "active" : ""} onClick={() => session.setFollowUpMode("steer")}>
+              Steer
+            </button>
+            <button className={followUp === "queue" ? "active" : ""} onClick={() => session.setFollowUpMode("queue")}>
+              Queue
+            </button>
+          </div>
+          <p className="muted small">{followUp === "steer" ? "New messages are folded into the running turn." : "New messages wait for the current turn to finish."}</p>
+
+          <button className="link-btn advanced-toggle" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
+            {advanced ? "Hide advanced" : "Advanced…"}
+          </button>
+          {advanced && <AdvancedPolicies session={session} />}
         </div>
       )}
     </div>
+  );
+}
+
+// Approval policy and sandbox as separate switches, for threads whose
+// policy is not one of the three presets.
+function AdvancedPolicies({ session }: { session: Session }) {
+  const open = useStore(session.store, (s) => s.open);
+  if (!open) return null;
+  const ready = open.state === "ready";
+  const perms = open.permissionOverride ?? open.permissions;
+  return (
+    <>
+      <div className="segmented" role="radiogroup" aria-label="Approval policy">
+        {APPROVALS.map((a) => (
+          <button key={a.value} className={perms?.approval === a.value ? "active" : ""} disabled={!ready} onClick={() => session.setPermissions(a.value, perms?.sandbox ?? "workspace-write")}>
+            {a.label}
+          </button>
+        ))}
+      </div>
+      <div className="segmented" role="radiogroup" aria-label="Sandbox">
+        {SANDBOXES.map((s) => (
+          <button key={s.value} className={perms?.sandbox === s.value ? "active" : ""} disabled={!ready} onClick={() => session.setPermissions(perms?.approval ?? "on-request", s.value)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      {open.permissionOverride && <p className="muted small">Applies when you send the next message.</p>}
+    </>
   );
 }
 
