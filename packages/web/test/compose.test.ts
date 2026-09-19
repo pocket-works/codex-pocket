@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildUserInput, mentionQuery, type Draft } from "../src/state/compose.js";
+import { buildUserInput, mentionQuery, sendBlocker, type Draft } from "../src/state/compose.js";
 
 const empty: Draft = { text: "", images: [], mentions: [], skill: null };
 
@@ -56,5 +56,25 @@ describe("mentionQuery", () => {
     expect(mentionQuery("fix @cli done", 13)).toBeNull();
     expect(mentionQuery("mail me@x.com", 13)).toBeNull();
     expect(mentionQuery("plain", 5)).toBeNull();
+  });
+});
+
+describe("sendBlocker", () => {
+  const img = { id: "i", path: "/p.png", previewUrl: "blob:x" };
+  const draft = (images = 0): Draft => ({ text: "hi", images: Array.from({ length: images }, () => img), mentions: [], skill: null });
+  const model = (name: string, modalities: ("text" | "image")[]) => ({ model: name, inputModalities: modalities }) as never;
+
+  it("waits for uploads to finish", () => {
+    expect(sendBlocker({ draft: draft(1), uploading: 1, model: "m", models: [model("m", ["text", "image"])] })).toBe("Files uploading…");
+  });
+
+  it("refuses images the model cannot take", () => {
+    expect(sendBlocker({ draft: draft(1), uploading: 0, model: "m", models: [model("m", ["text"])] })).toBe("Remove images or switch models to send this message");
+  });
+
+  it("allows text, images on capable models, and unknown models", () => {
+    expect(sendBlocker({ draft: draft(0), uploading: 0, model: "m", models: [model("m", ["text"])] })).toBeNull();
+    expect(sendBlocker({ draft: draft(1), uploading: 0, model: "m", models: [model("m", ["text", "image"])] })).toBeNull();
+    expect(sendBlocker({ draft: draft(1), uploading: 0, model: "other", models: [model("m", ["text"])] })).toBeNull();
   });
 });

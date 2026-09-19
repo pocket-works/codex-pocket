@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { emptyDraft, mentionQuery, type Draft, type DraftImage } from "../state/compose.js";
-import type { FileMatch, Session, Skill } from "../state/session.js";
+import { emptyDraft, mentionQuery, sendBlocker, type Draft, type DraftImage } from "../state/compose.js";
+import { Session, type FileMatch, type Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
 import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton } from "./ComposerTools.js";
@@ -51,8 +51,11 @@ export function Composer({
 
   const project = useStore(session.store, (s) => s.open?.cwd.split("/").filter(Boolean).pop() ?? "this project");
   const followUp = useStore(session.store, (s) => s.followUp);
+  const model = useStore(session.store, (s) => (s.open ? Session.effectiveModel(s.open).model : ""));
+  const models = useStore(session.store, (s) => s.models);
   const hasDraft = draft.text.trim() !== "" || draft.images.length > 0;
-  const canSend = !disabled && !sending && uploading === 0 && hasDraft;
+  const blocker = sendBlocker({ draft, uploading, model, models });
+  const canSend = !disabled && !sending && blocker === null && hasDraft;
   const showStop = busy && onStop !== undefined && !hasDraft && !sending;
   const showResume = !busy && onResume !== undefined && !hasDraft && !sending && !disabled;
   const sendLabel = busy ? (followUp === "queue" ? "Queue" : "Steer") : "Send";
@@ -165,6 +168,7 @@ export function Composer({
   return (
     <div className="composer">
       {error && <p className="error">{error}</p>}
+      {blocker && hasDraft && <p className="muted small composer-hint">{blocker}</p>}
       {popover?.kind === "files" && files.length > 0 && (
         <ul className="popover" role="listbox">
           {files.slice(0, 8).map((f) => (
