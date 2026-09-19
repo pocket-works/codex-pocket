@@ -1709,7 +1709,8 @@ pre.diff {
   color: var(--muted);
 }
 
-.tool-item.failed .tool-text {
+.tool-item.failed .tool-text,
+.tool-batch.failed > .heading .tool-text {
   color: var(--danger);
 }
 
