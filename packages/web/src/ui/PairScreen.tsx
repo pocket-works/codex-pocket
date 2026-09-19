@@ -11,6 +11,7 @@ export function PairScreen({ error }: { error?: string }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [manual, setManual] = useState(false);
   const [failure, setFailure] = useState<string | null>(error ?? null);
   const canScan = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
 
@@ -38,40 +39,54 @@ export function PairScreen({ error }: { error?: string }) {
   }
 
   return (
-    <main className="screen center">
-      <h1>Codex Pocket</h1>
-      {failure ? <p className="error">{failure}</p> : <p>This phone is not paired yet.</p>}
-      <p className="muted">
-        On your Mac run <code>codex-pocket pair</code>, then scan the QR code or type the code it prints:
+    <main className="screen center pair">
+      <div className="pair-card">
+        <img className="pair-logo" src="/icon.svg" alt="" width={72} height={72} />
+        <h1>Codex Pocket</h1>
+        <p className="muted pair-sub">Pair this phone with your Mac to control Codex from anywhere.</p>
+
+        {canScan && !manual && (
+          <button type="button" className="primary pair-scan" onClick={() => setScanning(true)} disabled={busy}>
+            Scan QR code
+          </button>
+        )}
+        {(manual || !canScan) && (
+          <form
+            className="pair-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void pair(code);
+            }}
+          >
+            <input
+              className="pair-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="ABCD-EFGH"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              autoFocus={manual}
+              aria-label="Pairing code"
+            />
+            <button className="primary" type="submit" disabled={busy || !code.trim()}>
+              {busy ? "…" : "Pair"}
+            </button>
+          </form>
+        )}
+        {canScan && (
+          <button type="button" className="link pair-toggle" onClick={() => setManual((m) => !m)}>
+            {manual ? "Scan QR code instead" : "Enter code instead"}
+          </button>
+        )}
+        {failure && <p className="error pair-error">{failure}</p>}
+      </div>
+
+      <p className="muted small pair-hint">
+        On your Mac: <code>make pair</code>
       </p>
-      {canScan && (
-        <button type="button" className="primary pair-scan" onClick={() => setScanning(true)} disabled={busy}>
-          Scan QR code
-        </button>
-      )}
-      <form
-        className="pair-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void pair(code);
-        }}
-      >
-        <input
-          className="pair-code"
-          value={code}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="ABCD-EFGH"
-          autoComplete="one-time-code"
-          autoCapitalize="characters"
-          autoCorrect="off"
-          spellCheck={false}
-          inputMode="text"
-          aria-label="Pairing code"
-        />
-        <button type="submit" disabled={busy || !code.trim()}>
-          {busy ? "Pairing…" : "Pair"}
-        </button>
-      </form>
+
       {scanning && (
         <Suspense fallback={null}>
           <QrScanner onResult={onScan} onClose={() => setScanning(false)} />
