@@ -15,6 +15,11 @@ export type WaitingFor = "approval" | "input";
 export interface ThreadSummary {
   id: string;
   cwd: string;
+  /**
+   * Canonical project assignment from app-server (`Thread.projectId`); null
+   * for project-less chats and whenever the app-server has no assignment.
+   */
+  projectId: string | null;
   title: string;
   /** First user message; shown when the thread has no name. */
   preview: string;
@@ -60,6 +65,7 @@ export function summarize(t: v2.Thread, unread = false): ThreadSummary {
   return {
     id: t.id,
     cwd: t.cwd,
+    projectId: t.projectId ?? null,
     title: title(t.name, t.preview),
     preview: t.preview,
     updatedAt: (t.recencyAt ?? t.updatedAt) * 1000,
@@ -129,6 +135,12 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
       const { threadId } = n.params as v2.ThreadArchivedNotification;
       const next = list.filter((t) => t.id !== threadId);
       return next.length === list.length ? list : next;
+    }
+    case "thread/project/updated": {
+      // The desktop can move a thread between projects; follow it so the
+      // phone's grouping matches without a refresh.
+      const { threadId, projectId } = n.params as v2.ThreadProjectUpdatedNotification;
+      return replace(list, threadId, (t) => (t.projectId === projectId ? t : { ...t, projectId }));
     }
     case "thread/status/changed": {
       const p = n.params as v2.ThreadStatusChangedNotification;

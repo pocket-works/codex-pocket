@@ -12,6 +12,7 @@ import {
   type ThreadViewState,
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
+import { summarizeProjects, type ProjectSummary } from "./projects.js";
 import { buildUserInput, type Draft } from "./compose.js";
 import { getLastModel, setLastModel } from "./model-prefs.js";
 import {
@@ -27,6 +28,8 @@ import {
 } from "./queue.js";
 
 export type { ThreadStatus, ThreadSummary, WaitingFor } from "./thread-list.js";
+export { groupByProject, isScratchThread, isWorktree, projectForCwd, summarizeProject, summarizeProjects } from "./projects.js";
+export type { ProjectGroup, ProjectSummary } from "./projects.js";
 
 export interface RateLimitWindow {
   usedPercent: number;
@@ -114,6 +117,8 @@ export interface OpenThread {
 export interface SessionState {
   connection: ConnectionState;
   upstreamConnected: boolean;
+  /** Projects as app-server owns them: the same list the desktop app shows. */
+  projects: ProjectSummary[];
   threads: ThreadSummary[];
   threadsLoading: boolean;
   threadsError: string | null;
@@ -210,6 +215,7 @@ export class Session {
     this.store = createStore<SessionState>({
       connection: rpc.connectionState,
       upstreamConnected: false,
+      projects: [],
       threads: [],
       threadsLoading: false,
       threadsError: null,
@@ -245,6 +251,33 @@ export class Session {
 
   start(): void {
     this.rpc.start();
+  }
+
+  // --- projects -----------------------------------------------------------
+
+  /**
+   * The desktop's project list, straight from app-server. Threads carry a
+   * `projectId` and projects carry their roots, so the phone groups by what
+   * the desktop actually created instead of guessing from folder names.
+   */
+  async loadProjects(): Promise<void> {
+    try {
+      // The server pages this list (25 by default), and the phone wants them
+      // all: an empty project still has to show up so it can be opened.
+      const all: v2.Project[] = [];
+      let cursor: string | null = null;
+      for (;;) {
+        const res: v2.ProjectListResponse = await this.rpc.request<v2.ProjectListResponse>("project/list", { sortKey: "position", limit: 200, cursor });
+        all.push(...res.data);
+        cursor = res.nextCursor;
+        if (!cursor) break;
+      }
+      this.store.set((s) => ({ ...s, projects: summarizeProjects(all) }));
+    } catch {
+      // Older app-server without the project API, or a transient failure: keep
+      // whatever list we already had. Threads without a project simply show up
+      // as chats, which beats inventing projects from folder names again.
+    }
   }
 
   // --- thread list --------------------------------------------------------
@@ -699,8 +732,15 @@ export class Session {
     return skills;
   }
 
-  async startThread(cwd: string, model: string | null, effort: ReasoningEffort | null, serviceTier: string | null = null): Promise<string> {
-    const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model, serviceTier });
+  async startThread(
+    cwd: string,
+    model: string | null,
+    effort: ReasoningEffort | null,
+    serviceTier: string | null = null,
+    /** Project the new thread belongs to; omit for a project-less chat. */
+    projectId: string | null = null,
+  ): Promise<string> {
+    const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model, serviceTier, projectId });
     this.adoptStarted(res, effort);
     setLastModel({ model: res.model, effort: effort ?? res.reasoningEffort });
     return res.thread.id;
@@ -916,6 +956,7 @@ export class Session {
   private onReconnected(): void {
     const open = this.store.get().open;
     if (open) void this.openThread(open.view.threadId, { force: true });
+    void this.loadProjects();
     void this.loadRateLimits();
     this.reportClientState();
   }
@@ -960,6 +1001,12 @@ export class Session {
     if (n.method === "thread/queue/changed") {
       const { threadId } = n.params as v2.ThreadQueueChangedNotification;
       if (this.store.get().open?.view.threadId === threadId) void this.loadQueue(threadId);
+      return;
+    }
+    if (n.method === "project/changed") {
+      // The desktop created, renamed, moved, or deleted a project. Re-reading
+      // is cheap and keeps the phone honest, including for deletions.
+      void this.loadProjects();
       return;
     }
     this.store.set((s) => {
