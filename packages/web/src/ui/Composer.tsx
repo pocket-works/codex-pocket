@@ -17,18 +17,22 @@ interface Popover {
 // Message box with image attachments, `@file` completion (fuzzyFileSearch)
 // and `/skill` selection. Sends via Session, which decides steer vs start,
 // unless the caller supplies `onSend` (the new-thread screen starts a thread first).
+// While a turn runs and the draft is empty the send button becomes a stop
+// button (as in the official app); typing turns it back into send (steer).
 export function Composer({
   session,
   disabled,
   busy,
   placeholder,
   onSend,
+  onStop,
 }: {
   session: Session;
   disabled: boolean;
   busy: boolean;
   placeholder?: string;
   onSend?: (draft: Draft) => Promise<void>;
+  onStop?: () => void;
 }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,9 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const project = useStore(session.store, (s) => s.open?.cwd.split("/").filter(Boolean).pop() ?? "this project");
-  const canSend = !disabled && !sending && uploading === 0 && (draft.text.trim() !== "" || draft.images.length > 0);
+  const hasDraft = draft.text.trim() !== "" || draft.images.length > 0;
+  const canSend = !disabled && !sending && uploading === 0 && hasDraft;
+  const showStop = busy && onStop !== undefined && !hasDraft && !sending;
 
   // Debounced search for the token under the caret.
   useEffect(() => {
@@ -211,9 +217,15 @@ export function Composer({
           <FastButton session={session} disabled={disabled} />
           <EffortGauge session={session} disabled={disabled} />
           <DictationButton disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />
-          <button className="primary send-btn" onClick={() => void send()} disabled={!canSend} aria-label="Send">
-            ↑
-          </button>
+          {showStop ? (
+            <button className="primary send-btn stop-btn" onClick={onStop} aria-label="Stop">
+              <span className="stop-glyph" aria-hidden="true" />
+            </button>
+          ) : (
+            <button className="primary send-btn" onClick={() => void send()} disabled={!canSend} aria-label="Send">
+              ↑
+            </button>
+          )}
         </div>
       </div>
     </div>

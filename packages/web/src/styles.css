@@ -530,6 +530,16 @@ code,
   margin-left: 4px;
 }
 
+/* Stop replaces send while a turn runs: same circle, a small square inside. */
+.composer-tools .stop-btn .stop-glyph {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: currentColor;
+}
+
 .fast-btn.active {
   color: #3b82f6;
 }

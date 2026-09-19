@@ -54,11 +54,6 @@ export function ThreadView({ session }: { session: Session }) {
           <h1>{open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
           <div className="topbar-meta muted small">{open.cwd}</div>
         </div>
-        {busy && (
-          <button className="danger" onClick={() => void session.interrupt()}>
-            Stop
-          </button>
-        )}
         <ThreadMenu session={session} />
       </header>
 
@@ -100,7 +95,7 @@ export function ThreadView({ session }: { session: Session }) {
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
-      <Composer session={session} disabled={open.state !== "ready"} busy={busy} />
+      <Composer session={session} disabled={open.state !== "ready"} busy={busy} onStop={() => void session.interrupt()} />
     </main>
   );
 }
