@@ -1688,12 +1688,56 @@ pre.diff {
   font-size: 17px;
 }
 
-.file-view {
-  font-size: 12px;
-  white-space: pre;
-  overflow: auto;
+/* File viewer: numbered gutter, wrapped lines. */
+.viewer-head {
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+}
+
+.viewer-title {
+  font-size: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-body {
+  padding: 0 0 calc(12px + var(--safe-bottom));
+}
+
+.code-view {
   margin: 0;
-  padding: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-line {
+  display: flex;
+  min-height: 1.5em;
+}
+
+.code-no {
+  flex: none;
+  width: 44px;
+  padding-right: 10px;
+  text-align: right;
+  color: var(--muted);
+  user-select: none;
+  background: var(--card);
+}
+
+.code-text {
+  flex: 1;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.hl-heading .code-text {
+  color: #f0788c;
 }
 
 .tree {

@@ -3,7 +3,7 @@ import type { v2 } from "@codex-pocket/protocol";
 import { diffStats, splitGitDiff } from "../state/diff.js";
 import type { FileMatch, Session } from "../state/session.js";
 import { DiffBody } from "./DiffView.js";
-import { ChevronIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
 
 export type WorkspaceTab = "modified" | "files";
 type DiffMode = "uncommitted" | "branch";
@@ -21,6 +21,17 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
   const [modeMenu, setModeMenu] = useState(false);
   const [changes, setChanges] = useState<{ files: v2.FileUpdateChange[]; branch: string; upstream: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [file, setFile] = useState<{ path: string; text: string | null } | null>(null);
+
+  async function openFile(path: string) {
+    setError(null);
+    try {
+      const text = await session.readTextFile(path);
+      setFile({ path, text: text !== null && text.length > MAX_VIEW_BYTES ? `${text.slice(0, MAX_VIEW_BYTES)}\n…` : text });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   useEffect(() => {
     if (tab !== "modified") return;
@@ -43,6 +54,16 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
     },
     { added: 0, removed: 0 },
   );
+
+  if (file) {
+    return (
+      <div className="sheet-backdrop" onClick={onClose}>
+        <div className="sheet workspace" onClick={(e) => e.stopPropagation()}>
+          <FileViewer file={file} root={cwd} onBack={() => setFile(null)} onClose={onClose} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
@@ -110,7 +131,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
             {!changes && !error && <p className="muted center">Loading…</p>}
             {changes && changes.files.length === 0 && <p className="muted center">No {mode === "branch" ? "changes on this branch" : "uncommitted changes"}.</p>}
             {changes?.files.map((f) => (
-              <ChangedFile key={`${f.path}-${collapsed}`} change={f} cwd={cwd} />
+              <ChangedFile key={`${f.path}-${collapsed}`} change={f} cwd={cwd} onOpen={f.kind.type === "delete" ? undefined : () => void openFile(f.path)} />
             ))}
             {changes && (
               <div className="workspace-foot muted">
@@ -125,7 +146,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
             )}
           </div>
         ) : (
-          <FilesTab session={session} root={cwd} />
+          <FilesTab session={session} root={cwd} onOpen={(path) => void openFile(path)} />
         )}
       </div>
     </div>
@@ -139,7 +160,7 @@ function shortDir(path: string, cwd: string): string {
 }
 
 // One file card: name, folder, +/- and the hunks below (collapsible).
-function ChangedFile({ change, cwd }: { change: v2.FileUpdateChange; cwd: string }) {
+function ChangedFile({ change, cwd, onOpen }: { change: v2.FileUpdateChange; cwd: string; onOpen?: () => void }) {
   const [open, setOpen] = useState(true);
   const stats = diffStats(change.diff);
   const name = change.path.split("/").pop() ?? change.path;
@@ -157,6 +178,11 @@ function ChangedFile({ change, cwd }: { change: v2.FileUpdateChange; cwd: string
           {stats.added > 0 && <span className="add">+{stats.added}</span>}
           {stats.removed > 0 && <span className="del">−{stats.removed}</span>}
         </span>
+        {onOpen && (
+          <button className="icon-btn" aria-label="Open file" onClick={onOpen}>
+            <ExternalIcon />
+          </button>
+        )}
       </div>
       <button className="hunk-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <span className={`chev ${open ? "down" : ""}`}>
@@ -190,12 +216,11 @@ interface Node {
   children?: Node[] | null;
 }
 
-function FilesTab({ session, root }: { session: Session; root: string }) {
+function FilesTab({ session, root, onOpen }: { session: Session; root: string; onOpen: (path: string) => void }) {
   const [tree, setTree] = useState<Node[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<FileMatch[]>([]);
-  const [file, setFile] = useState<{ path: string; text: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function load(path: string): Promise<Node[]> {
@@ -239,26 +264,7 @@ function FilesTab({ session, root }: { session: Session; root: string }) {
     setExpanded(next);
   }
 
-  async function openFile(path: string) {
-    setError(null);
-    try {
-      const text = await session.readTextFile(path);
-      setFile({ path, text: text !== null && text.length > MAX_VIEW_BYTES ? `${text.slice(0, MAX_VIEW_BYTES)}\n…` : text });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  if (file) {
-    return (
-      <div className="workspace-body">
-        <button className="link-btn" onClick={() => setFile(null)}>
-          ‹ {file.path.startsWith(root + "/") ? file.path.slice(root.length + 1) : file.path}
-        </button>
-        {file.text === null ? <p className="muted center">Binary file.</p> : <pre className="mono file-view">{file.text}</pre>}
-      </div>
-    );
-  }
+  const openFile = (path: string) => Promise.resolve(onOpen(path));
 
   const renderNodes = (nodes: Node[], depth: number): React.ReactNode =>
     nodes.map((n) => (
@@ -310,4 +316,45 @@ function FilesTab({ session, root }: { session: Session; root: string }) {
 
 function patchNode(nodes: Node[], path: string, children: Node[]): Node[] {
   return nodes.map((n) => (n.path === path ? { ...n, children } : n.children ? { ...n, children: patchNode(n.children, path, children) } : n));
+}
+
+// Official-style file view: back / name / close on top, then numbered,
+// wrapped lines. Markdown headings get a touch of colour; everything else
+// stays plain (no highlighter on the phone).
+function FileViewer({ file, root, onBack, onClose }: { file: { path: string; text: string | null }; root: string; onBack: () => void; onClose: () => void }) {
+  const name = file.path.split("/").pop() ?? file.path;
+  const rel = file.path.startsWith(root + "/") ? file.path.slice(root.length + 1) : file.path;
+  const isMarkdown = /\.(md|markdown)$/i.test(name);
+  const lines = file.text === null ? [] : file.text.split("\n");
+  return (
+    <>
+      <header className="workspace-head viewer-head">
+        <button className="icon-btn round" aria-label="Back" onClick={onBack}>
+          ‹
+        </button>
+        <div className="viewer-title" title={rel}>
+          {name}
+        </div>
+        <span className="workspace-head-side right">
+          <button className="icon-btn round" aria-label="Close" onClick={onClose}>
+            ×
+          </button>
+        </span>
+      </header>
+      <div className="workspace-body viewer-body">
+        {file.text === null ? (
+          <p className="muted center">Binary file.</p>
+        ) : (
+          <pre className="code-view">
+            {lines.map((line, i) => (
+              <span key={i} className={`code-line ${isMarkdown && /^#{1,6}\s/.test(line) ? "hl-heading" : ""}`}>
+                <span className="code-no">{i + 1}</span>
+                <span className="code-text">{line || " "}</span>
+              </span>
+            ))}
+          </pre>
+        )}
+      </div>
+    </>
+  );
 }
