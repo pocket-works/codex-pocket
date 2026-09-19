@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getListView, setListView, type ListView } from "../state/list-prefs.js";
+import { getPins } from "../state/pins.js";
 import { describe, type Session, type ThreadStatus, type ThreadSummary } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ArchiveIcon, BranchIcon, CheckIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
@@ -88,8 +89,12 @@ export function ThreadList({ session }: { session: Session }) {
     () => (q ? threads.filter((t) => t.title.toLowerCase().includes(q) || projectName(t.cwd).toLowerCase().includes(q)) : threads),
     [threads, q],
   );
-  const chats = useMemo(() => filtered.filter(isScratchThread), [filtered]);
-  const groups = useMemo(() => groupByProject(filtered.filter((t) => !isScratchThread(t))), [filtered]);
+  // Pinned threads sit in their own section and nowhere else (unless searching).
+  const pinIds = getPins().join(",");
+  const pinned = useMemo(() => (q ? [] : pinIds.split(",").map((id) => filtered.find((t) => t.id === id)).filter((t): t is ThreadSummary => t !== undefined)), [filtered, pinIds, q]);
+  const rest = useMemo(() => (pinned.length > 0 ? filtered.filter((t) => !pinned.includes(t)) : filtered), [filtered, pinned]);
+  const chats = useMemo(() => rest.filter(isScratchThread), [rest]);
+  const groups = useMemo(() => groupByProject(rest.filter((t) => !isScratchThread(t))), [rest]);
   const grouped = view === "project" && !q;
 
   return (
@@ -104,6 +109,16 @@ export function ThreadList({ session }: { session: Session }) {
       {threads.length === 0 && !loading && !error && <p className="muted center">No threads yet.</p>}
 
       <div className="list-scroll">
+        {pinned.length > 0 && (
+          <>
+            <h2 className="section-title">Pinned</h2>
+            <ul className="thread-list">
+              {pinned.map((t) => (
+                <ThreadRow key={t.id} thread={t} showProject={!isScratchThread(t)} plain onArchive={archive} />
+              ))}
+            </ul>
+          </>
+        )}
         {grouped ? (
           <>
             {chats.length > 0 && (
@@ -145,7 +160,7 @@ export function ThreadList({ session }: { session: Session }) {
           </>
         ) : (
           <ul className="thread-list">
-            {filtered.map((t) => (
+            {rest.map((t) => (
               <ThreadRow key={t.id} thread={t} showProject={!isScratchThread(t)} plain onArchive={archive} />
             ))}
             {q && filtered.length === 0 && <p className="muted center">No matches.</p>}

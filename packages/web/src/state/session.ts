@@ -259,6 +259,11 @@ export class Session {
     }
   }
 
+  /** Nudges list subscribers after a per-device change such as a pin. */
+  touchThreads(): void {
+    this.store.set((s) => ({ ...s, threads: s.threads.slice() }));
+  }
+
   /** App-wide warning banner, e.g. when a list action fails. */
   notify(message: string): void {
     this.store.set((s) => ({ ...s, notices: [...s.notices, { id: nextNoticeId++, message }] }));
@@ -829,6 +834,24 @@ export class Session {
 
   async createDirectory(path: string): Promise<void> {
     await this.rpc.request("fs/createDirectory", { path, recursive: true });
+  }
+
+  /** Files and folders under `path`, folders first, for the Files browser. Dotfiles hidden. */
+  async listEntries(path: string): Promise<{ name: string; isDirectory: boolean }[]> {
+    const res = await this.rpc.request<v2.FsReadDirectoryResponse>("fs/readDirectory", { path });
+    return res.entries
+      .filter((e) => (e.isDirectory || e.isFile) && !e.fileName.startsWith("."))
+      .map((e) => ({ name: e.fileName, isDirectory: e.isDirectory }))
+      .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name));
+  }
+
+  /** A text file's contents; null when it does not look like text. */
+  async readTextFile(path: string): Promise<string | null> {
+    const res = await this.rpc.request<v2.FsReadFileResponse>("fs/readFile", { path });
+    const bytes = Uint8Array.from(atob(res.dataBase64), (c) => c.charCodeAt(0));
+    const probe = bytes.subarray(0, 4096);
+    if (probe.includes(0)) return null;
+    return new TextDecoder().decode(bytes);
   }
 
   /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */

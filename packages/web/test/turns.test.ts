@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, toolLabel, transcriptMarkdown, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, threadChanges, toolLabel, transcriptMarkdown, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -85,6 +85,26 @@ describe("summarizeTools", () => {
   it("counts failures", () => {
     const failed = { ...cmd("1", "make"), exitCode: 2 } as unknown as ThreadItem;
     expect(summarizeTools([failed, cmd("2", "ls")])).toBe("Ran 2 commands · 1 failed");
+  });
+});
+
+describe("threadChanges", () => {
+  const edit = (id: string, files: string[]): ThreadItem =>
+    ({ type: "fileChange", id, status: "completed", changes: files.map((path) => ({ path, kind: { type: "update", move_path: null }, diff: `+${id}` })) }) as unknown as ThreadItem;
+
+  it("lists every file edited in the thread, latest edit per file, newest turn first", () => {
+    let s = initialThreadState(T);
+    s = prependHistory(s, [
+      { turnId: "t1", item: user("u1", "a") },
+      { turnId: "t1", item: edit("e1", ["/p/a.ts", "/p/b.ts"]) },
+      { turnId: "t2", item: user("u2", "b") },
+      { turnId: "t2", item: edit("e2", ["/p/a.ts"]) },
+    ]);
+    const changes = threadChanges(s);
+    expect(changes.map((c) => [c.path, c.diff])).toEqual([
+      ["/p/a.ts", "+e2"],
+      ["/p/b.ts", "+e1"],
+    ]);
   });
 });
 

@@ -30,3 +30,5 @@ export const PencilIcon = () => <Icon d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 1
 export const CopyIcon = () => <Icon d="M9 9h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />;
 export const ReviewIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15l2 2 4-4" />;
 export const CompressIcon = () => <Icon d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />;
+export const PinIcon = () => <Icon d="M16 3l5 5-4 1-3 3 1 5-3 1-3-4-5 5-1-1 5-5-4-3 1-3 5 1 3-3z" />;
+export const FileIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" />;
