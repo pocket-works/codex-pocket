@@ -268,7 +268,7 @@ export function Composer({
             }
           }}
         />
-        {!expanded && <DictationButton disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />}
+        {!expanded && <DictationButton session={session} disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />}
         {expanded && (
         <div className="composer-tools">
           <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
@@ -279,7 +279,7 @@ export function Composer({
           <ContextRing session={session} />
           <FastButton session={session} disabled={disabled} />
           <EffortGauge session={session} disabled={disabled} />
-          <DictationButton disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />
+          <DictationButton session={session} disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />
           {showStop ? (
             <button className="primary send-btn stop-btn" onClick={onStop} aria-label="Stop">
               <span className="stop-glyph" aria-hidden="true" />

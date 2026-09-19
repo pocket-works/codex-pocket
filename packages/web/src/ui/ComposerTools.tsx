@@ -243,28 +243,28 @@ function fmtK(n: number): string {
   return n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
 }
 
-// Microphone toggle: while listening, the recogniser's running transcript is
-// appended to whatever was in the box when it started.
-export function DictationButton({ disabled, text, onText, onError }: { disabled: boolean; text: string; onText: (text: string) => void; onError: (msg: string) => void }) {
+// Microphone toggle: while listening, the running transcript from the host's
+// dictation relay is appended to whatever was in the box when it started.
+export function DictationButton({ session, disabled, text, onText, onError }: { session: Session; disabled: boolean; text: string; onText: (text: string) => void; onError: (msg: string) => void }) {
   const [listening, setListening] = useState(false);
-  const session = useRef<Dictation | null>(null);
+  const active = useRef<Dictation | null>(null);
   const base = useRef("");
 
-  useEffect(() => () => session.current?.stop(), []);
+  useEffect(() => () => active.current?.stop(), []);
 
   if (!dictationSupported()) return null;
 
   function toggle() {
-    if (session.current) {
-      session.current.stop();
+    if (active.current) {
+      active.current.stop();
       return;
     }
     base.current = text ? (/\s$/.test(text) ? text : `${text} `) : "";
     try {
-      session.current = startDictation({
+      active.current = startDictation(session.rpc, {
         onText: (t) => onText(base.current + t),
         onEnd: (error) => {
-          session.current = null;
+          active.current = null;
           setListening(false);
           if (error) onError(`Dictation stopped: ${error}`);
         },

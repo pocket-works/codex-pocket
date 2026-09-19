@@ -201,7 +201,8 @@ function isLockedError(err: unknown): boolean {
 // Everything the UI can do, on top of one RpcClient. State is in `store`.
 export class Session {
   readonly store: Store<SessionState>;
-  private readonly rpc: RpcClient;
+  /** Host-level features (dictation) speak to the socket directly. */
+  readonly rpc: RpcClient;
   private openGeneration = 0;
 
   constructor(rpc: RpcClient) {
