@@ -815,6 +815,31 @@ export class Session {
     }
   }
 
+  /**
+   * Working-tree changes as a unified diff, like the official Changes tab:
+   * "uncommitted" is everything since HEAD (untracked files included),
+   * "branch" is everything since the branch left its upstream.
+   */
+  async gitChanges(cwd: string, mode: "uncommitted" | "branch"): Promise<{ diff: string; branch: string; upstream: string | null }> {
+    const branch = (await this.git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+    let upstream: string | null = null;
+    try {
+      upstream = (await this.git(cwd, ["rev-parse", "--abbrev-ref", "@{upstream}"])).trim();
+    } catch {
+      // No upstream configured: branch mode falls back to uncommitted.
+    }
+    let base = "HEAD";
+    if (mode === "branch" && upstream) base = (await this.git(cwd, ["merge-base", "HEAD", upstream])).trim();
+    let diff = await this.git(cwd, ["diff", base, "--"]);
+    // `git diff` skips untracked files; show them as additions (exit 1 = has differences).
+    const untracked = (await this.git(cwd, ["ls-files", "--others", "--exclude-standard"])).split("\n").filter(Boolean).slice(0, 50);
+    for (const file of untracked) {
+      const res = await this.exec(cwd, ["git", "diff", "--no-index", "--", "/dev/null", file]);
+      if (res.exitCode === 0 || res.exitCode === 1) diff += res.stdout.replace(/^diff --git a\/dev\/null b\/(.*)$/m, "diff --git a/$1 b/$1");
+    }
+    return { diff, branch, upstream };
+  }
+
   async gitSwitch(cwd: string, branch: string): Promise<void> {
     await this.git(cwd, ["switch", branch], [cwd]);
   }

@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { isPinned, togglePin } from "../state/pins.js";
 import { useStore } from "../state/store.js";
-import { ChangesSheet } from "./ChangesSheet.js";
-import { FilesSheet } from "./FilesSheet.js";
+import { WorkspaceSheet, type WorkspaceTab } from "./WorkspaceSheet.js";
 import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon } from "./icons.js";
 import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
@@ -16,7 +15,7 @@ export function ThreadMenu({ session }: { session: Session }) {
   const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const [show, setShow] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<"changes" | "files" | null>(null);
+  const [sheet, setSheet] = useState<WorkspaceTab | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [, bump] = useState(0);
@@ -111,8 +110,9 @@ export function ThreadMenu({ session }: { session: Session }) {
               <MenuItem
                 icon={<BranchIcon size={22} />}
                 label="Changes"
+                disabled={!open.cwd}
                 onClick={() => {
-                  setSheet("changes");
+                  setSheet("modified");
                   close();
                 }}
               />
@@ -129,8 +129,7 @@ export function ThreadMenu({ session }: { session: Session }) {
           )}
         </div>
       )}
-      {sheet === "changes" && <ChangesSheet view={open.view} cwd={open.cwd} onClose={() => setSheet(null)} />}
-      {sheet === "files" && <FilesSheet session={session} root={open.cwd} onClose={() => setSheet(null)} />}
+      {sheet && open.cwd && <WorkspaceSheet session={session} cwd={open.cwd} initialTab={sheet} onClose={() => setSheet(null)} />}
     </div>
   );
 }

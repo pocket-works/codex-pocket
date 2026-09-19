@@ -1,3 +1,5 @@
+import type { v2 } from "@codex-pocket/protocol";
+
 export type DiffLineKind = "hunk" | "context" | "add" | "del";
 
 export interface DiffLine {
@@ -50,4 +52,33 @@ export function diffStats(diff: string): { added: number; removed: number } {
     else if (l.kind === "del") removed++;
   }
   return { added, removed };
+}
+
+/**
+ * `git diff` output → one entry per file, in the shape Codex uses for its
+ * own patches so the same diff view renders both. Paths are made absolute
+ * under `root`.
+ */
+export function splitGitDiff(text: string, root: string): v2.FileUpdateChange[] {
+  const out: v2.FileUpdateChange[] = [];
+  const abs = (p: string) => `${root.replace(/\/$/, "")}/${p}`;
+  const chunks = text.split(/^(?=diff --git )/m).filter((c) => c.startsWith("diff --git "));
+  for (const chunk of chunks) {
+    const lines = chunk.split("\n");
+    const head = /^diff --git a\/(.*) b\/(.*)$/.exec(lines[0]);
+    if (!head) continue;
+    let kind: v2.PatchChangeKind = { type: "update", move_path: null };
+    let path = head[2];
+    for (const line of lines.slice(1, 8)) {
+      if (line.startsWith("new file mode")) kind = { type: "add" };
+      else if (line.startsWith("deleted file mode")) kind = { type: "delete" };
+      else if (line.startsWith("rename to ")) {
+        path = line.slice("rename to ".length);
+        kind = { type: "update", move_path: abs(head[1]) };
+      }
+    }
+    const body = lines.findIndex((l) => l.startsWith("@@"));
+    out.push({ path: abs(path), kind, diff: body < 0 ? "" : lines.slice(body).join("\n") });
+  }
+  return out;
 }
