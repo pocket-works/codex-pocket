@@ -32,3 +32,4 @@ export const ReviewIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h
 export const CompressIcon = () => <Icon d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />;
 export const PinIcon = () => <Icon d="M16 3l5 5-4 1-3 3 1 5-3 1-3-4-5 5-1-1 5-5-4-3 1-3 5 1 3-3z" />;
 export const FileIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" />;
+export const ExternalIcon = () => <Icon d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />;
