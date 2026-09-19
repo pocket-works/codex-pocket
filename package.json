@@ -5,7 +5,7 @@
   "description": "Phone-sized PWA that connects straight to the Codex desktop app-server on your Mac, over Tailscale or the LAN.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/codex-pocket.git"
+    "url": "https://github.com/jerryan999/codex-pocket.git"
   },
   "keywords": [
     "codex",
