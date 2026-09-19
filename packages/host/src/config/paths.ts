@@ -20,6 +20,10 @@ export function uploadsDir(): string {
   return join(pocketHome(), "uploads");
 }
 
+export function vapidFile(): string {
+  return join(pocketHome(), "vapid.json");
+}
+
 export interface CertFiles {
   key: string;
   cert: string;

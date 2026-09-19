@@ -16,12 +16,14 @@
   },
   "dependencies": {
     "qrcode": "^1.5.4",
+    "web-push": "^3.6.7",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@codex-pocket/protocol": "workspace:*",
     "@types/node": "^22.18.0",
     "@types/qrcode": "^1.5.6",
+    "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",

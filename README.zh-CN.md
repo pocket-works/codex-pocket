@@ -12,7 +12,7 @@
 - 图片附件、`@文件`、`/技能`、模型提问弹层、计划与用量显示
 - 线程改名 / 归档（左滑）/ fork / review
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
-- 待做：Web Push 通知
+- Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
 
 ## 安全模型
 
@@ -36,7 +36,7 @@ pnpm dev:host revoke <id>
 
 常用操作都包在 `Makefile` 里（`make start`、`make pair`、`make status`…），`make help` 查看列表。
 
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（只存 token 哈希）、`admin.token`、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`（launchd 模式的日志）。
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`（launchd 模式的日志）。
 
 ## 部署：Tailscale HTTPS + 开机常驻
 
@@ -53,6 +53,7 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 
 3. `pnpm dev:host pair` 生成的二维码就指向 `https://<mac>.<tailnet>.ts.net/#pair=…`，手机（Tailscale 已连接）扫码即可；证书由 Tailscale 自动签发和续期。
 4. 想要全屏体验就在 Safari 里"添加到主屏幕"。注意 iOS 给主屏幕应用单独的存储，第一次打开会再要一次配对：在 Mac 上再跑 `pair`，在 app 里点"扫码"扫同一个二维码，或者输入它打印的 8 位码（形如 `ABCD-EFGH`）。
+5. 在 app 的设置页打开 **Notifications**。轮次完成、Codex 请求审批或提问、轮次失败时会推送——除非 app 正开着那个线程。
 
 `pnpm dev:host config` 查看当前设置，`config unset <key>` 恢复默认。
 

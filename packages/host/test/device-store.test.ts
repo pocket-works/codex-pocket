@@ -65,3 +65,16 @@ describe("DeviceStore pairing", () => {
     expect((await b.list()).map((d) => d.name)).toEqual(["Pixel"]);
   });
 });
+
+describe("DeviceStore concurrent writes", () => {
+  it("serializes saves so a token touch cannot break a concurrent update", async () => {
+    const store = freshStore();
+    const paired = (await store.redeemPairingCode(store.createPairingCode(), "iPhone"))!;
+    await Promise.all([
+      store.verifyToken(paired.token),
+      store.setPushSubscription(paired.deviceId, { endpoint: "https://push/x", keys: { p256dh: "p", auth: "a" } }),
+      store.verifyToken(paired.token),
+    ]);
+    expect((await store.listPushSubscriptions()).length).toBe(1);
+  });
+});

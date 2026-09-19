@@ -2,7 +2,6 @@
 import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
-import { certsDir } from "./config/paths.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, linkDesktop, uninstallLaunchAgent, unlinkDesktop } from "./launchd.js";
 import { sharedAppServerUrl } from "./codex/shared-app-server.js";

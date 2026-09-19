@@ -30,6 +30,8 @@ export interface CodexProxyOptions {
   backoffMs?: number[];
   /** How long to keep thread subscriptions after the last phone leaves. */
   releaseGraceMs?: number;
+  /** Sees every upstream notification and server request (e.g. for push notifications). */
+  tap?: (msg: JsonRpcMessage) => void;
   log?: (msg: string) => void;
 }
 
@@ -100,6 +102,11 @@ export class CodexProxy {
         if (this.downstreams.size === 0) this.scheduleRelease();
       },
     };
+  }
+
+  /** A request the host itself makes upstream (read-only lookups). */
+  call<T = unknown>(method: string, params?: unknown): Promise<T> {
+    return this.ensureUpstream().then((up) => up.rawRequest<T>(method, params));
   }
 
   private handleDownstreamMessage(down: Downstream, msg: JsonRpcMessage): void {
@@ -222,11 +229,13 @@ export class CodexProxy {
         if (requestId !== undefined) this.abandonServerRequest(requestId);
       }
       this.broadcast(n);
+      this.opts.tap?.(n);
     });
     client.onServerRequest((req) => {
       return new Promise((resolve, reject) => {
         this.pendingServerRequests.set(req.id, { request: req, resolve, reject });
         this.broadcast(req);
+        this.opts.tap?.(req);
       });
     });
     client.onClose((reason) => {

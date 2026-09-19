@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { DeviceStore } from "../src/auth/device-store.js";
+import { PushNotifier } from "../src/push/notifier.js";
 import { CodexClient } from "../src/codex/codex-client.js";
 import { CodexProxy } from "../src/proxy/codex-proxy.js";
 import { createLanServer, WS_PROTOCOL, type LanServer } from "../src/server/lan-server.js";
@@ -43,6 +44,7 @@ describe("LanServer", () => {
       uploadsDir,
       adminToken: ADMIN,
       pairingUrl: (code) => `http://example.test/#pair=${code}`,
+      push: { vapidPublicKey: "PUBKEY", notifier: new PushNotifier({ store, send: async () => {}, threadTitle: async () => null }) },
     });
     const addr = await server.listen();
     base = `http://127.0.0.1:${addr.port}`;
@@ -91,6 +93,26 @@ describe("LanServer", () => {
     expect(me.status).toBe(200);
     expect(await me.json()).toMatchObject({ device: { name: "Pixel" }, host: hostname(), home: homedir() });
     expect((await fetch(`${base}/api/me`)).status).toBe(401);
+  });
+
+  it("hands out the VAPID key and stores a push subscription per device", async () => {
+    const token = await pair("Pixel");
+    const auth = { Authorization: `Bearer ${token}` };
+    const vapid = await fetch(`${base}/api/push/vapid`, { headers: auth });
+    expect(await vapid.json()).toEqual({ publicKey: "PUBKEY" });
+    expect((await fetch(`${base}/api/push/vapid`)).status).toBe(401);
+
+    const sub = { endpoint: "https://push.example/abc", keys: { p256dh: "p", auth: "a" }, expirationTime: null };
+    const put = await fetch(`${base}/api/push/subscription`, { method: "PUT", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify(sub) });
+    expect(put.status).toBe(200);
+    expect((await store.listPushSubscriptions()).map((s) => s.subscription)).toEqual([sub]);
+
+    const bad = await fetch(`${base}/api/push/subscription`, { method: "PUT", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: "http://insecure" }) });
+    expect(bad.status).toBe(400);
+
+    const del = await fetch(`${base}/api/push/subscription`, { method: "DELETE", headers: auth });
+    expect(del.status).toBe(200);
+    expect(await store.listPushSubscriptions()).toEqual([]);
   });
 
   it("rejects bad pairing codes", async () => {
