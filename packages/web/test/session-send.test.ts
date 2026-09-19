@@ -214,6 +214,18 @@ describe("thread management", () => {
     expect(calls).toEqual([{ method: "review/start", params: { threadId: "t1", target: { type: "uncommittedChanges" }, delivery: "inline" } }]);
   });
 
+  it("compacts the open thread's context when idle", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    await readySession(rpc, null).compactThread();
+    expect(calls).toEqual([{ method: "thread/compact/start", params: { threadId: "t1" } }]);
+  });
+
+  it("refuses to compact while a turn runs", async () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    await expect(readySession(rpc, "active").compactThread()).rejects.toThrow(/in progress/);
+    expect(calls).toEqual([]);
+  });
+
   it("applies approval and sandbox overrides on the next turn", async () => {
     const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
     const session = readySession(rpc, null);

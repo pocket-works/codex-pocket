@@ -743,6 +743,18 @@ export class Session {
     await this.rpc.request<v2.ReviewStartResponse>("review/start", params);
   }
 
+  /**
+   * Summarises the thread's context so a long thread keeps room to work.
+   * Codex runs it as a turn, so it cannot overlap a running one.
+   */
+  async compactThread(): Promise<void> {
+    const open = this.store.get().open;
+    if (!open || open.state !== "ready") throw new Error("thread not ready");
+    if (open.view.activeTurnId) throw new Error("Compact is disabled while a turn is in progress");
+    const params: v2.ThreadCompactStartParams = { threadId: open.view.threadId };
+    await this.rpc.request<v2.ThreadCompactStartResponse>("thread/compact/start", params);
+  }
+
   setPermissions(approval: v2.AskForApproval, sandbox: v2.SandboxMode, reviewer?: v2.ApprovalsReviewer): void {
     this.store.set((s) => {
       if (!s.open) return s;

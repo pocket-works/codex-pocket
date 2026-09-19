@@ -148,6 +148,19 @@ export function Composer({
   }
 
   const visibleSkills = popover?.kind === "skills" ? skills.filter((s) => s.name.toLowerCase().includes(popover.query.toLowerCase())) : [];
+  // Built-in slash commands, listed with the skills like the official app.
+  const showCompact = popover?.kind === "skills" && !onSend && "compact".startsWith(popover.query.toLowerCase());
+
+  async function compact() {
+    setPopover(null);
+    setError(null);
+    try {
+      await session.compactThread();
+      setDraft((d) => ({ ...d, text: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   return (
     <div className="composer">
@@ -164,8 +177,16 @@ export function Composer({
           ))}
         </ul>
       )}
-      {popover?.kind === "skills" && visibleSkills.length > 0 && (
+      {popover?.kind === "skills" && (visibleSkills.length > 0 || showCompact) && (
         <ul className="popover" role="listbox">
+          {showCompact && (
+            <li>
+              <button type="button" onClick={() => void compact()}>
+                <span className="option-label">/compact</span>
+                <span className="muted small">{busy ? "Compact this chat's context (disabled while a turn runs)" : "Compact this chat's context"}</span>
+              </button>
+            </li>
+          )}
           {visibleSkills.slice(0, 8).map((s) => (
             <li key={s.path}>
               <button type="button" onClick={() => pickSkill(s)}>

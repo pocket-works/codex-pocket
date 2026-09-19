@@ -29,6 +29,9 @@ export function ThreadMenu({ session }: { session: Session }) {
   if (!open) return null;
   const threadId = open.view.threadId;
   const ready = open.state === "ready";
+  const running = open.view.activeTurnId !== null;
+  const usage = open.view.tokenUsage;
+  const contextPct = usage?.contextWindow ? Math.min(100, Math.round((usage.contextTokens / usage.contextWindow) * 100)) : null;
   const perms = open.permissionOverride ?? open.permissions;
   const isGranular = typeof perms?.approval === "object";
 
@@ -81,8 +84,13 @@ export function ThreadMenu({ session }: { session: Session }) {
                   </button>
                 </li>
                 <li>
-                  <button disabled={busy || !ready || open.view.activeTurnId !== null} onClick={() => void run(() => session.startReview())}>
+                  <button disabled={busy || !ready || running} onClick={() => void run(() => session.startReview())}>
                     Review uncommitted changes
+                  </button>
+                </li>
+                <li>
+                  <button disabled={busy || !ready || running} onClick={() => void run(() => session.compactThread())}>
+                    Compact context{contextPct !== null && <span className="muted small"> · {contextPct}% full</span>}
                   </button>
                 </li>
                 <li>
@@ -90,7 +98,7 @@ export function ThreadMenu({ session }: { session: Session }) {
                     className="danger"
                     disabled={busy}
                     onClick={() => {
-                      if (confirm("Archive this thread?")) void run(async () => {
+                      if (confirm(running ? "Stop and archive this thread?" : "Archive this thread?")) void run(async () => {
                         await session.archiveThread(threadId);
                         navigate({ name: "list" });
                       });

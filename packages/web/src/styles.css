@@ -1073,6 +1073,27 @@ code,
   border: none;
 }
 
+/* Floating "back to the latest output" button, shown after scrolling up. */
+.thread {
+  position: relative;
+}
+
+.scroll-bottom-btn {
+  position: absolute;
+  right: 16px;
+  bottom: calc(96px + var(--safe-bottom));
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: inherit;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
 /* Server-side follow-up queue under the transcript. */
 .queued-list {
   display: flex;
