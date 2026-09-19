@@ -85,7 +85,7 @@ export function ThreadList({ session }: { session: Session }) {
             <h2 className="section-title">Chats</h2>
             <ul className="thread-list">
               {filtered.slice(0, RECENT_CHATS).map((t) => (
-                <ThreadRow key={t.id} thread={t} showProject />
+                <ThreadRow key={t.id} thread={t} showProject plain />
               ))}
             </ul>
             <h2 className="section-title">Projects</h2>
@@ -107,7 +107,7 @@ export function ThreadList({ session }: { session: Session }) {
                   {expanded === g.cwd && (
                     <ul className="thread-list nested">
                       {g.threads.map((t) => (
-                        <ThreadRow key={t.id} thread={t} />
+                        <ThreadRow key={t.id} thread={t} compact />
                       ))}
                     </ul>
                   )}
@@ -118,7 +118,7 @@ export function ThreadList({ session }: { session: Session }) {
         ) : (
           <ul className="thread-list">
             {filtered.map((t) => (
-              <ThreadRow key={t.id} thread={t} showProject />
+              <ThreadRow key={t.id} thread={t} showProject plain />
             ))}
             {q && filtered.length === 0 && <p className="muted center">No matches.</p>}
           </ul>
@@ -138,15 +138,39 @@ export function ThreadList({ session }: { session: Session }) {
   );
 }
 
-export function ThreadRow({ thread, showProject }: { thread: ThreadSummary; showProject?: boolean }) {
+export function ThreadRow({
+  thread,
+  showProject,
+  compact,
+  plain,
+}: {
+  thread: ThreadSummary;
+  showProject?: boolean;
+  compact?: boolean;
+  /** Title and project only, like the official "Chats" section. */
+  plain?: boolean;
+}) {
+  if (compact) {
+    // Inside a project: one line, title left, branch and time right.
+    return (
+      <li>
+        <button className="thread-row compact" onClick={() => navigate({ name: "thread", id: thread.id })}>
+          <span className="thread-title">{thread.title}</span>
+          {thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
+          {thread.status === "active" && <span className="dot active" title="Running" />}
+          <span className="thread-time muted">{relativeTime(thread.updatedAt)}</span>
+        </button>
+      </li>
+    );
+  }
   return (
     <li>
       <button className="thread-row" onClick={() => navigate({ name: "thread", id: thread.id })}>
         <div className="thread-row-top">
           {showProject && <span className="thread-project">{projectName(thread.cwd)}</span>}
-          {thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
+          {!plain && thread.branch && <span className="thread-branch muted">{thread.branch}</span>}
           {thread.status === "active" && <span className="dot active" title="Running" />}
-          <span className="thread-time">{relativeTime(thread.updatedAt)}</span>
+          {!plain && <span className="thread-time">{relativeTime(thread.updatedAt)}</span>}
         </div>
         <div className="thread-title">{thread.title}</div>
       </button>

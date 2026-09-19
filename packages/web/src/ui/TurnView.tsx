@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
-import { formatDuration, groupTurns, isToolItem, toolLabel, turnDurationMs, type TurnGroup } from "../state/turns.js";
+import { changeTotals, formatDuration, groupTurns, isToolItem, stripDirectives, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
+import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
 import { renderMarkdown } from "./markdown.js";
@@ -38,7 +39,8 @@ function TurnBlock({ group, session, cwd, latest }: { group: TurnGroup; session:
           {group.final && <hr className="turn-sep" />}
         </>
       )}
-      {group.final && <FinalAnswer text={group.final.text} group={group} session={session} />}
+      {group.final && <FinalAnswer text={group.final.text} group={group} session={session} cwd={cwd} />}
+      {!group.final && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
     </section>
   );
 }
@@ -208,7 +210,33 @@ function Reasoning({ items }: { items: Extract<ThreadItem, { type: "reasoning" }
 // transport, so thumbs just remember your reaction on this device session.
 const ratings = new Map<string, "up" | "down">();
 
-function FinalAnswer({ text, group, session }: { text: string; group: TurnGroup; session: Session }) {
+// "1 file changed +4 −0": every edit of the turn, expandable per file.
+function ChangesCard({ changes, cwd }: { changes: FileChange[]; cwd: string }) {
+  const [open, setOpen] = useState(true);
+  const totals = changeTotals(changes, diffStats);
+  const files = changes.flatMap((c) => c.changes);
+  const failed = changes.some((c) => c.status === "failed" || c.status === "declined");
+  return (
+    <div className={`changes-card ${failed ? "failed" : ""}`}>
+      <button className="changes-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="changes-title">
+          {totals.files} file{totals.files === 1 ? "" : "s"} changed
+        </span>
+        <span className="diff-stats">
+          <span className="add">+{totals.added}</span>
+          <span className="del">−{totals.removed}</span>
+        </span>
+        {failed && <span className="pill failed">{changes.find((c) => c.status !== "completed")?.status}</span>}
+        <span className={`chev ${open ? "down" : ""}`}>
+          <ChevronIcon />
+        </span>
+      </button>
+      {open && files.map((f, i) => <FileDiff key={`${f.path}-${i}`} change={f} cwd={cwd} />)}
+    </div>
+  );
+}
+
+function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnGroup; session: Session; cwd: string }) {
   const id = group.final?.id ?? group.turnId;
   const [rating, setRating] = useState<"up" | "down" | null>(ratings.get(id) ?? null);
   const [copied, setCopied] = useState(false);
@@ -246,7 +274,8 @@ function FinalAnswer({ text, group, session }: { text: string; group: TurnGroup;
 
   return (
     <div className="final">
-      <div className="final-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
+      <div className="final-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripDirectives(text)) }} />
+      {group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">
           <button className="act" aria-label="Copy" onClick={() => void copy()}>
