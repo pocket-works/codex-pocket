@@ -3,7 +3,7 @@ import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { certsDir } from "./config/paths.js";
-import { parseTlsSettings, readSettings, writeSettings } from "./config/settings.js";
+import { parsePublicUrl, parseTlsSettings, readSettings, writeSettings } from "./config/settings.js";
 import { CloudflareDns } from "./dns/cloudflare.js";
 import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, linkDesktop, uninstallLaunchAgent, unlinkDesktop } from "./launchd.js";
 import { sharedAppServerUrl } from "./codex/shared-app-server.js";
@@ -21,8 +21,11 @@ Commands:
     --port <n>        Port to listen on (default ${DEFAULT_PORT})
     --host <addr>     Address to bind (default 0.0.0.0)
     --public-host <h> Hostname/IP printed in the pairing URL (default: LAN IP)
+    --public-url <u>  Full origin for the pairing URL when a reverse proxy fronts us
+                      (persist it with: public-url set <u>)
     --no-tls          Serve plain HTTP even if certificates exist
     --static <dir>    Directory with the built web app
+  public-url [set <u>|clear]  Show/set/clear the origin used in pairing URLs
   pair              Print a QR code to pair a new phone (needs a running serve)
   devices           List paired phones
   revoke <id>       Remove a paired phone
@@ -135,9 +138,24 @@ async function main(argv: string[]): Promise<number> {
         port,
         host: str(flags, "host"),
         publicHost: str(flags, "public-host"),
+        publicUrl: str(flags, "public-url"),
         noTls: flags.values.has("no-tls"),
         staticDir: str(flags, "static"),
       });
+      return 0;
+    }
+    case "public-url": {
+      const settings = readSettings();
+      const action = flags.positional[1];
+      if (action === "set") {
+        const url = parsePublicUrl(flags.positional[2] ?? "");
+        writeSettings({ ...settings, publicUrl: url });
+        console.log(`publicUrl = ${url}  (restart serve to apply)`);
+      } else if (action === "clear") {
+        const { publicUrl: _drop, ...rest } = settings;
+        writeSettings(rest);
+        console.log("publicUrl cleared (restart serve to apply)");
+      } else console.log(settings.publicUrl ?? "(not set: pairing URLs use the LAN IP)");
       return 0;
     }
     case "pair": {
