@@ -10,6 +10,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { JsonRpcMessage } from "@codex-pocket/protocol";
 import type { Device, DeviceStore, PushSubscription } from "../auth/device-store.js";
 import type { PushNotifier } from "../push/notifier.js";
+import type { DictationService } from "../dictation/dictation-service.js";
 import type { CodexProxy } from "../proxy/codex-proxy.js";
 import { serveStatic } from "./static-files.js";
 
@@ -33,6 +34,8 @@ export interface LanServerOptions {
   pairingUrl: (code: string) => string;
   /** Web Push: public key handed to phones, and where their subscriptions/state go. Absent = push disabled. */
   push?: { vapidPublicKey: string; notifier: PushNotifier } | null;
+  /** Streaming dictation relay (`pocket/dictation/*`). Absent = dictation disabled. */
+  dictation?: DictationService | null;
   log?: (msg: string) => void;
 }
 
@@ -88,11 +91,11 @@ export function createLanServer(opts: LanServerOptions): LanServer {
   wss.on("connection", (ws: WebSocket, req: IncomingMessage & { device?: Device }) => {
     const connId = String(nextConnId++);
     const device = req.device;
-    const handle = opts.proxy.attach({
-      send: (msg) => {
-        if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
-      },
-    });
+    const send = (msg: JsonRpcMessage) => {
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+    };
+    const handle = opts.proxy.attach({ send });
+    const dictation = opts.dictation?.attach(send) ?? null;
     log(`phone connected: ${device?.name ?? "?"}`);
     ws.on("message", (raw) => {
       let msg: JsonRpcMessage;
@@ -107,10 +110,12 @@ export function createLanServer(opts: LanServerOptions): LanServer {
         if (device && opts.push) opts.push.notifier.setClientState(connId, device.id, { threadId: typeof p.threadId === "string" ? p.threadId : null, visible: p.visible === true });
         return;
       }
+      if (dictation?.handle(msg)) return;
       handle.receive(msg);
     });
     ws.on("close", () => {
       handle.detach();
+      dictation?.detach();
       opts.push?.notifier.clearClient(connId);
       log(`phone disconnected: ${device?.name ?? "?"}`);
     });
@@ -188,7 +193,7 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     if (!device) return sendJson(res, 401, { error: "unauthorized" });
     // `host` names the Mac on the new-thread screen, as the official app does;
     // `home` is where project-less chats get their scratch folder.
-    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected, host: hostname(), home: homedir() });
+    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected, host: hostname(), home: homedir(), dictation: opts.dictation?.available ?? false });
   }
 
   if (path === "/api/uploads" && method === "POST") {

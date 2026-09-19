@@ -10,6 +10,7 @@ import webpush from "web-push";
 import { codexSettings, parsePublicUrl, readSettings } from "./config/settings.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
+import { DictationService } from "./dictation/dictation-service.js";
 import { CodexProxy } from "./proxy/codex-proxy.js";
 import { createLanServer } from "./server/lan-server.js";
 
@@ -76,6 +77,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     adminToken: adminToken(),
     pairingUrl: (code) => pairingUrl(publicUrl, code),
     push: { vapidPublicKey: vapid.publicKey, notifier },
+    dictation: new DictationService({ log }),
     log,
   });
 
