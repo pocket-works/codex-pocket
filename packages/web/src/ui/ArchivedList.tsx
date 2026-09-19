@@ -47,11 +47,11 @@ export function ArchivedList({ session }: { session: Session }) {
         {threads?.map((t) => (
           <li key={t.id} className="archived-row">
             <button className="thread-row" onClick={() => navigate({ name: "thread", id: t.id })}>
-              <div className="thread-row-top">
-                <span className="thread-project">{projectName(t.cwd)}</span>
-                <span className="thread-time">{relativeTime(t.updatedAt)}</span>
+              <div className="thread-row-body">
+                <div className="thread-project">{projectName(t.cwd)}</div>
+                <div className="thread-title">{t.title}</div>
               </div>
-              <div className="thread-title">{t.title}</div>
+              <span className="thread-time muted">{relativeTime(t.updatedAt)}</span>
             </button>
             <button className="subtle-btn" disabled={busy === t.id} onClick={() => void restore(t)}>
               {busy === t.id ? "…" : "Restore"}
