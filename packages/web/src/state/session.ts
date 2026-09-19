@@ -565,6 +565,17 @@ export class Session {
     });
   }
 
+  /** Sends the last user message again after a turn failed (network, model errors). */
+  async retryLastTurn(): Promise<void> {
+    const open = this.store.get().open;
+    if (!open || open.state !== "ready" || !open.view.lastTurnError || open.view.activeTurnId) return;
+    const last = [...open.view.items].reverse().find((i) => i.type === "userMessage");
+    if (!last || last.type !== "userMessage" || last.content.length === 0) return;
+    const threadId = open.view.threadId;
+    await this.rpc.request<v2.TurnStartResponse>("turn/start", { threadId, input: last.content });
+    this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, view: { ...s.open.view, lastTurnError: null } } } : s));
+  }
+
   // --- follow-up queue (thread/queue/*) -----------------------------------
 
   setFollowUpMode(mode: FollowUpMode): void {

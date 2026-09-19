@@ -1098,6 +1098,17 @@ code,
   z-index: 5;
 }
 
+.turn-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.turn-error p {
+  margin: 0;
+}
+
 /* Server-side follow-up queue under the transcript. */
 .queued-list {
   display: flex;
