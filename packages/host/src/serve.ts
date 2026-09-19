@@ -71,10 +71,11 @@ export async function serve(opts: ServeOptions): Promise<void> {
 
   const devices = await deviceStore.list();
   if (devices.length === 0) {
-    const url = pairingUrl(publicUrl, deviceStore.createPairingCode());
+    const code = deviceStore.createPairingCode();
+    const url = pairingUrl(publicUrl, code);
     console.log("\nNo paired devices yet. Scan to pair (valid 10 minutes):\n");
     console.log(await renderQrTerminal(url));
-    console.log(url + "\n");
+    console.log(`${url}\n\nOr type this code on the pairing screen: ${code.slice(0, 4)}-${code.slice(4)}\n`);
   } else {
     log(`${devices.length} paired device(s); run \`codex-pocket pair\` to add another`);
   }

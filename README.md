@@ -45,6 +45,7 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
    ```
 
 3. `pnpm dev:host pair` 生成的二维码就指向 `https://<mac>.<tailnet>.ts.net/#pair=…`，手机（Tailscale 已连接）扫码即可；证书由 Tailscale 自动签发和续期。
+4. 想要全屏体验就在 Safari 里"添加到主屏幕"。注意 iOS 给主屏幕应用单独的存储，第一次打开会再要一次配对：在 Mac 上再跑 `pair`，把它打印的 8 位码（形如 `ABCD-EFGH`）输进配对页即可。
 
 `pnpm dev:host config` 查看当前设置，`config unset <key>` 恢复默认。
 

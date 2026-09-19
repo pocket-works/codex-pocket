@@ -27,6 +27,24 @@ describe("DeviceStore pairing", () => {
     expect(await store.redeemPairingCode("nope", "x")).toBeNull();
   });
 
+  it("issues short codes a person can type, accepted in any case and with dashes", async () => {
+    const store = freshStore();
+    const code = store.createPairingCode();
+    expect(code).toMatch(/^[A-Z2-9]{8}$/);
+    expect(code).not.toMatch(/[01IO]/);
+    const typed = `${code.slice(0, 4).toLowerCase()}-${code.slice(4)} `;
+    expect(await store.redeemPairingCode(typed, "iPhone")).not.toBeNull();
+  });
+
+  it("voids outstanding codes after repeated wrong guesses", async () => {
+    const store = freshStore();
+    const code = store.createPairingCode();
+    for (let i = 0; i < 5; i++) expect(await store.redeemPairingCode("ZZZZZZZZ", "x")).toBeNull();
+    expect(await store.redeemPairingCode(code, "late")).toBeNull();
+    // A fresh `pair` starts over.
+    expect(await store.redeemPairingCode(store.createPairingCode(), "ok")).not.toBeNull();
+  });
+
   it("rejects bad tokens and revoked devices", async () => {
     const store = freshStore();
     const paired = (await store.redeemPairingCode(store.createPairingCode(), "iPad"))!;

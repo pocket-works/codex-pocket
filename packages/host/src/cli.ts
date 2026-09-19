@@ -105,10 +105,10 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "pair": {
-      const { url } = await adminRequest<{ url: string }>("POST", "/api/admin/pairing-code");
+      const { code, url } = await adminRequest<{ code: string; url: string }>("POST", "/api/admin/pairing-code");
       console.log("\nScan to pair (valid 10 minutes):\n");
       console.log(await renderQrTerminal(url));
-      console.log(url + "\n");
+      console.log(`${url}\n\nOr type this code on the pairing screen (e.g. in the installed app): ${formatCode(code)}\n`);
       return 0;
     }
     case "devices": {
@@ -172,6 +172,10 @@ Quit and reopen the ChatGPT app for it to take effect.`);
       process.stderr.write(`Unknown command: ${command}\n${USAGE}`);
       return 1;
   }
+}
+
+function formatCode(code: string): string {
+  return `${code.slice(0, 4)}-${code.slice(4)}`;
 }
 
 function fmt(ms: number): string {

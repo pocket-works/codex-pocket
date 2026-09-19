@@ -27,6 +27,16 @@ export interface DeviceStoreOptions {
 }
 
 const DEFAULT_CODE_TTL_MS = 10 * 60 * 1000;
+// Pairing codes are typed by hand when the QR link cannot be opened (an
+// installed PWA has its own storage): 8 symbols from an alphabet without
+// 0/O/1/I, ~40 bits. Guessing is throttled below.
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CODE_LENGTH = 8;
+const MAX_FAILED_REDEEMS = 5;
+
+function normalizeCode(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z2-9]/g, "");
+}
 
 function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");
@@ -45,6 +55,7 @@ export class DeviceStore {
   private readonly path: string;
   private readonly now: () => number;
   private readonly codes = new Map<string, PairingCode>();
+  private failedRedeems = 0;
   private devices: StoredDevice[] | null = null;
 
   constructor(path: string, opts: DeviceStoreOptions = {}) {
@@ -54,14 +65,20 @@ export class DeviceStore {
 
   createPairingCode(opts: { ttlMs?: number } = {}): string {
     this.pruneCodes();
-    const code = randomBytes(16).toString("base64url");
+    this.failedRedeems = 0;
+    const bytes = randomBytes(CODE_LENGTH);
+    const code = Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
     this.codes.set(code, { expiresAt: this.now() + (opts.ttlMs ?? DEFAULT_CODE_TTL_MS) });
     return code;
   }
 
   async redeemPairingCode(code: string, deviceName: string): Promise<PairedDevice | null> {
     this.pruneCodes();
-    if (!this.codes.delete(code)) return null;
+    if (!this.codes.delete(normalizeCode(code))) {
+      // Too many misses: drop every outstanding code so `pair` must be re-run.
+      if (++this.failedRedeems >= MAX_FAILED_REDEEMS) this.codes.clear();
+      return null;
+    }
     const token = randomBytes(32).toString("base64url");
     const device: StoredDevice = {
       id: randomBytes(8).toString("hex"),

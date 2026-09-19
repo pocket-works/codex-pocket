@@ -1850,3 +1850,27 @@ pre.diff {
   width: 18px;
   height: 18px;
 }
+
+/* --- pairing --- */
+
+.pair-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.pair-code {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-align: center;
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
