@@ -3,7 +3,7 @@ import { emptyDraft, mentionQuery, type Draft, type DraftImage } from "../state/
 import type { FileMatch, Session, Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
-import { ContextRing, EffortGauge, FastButton, PermissionsButton } from "./ComposerTools.js";
+import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton } from "./ComposerTools.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -197,6 +197,7 @@ export function Composer({
           <ContextRing session={session} />
           <FastButton session={session} disabled={disabled} />
           <EffortGauge session={session} disabled={disabled} />
+          <DictationButton disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />
           <button className="primary send-btn" onClick={() => void send()} disabled={!canSend} aria-label="Send">
             ↑
           </button>
