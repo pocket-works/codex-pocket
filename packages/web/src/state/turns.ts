@@ -187,22 +187,6 @@ export function stripDirectives(text: string): string {
     .trim();
 }
 
-/**
- * Every file the thread has edited, for the "Changes" view: the latest
- * edit of each path wins, ordered by most recently touched.
- */
-export function threadChanges(view: ThreadViewState): v2.FileUpdateChange[] {
-  const latest = new Map<string, v2.FileUpdateChange>();
-  for (const item of view.items) {
-    if (item.type !== "fileChange") continue;
-    for (const c of item.changes) {
-      latest.delete(c.path);
-      latest.set(c.path, c);
-    }
-  }
-  return [...latest.values()].reverse();
-}
-
 /** Totals across every file edited in a turn. */
 export function changeTotals(changes: FileChange[], stats: (diff: string) => { added: number; removed: number }): { files: number; added: number; removed: number } {
   let added = 0;
