@@ -38,6 +38,8 @@ export interface RateLimits {
   /** Short window (e.g. 5h) and long window (e.g. weekly); either may be absent. */
   primary: RateLimitWindow | null;
   secondary: RateLimitWindow | null;
+  /** Prepaid credit balance, when the account has any; null otherwise. */
+  credits: string | null;
 }
 
 export interface Notice {
@@ -134,7 +136,9 @@ function rateLimitWindow(w: v2.RateLimitWindow | null): RateLimitWindow | null {
 }
 
 function rateLimits(snapshot: v2.RateLimitSnapshot): RateLimits {
-  return { primary: rateLimitWindow(snapshot.primary), secondary: rateLimitWindow(snapshot.secondary) };
+  const c = snapshot.credits;
+  const credits = c?.hasCredits ? (c.unlimited ? "unlimited" : c.balance) : null;
+  return { primary: rateLimitWindow(snapshot.primary), secondary: rateLimitWindow(snapshot.secondary), credits };
 }
 
 function sandboxMode(policy: v2.SandboxPolicy): v2.SandboxMode {
