@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
@@ -15,6 +15,7 @@ export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
 
   const items = open?.view.items ?? [];
   const lastItem = items[items.length - 1];
@@ -30,6 +31,7 @@ export function ThreadView({ session }: { session: Session }) {
     const el = listRef.current;
     if (!el) return;
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAwayFromBottom(!stickToBottom.current);
     if (el.scrollTop < 40 && open?.olderCursor && !open.loadingOlder) {
       const before = el.scrollHeight;
       void session.loadOlder().then(() => {
@@ -39,6 +41,14 @@ export function ThreadView({ session }: { session: Session }) {
         });
       });
     }
+  }
+
+  function scrollToBottom() {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    setAwayFromBottom(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }
 
   if (!open) return null;
@@ -87,6 +97,12 @@ export function ThreadView({ session }: { session: Session }) {
         {open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}
         {open.view.lastTurnError && <p className="error">{open.view.lastTurnError}</p>}
       </div>
+
+      {awayFromBottom && (
+        <button className="scroll-bottom-btn" aria-label="Scroll to bottom" onClick={scrollToBottom}>
+          ↓
+        </button>
+      )}
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
