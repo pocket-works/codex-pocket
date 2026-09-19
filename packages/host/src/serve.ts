@@ -5,18 +5,15 @@ import { DeviceStore } from "./auth/device-store.js";
 import { codexConnector } from "./codex/target.js";
 import { adminToken, certsDir, devicesFile, findCertFiles, uploadsDir, writeRuntimeInfo } from "./config/paths.js";
 import { codexSettings, parsePublicUrl, readSettings } from "./config/settings.js";
-import { CloudflareDns } from "./dns/cloudflare.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
 import { CodexProxy } from "./proxy/codex-proxy.js";
 import { createLanServer } from "./server/lan-server.js";
-import { issueCertificate } from "./tls/acme.js";
-import { TlsManager } from "./tls/manager.js";
 
 export interface ServeOptions {
   port: number;
   host?: string;
-  /** Hostname phones should use; defaults to the LAN IP. Stage 5 sets this to the DNS name. */
+  /** Hostname phones should use; defaults to the LAN IP. */
   publicHost?: string;
   /**
    * Full origin phones should use, when a reverse proxy such as
@@ -35,31 +32,15 @@ function defaultStaticDir(): string {
   return resolve(fileURLToPath(import.meta.url), "..", "..", "..", "web", "dist");
 }
 
-// With a tls block in config.json the host manages its own certificate and
-// DNS record; otherwise it serves whatever PEMs are in certs/, or plain HTTP.
-function tlsManager(log: (m: string) => void): TlsManager | null {
-  const settings = readSettings().tls;
-  if (!settings) return null;
-  const dns = new CloudflareDns(settings.cloudflareToken);
-  return new TlsManager({
-    settings,
-    certsDir: certsDir(),
-    dns,
-    issue: () => issueCertificate({ settings, dns, certsDir: certsDir(), log }),
-    lanIp: primaryLanAddress,
-    log,
-  });
-}
-
 export async function serve(opts: ServeOptions): Promise<void> {
   const log = opts.log ?? ((m: string) => console.log(`[host] ${m}`));
-  const manager = opts.noTls ? null : tlsManager(log);
-  const managed = manager ? await manager.ensure() : null;
-  const certFiles = opts.noTls || managed ? null : findCertFiles();
-  const tls = managed ?? (certFiles ? { key: readFileSync(certFiles.key), cert: readFileSync(certFiles.cert) } : null);
+  // PEMs dropped into certs/ are served as-is; normally TLS is terminated by
+  // `tailscale serve` in front of us instead.
+  const certFiles = opts.noTls ? null : findCertFiles();
+  const tls = certFiles ? { key: readFileSync(certFiles.key), cert: readFileSync(certFiles.cert) } : null;
   const scheme = tls ? "https" : "http";
   const settings = readSettings();
-  const publicHost = opts.publicHost ?? (manager ? settings.tls?.hostname : undefined) ?? primaryLanAddress();
+  const publicHost = opts.publicHost ?? primaryLanAddress();
   const fixedUrl = opts.publicUrl ? parsePublicUrl(opts.publicUrl) : settings.publicUrl;
   if (!publicHost && !fixedUrl) throw new Error("no LAN IPv4 address found; pass --public-host or --public-url");
 
@@ -84,11 +65,6 @@ export async function serve(opts: ServeOptions): Promise<void> {
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
   const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
   log(`listening on ${publicUrl}${note}`);
-  if (manager) {
-    manager.onCertificate((m) => server.setTls(m));
-    manager.start();
-  }
-
   proxy.start().then(
     () => log(`connected to Codex app-server (${codex.mode === "shared" ? `shared, port ${codex.port}` : "official daemon"})`),
     (err) => log(`Codex app-server not reachable yet, will retry: ${err instanceof Error ? err.message : err}`),
@@ -106,7 +82,6 @@ export async function serve(opts: ServeOptions): Promise<void> {
 
   const shutdown = () => {
     log("shutting down");
-    manager?.stop();
     proxy.stop();
     server.close().finally(() => process.exit(0));
   };

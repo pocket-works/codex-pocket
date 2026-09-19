@@ -27,15 +27,15 @@
 **Tests**: 审批请求到 UI 状态映射；cwd 去重排序。
 **Status**: Complete
 
-## Stage 5: 证书、DNS 与常驻
-**Goal**: host 内置 ACME DNS-01（`acme-client`）签发 `*.lan.<域名>` 通配证书，域名商 API 适配器（Cloudflare 优先）自动维护 A 记录指向当前局域网 IP；证书 <30 天自动续期；launchd 常驻；README。
-**Success Criteria**: 手机浏览器打开 `https://mac.lan.<域名>:<port>` 无证书警告；Mac 换网络后 URL 不变。
-**Tests**: DNS 适配器的请求构造（mock HTTP）；证书到期判断；IP 变化检测。
-**Status**: Complete（Cloudflare 适配器、ACME 挑战处理、证书到期/续期、IP 变化检测、launchd plist 均有单测；真实签发需要用户的 Cloudflare 域名与 token，未在本机跑通；`install` 会在本机安装常驻 agent，待用户确认后执行）
+## Stage 5: HTTPS 与常驻
+**Goal**: 手机拿到无警告的 `https://` 地址，在家和在外都能用；launchd 常驻；README。
+**Success Criteria**: 手机浏览器打开 `https://<mac>.<tailnet>.ts.net` 无证书警告；Mac 换网络后 URL 不变。
+**Tests**: `publicUrl` 设置解析；launchd plist。
+**Status**: Complete（TLS 由 `tailscale serve` 在 host 前面终止，host 通过 `public-url` 设置得知对外地址；原先内置的 ACME DNS-01 + Cloudflare A 记录方案已于 2026-09-19 移除，`certs/` 里的手动 PEM 仍支持）
 
 ---
 
-二期目标：对齐 ChatGPT App 的 Codex 远程控制体验（差距分析见 2026-09-18 讨论）。连接方式仍是局域网/VPN，不做自建中继。Stage 6–9 按价值排序，6 和 7 不依赖 Stage 5，8 依赖 Stage 5 的证书部分。
+二期目标：对齐 ChatGPT App 的 Codex 远程控制体验（差距分析见 2026-09-18 讨论）。连接方式仍是局域网/VPN，不做自建中继。Stage 6–9 按价值排序，6 和 7 不依赖 Stage 5，8 依赖 Stage 5 的 HTTPS。
 
 ## Stage 6: 实时性与可见性
 **Goal**: 把 app-server 已有但 PWA 未接的通知接上，让手机端不再"静默"。线程列表订阅 `thread/started` / `thread/status/changed` / `thread/name/updated` / `thread/archived` 实时更新，不再依赖手动刷新；线程页接 `turn/plan/updated`（结构化待办）、`thread/tokenUsage/updated`（上下文占比）、`error` / `warning` / `model/rerouted`（顶部提示条）；`account/rateLimits/read` + `account/rateLimits/updated` 在列表页显示额度；新增 `item/tool/requestUserInput` 弹层，让模型的提问能在手机上回答；列表行显示 `ConversationGitInfo` 的分支名。

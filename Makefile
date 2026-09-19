@@ -17,7 +17,7 @@ LISTENER   = $$(lsof -nP -t -iTCP:$(PORT) -sTCP:LISTEN 2>/dev/null | head -1)
 
 .PHONY: help deps build web test typecheck start stop restart status logs \
         pair devices revoke threads info desktop link-desktop unlink-desktop \
-        install uninstall tls-status tls-issue protocol
+        install uninstall protocol
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -96,12 +96,6 @@ install: build ## Build and install the launchd agent (host runs at login)
 
 uninstall: ## Remove the launchd agent
 	$(CLI) uninstall
-
-tls-status: ## Show certificate status
-	@$(HOST) dev tls status
-
-tls-issue: ## Request or renew the certificate now
-	@$(HOST) dev tls issue
 
 protocol: ## Regenerate protocol types from the installed codex CLI
 	pnpm --filter @codex-pocket/protocol generate
