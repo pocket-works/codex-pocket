@@ -48,6 +48,8 @@ export function Composer({
   const [skills, setSkills] = useState<Skill[]>([]);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [focused, setFocused] = useState(false);
 
   const project = useStore(session.store, (s) => s.open?.cwd.split("/").filter(Boolean).pop() ?? "this project");
   const followUp = useStore(session.store, (s) => s.followUp);
@@ -59,6 +61,17 @@ export function Composer({
   const showStop = busy && onStop !== undefined && !hasDraft && !sending;
   const showResume = !busy && onResume !== undefined && !hasDraft && !sending && !disabled;
   const sendLabel = busy ? (followUp === "queue" ? "Queue" : "Steer") : "Send";
+  // One-line pill until the box is tapped (official app); the tool row
+  // appears with focus and stays while there is something to send or stop.
+  const expanded = focused || hasDraft || busy || showResume || uploading > 0;
+
+  function onBlur() {
+    // Taps on the tool row blur the textarea first; keep the row until focus
+    // has truly left the box.
+    window.setTimeout(() => {
+      if (!boxRef.current?.contains(document.activeElement) && !boxRef.current?.matches(":active, :focus-within")) setFocused(false);
+    }, 120);
+  }
 
   // Debounced search for the token under the caret.
   useEffect(() => {
@@ -225,7 +238,17 @@ export function Composer({
           ))}
         </div>
       )}
-      <div className="composer-box">
+      <div
+        className={`composer-box ${expanded ? "" : "collapsed"}`}
+        ref={boxRef}
+        onPointerDown={() => setFocused(true)}
+      >
+        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
+        {!expanded && (
+          <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
+            +
+          </button>
+        )}
         <textarea
           ref={textRef}
           value={draft.text}
@@ -233,6 +256,8 @@ export function Composer({
           autoComplete="off"
           placeholder={disabled ? "Thread not ready" : busy ? (followUp === "queue" ? "Queue for the next turn…" : "Add to the running turn…") : (placeholder ?? `Work on ${project}`)}
           disabled={disabled}
+          onFocus={() => setFocused(true)}
+          onBlur={onBlur}
           onChange={(e) => onTextChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
           onPaste={onPaste}
           onKeyDown={(e) => {
@@ -243,8 +268,9 @@ export function Composer({
             }
           }}
         />
+        {!expanded && <DictationButton disabled={disabled} text={draft.text} onText={(text) => setDraft((d) => ({ ...d, text }))} onError={setError} />}
+        {expanded && (
         <div className="composer-tools">
-          <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
           <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
             {uploading > 0 ? "…" : "+"}
           </button>
@@ -268,6 +294,7 @@ export function Composer({
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   );
