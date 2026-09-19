@@ -49,10 +49,12 @@ export interface ThreadViewState {
   tokenUsage: TokenUsage | null;
   /** Transient notices for the current turn (warnings, reroutes, retries). */
   alerts: Alert[];
+  /** Latest progress line per running MCP tool call, by item id. */
+  toolProgress: Record<string, string>;
 }
 
 export function initialThreadState(threadId: string): ThreadViewState {
-  return { threadId, items: [], itemTurns: {}, turns: {}, activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [] };
+  return { threadId, items: [], itemTurns: {}, turns: {}, activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [], toolProgress: {} };
 }
 
 let nextAlertId = 1;
@@ -156,7 +158,16 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
     case "item/started":
     case "item/completed": {
       const { item, turnId } = p as unknown as v2.ItemStartedNotification;
-      return withTurn({ ...state, items: upsert(state.items, item) }, item.id, turnId);
+      let next = withTurn({ ...state, items: upsert(state.items, item) }, item.id, turnId);
+      if (n.method === "item/completed" && item.id in next.toolProgress) {
+        const { [item.id]: _done, ...toolProgress } = next.toolProgress;
+        next = { ...next, toolProgress };
+      }
+      return next;
+    }
+    case "item/mcpToolCall/progress": {
+      const { itemId, message } = p as unknown as v2.McpToolCallProgressNotification;
+      return { ...state, toolProgress: { ...state.toolProgress, [itemId]: message } };
     }
     case "item/agentMessage/delta": {
       const { itemId, delta, turnId } = p as unknown as v2.AgentMessageDeltaNotification;

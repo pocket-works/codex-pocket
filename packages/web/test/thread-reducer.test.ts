@@ -43,6 +43,17 @@ describe("applyNotification", () => {
     expect(s.items).toEqual([agent("m1", "final text")]);
   });
 
+  it("keeps the latest MCP progress message until the call completes", () => {
+    let s = initialThreadState(T);
+    const call: ThreadItem = { type: "mcpToolCall", id: "m1", server: "s", tool: "fetch", arguments: {}, status: "inProgress", result: null, error: null } as unknown as ThreadItem;
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t", item: call } });
+    s = applyNotification(s, { method: "item/mcpToolCall/progress", params: { threadId: T, turnId: "t", itemId: "m1", message: "Fetching page 1" } });
+    s = applyNotification(s, { method: "item/mcpToolCall/progress", params: { threadId: T, turnId: "t", itemId: "m1", message: "Fetching page 2" } });
+    expect(s.toolProgress.m1).toBe("Fetching page 2");
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t", item: { ...call, status: "completed" } as ThreadItem } });
+    expect(s.toolProgress.m1).toBeUndefined();
+  });
+
   it("fills reasoning summaries by index", () => {
     let s = initialThreadState(T);
     const reasoning: ThreadItem = { type: "reasoning", id: "r1", summary: [], content: [] };
