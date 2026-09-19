@@ -16,6 +16,13 @@ export function pairingCodeFromUrl(): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
+/** The code from a scanned QR: either the #pair= link `pair` prints, or a bare code. */
+export function pairingCodeFromScan(text: string): string | null {
+  const m = text.match(/#pair=([^&\s]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  return /^[A-Za-z0-9-]{8,12}$/.test(text.trim()) ? text.trim() : null;
+}
+
 export async function redeemPairingCode(code: string): Promise<string> {
   const res = await fetch("/api/pair", {
     method: "POST",
