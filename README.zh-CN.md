@@ -37,7 +37,7 @@ pnpm dev:host revoke <id>
 
 常用操作都包在 `Makefile` 里（`make start`、`make pair`、`make status`…），`make help` 查看列表。
 
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`（launchd 模式的日志）。
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`。
 
 ## 部署：Tailscale HTTPS + 开机常驻
 
@@ -65,10 +65,10 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 ```bash
 pnpm build                                   # 生成 packages/host/dist 和 packages/web/dist
 node packages/host/dist/cli.js install       # 写入 ~/Library/LaunchAgents/com.codex-pocket.host.plist 并启动
-node packages/host/dist/cli.js uninstall     # 移除
+node packages/host/dist/cli.js uninstall     # 移除 host 的 LaunchAgent
 ```
 
-日志在 `~/.codex-pocket/host.log`。代码更新后重新 `pnpm build`，再 `install` 一次即可重载。
+host 日志在 `~/.codex-pocket/host.log`，Codex daemon 日志在 `~/.codex/app-server-control/app-server.log`。代码更新后重新 `pnpm build`，再 `install` 一次即可重载。
 
 构建 PWA 后 `serve` 会自动从 `packages/web/dist` 提供页面：
 
@@ -87,7 +87,9 @@ codex-pocket link-desktop   # 设置 CODEX_APP_SERVER_WS_URL=ws://127.0.0.1:7355
 codex-pocket desktop        # 查看链接状态
 ```
 
-`serve` 会用桌面 App 自带的 codex 二进制启动（或复用）一个监听 `ws://127.0.0.1:7355` 的共享 app-server；桌面和手机都连它，桌面打开的线程在手机上可以直接继续，双方实时同步。`codex-pocket unlink-desktop` 可以恢复默认行为。`~/.codex-pocket/config.json` 里 `"codex": {"mode": "daemon"}` 可切回官方 daemon 模式（此时桌面正打开的线程会显示"已在桌面打开"）。
+`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`），并把 `ws://127.0.0.1:7355` 转发到这个 socket 供桌面 App 使用。daemon 进程由 Codex 自己管理：按需启动、记录 pid、自动升级。host 通过你的交互式登录 shell 启动它（与桌面 App 走 SSH 时的做法一致），因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与你终端里一致。桌面和手机最终在同一个进程里，桌面打开的线程在手机上可以直接继续，双方实时同步。`codex-pocket unlink-desktop` 可恢复桌面 App 的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口。
+
+从曾经自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，下一次 `serve` 会移除该 agent 并接管端口；请先等桌面上正在进行的轮次结束。
 
 升级 Codex 后重新生成协议类型：
 

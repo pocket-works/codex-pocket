@@ -3,8 +3,8 @@ import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
-import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, linkDesktop, uninstallLaunchAgent, unlinkDesktop } from "./launchd.js";
-import { sharedAppServerUrl } from "./codex/shared-app-server.js";
+import { bridgeUrl } from "./codex/daemon-bridge.js";
+import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, LEGACY_SHARED_APP_SERVER_LABEL, linkDesktop, uninstallLaunchAgent, uninstallUserLaunchAgent, unlinkDesktop } from "./launchd.js";
 import { codexConnector } from "./codex/target.js";
 import { codexSettings } from "./config/settings.js";
 import { renderQrTerminal } from "./pairing/qr.js";
@@ -31,9 +31,9 @@ Commands:
   revoke <id>       Remove a paired phone
   threads           List recent threads from the Codex desktop app-server
   info              Show app-server connection details
-  install           Install a launchd agent so serve runs at login
-  uninstall         Remove the launchd agent
-  link-desktop      Make the ChatGPT desktop app use the shared app-server (restart ChatGPT after)
+  install           Install the host LaunchAgent so serve runs at login
+  uninstall         Remove the host LaunchAgent
+  link-desktop      Make the ChatGPT desktop app share the host's Codex daemon (restart ChatGPT after)
   unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
   desktop           Show whether the desktop app is linked
 `;
@@ -132,13 +132,14 @@ async function main(argv: string[]): Promise<number> {
       console.log(`installed ${file}\nlogs: ~/.codex-pocket/host.log`);
       return 0;
     }
-    case "uninstall":
-      console.log(uninstallLaunchAgent() ? "launchd agent removed" : "no launchd agent installed");
+    case "uninstall": {
+      const removedHost = uninstallLaunchAgent();
+      const removedLegacy = uninstallUserLaunchAgent(LEGACY_SHARED_APP_SERVER_LABEL);
+      console.log(removedHost || removedLegacy ? "launchd agents removed" : "no launchd agents installed");
       return 0;
+    }
     case "link-desktop": {
-      const codex = codexSettings();
-      if (codex.mode !== "shared") throw new Error('codex.mode is "daemon"; set it to "shared" in ~/.codex-pocket/config.json first');
-      const url = sharedAppServerUrl(codex.port);
+      const url = bridgeUrl(codexSettings().port);
       const file = linkDesktop(url);
       console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})
 Quit and reopen the ChatGPT app for it to take effect.`);
@@ -150,7 +151,7 @@ Quit and reopen the ChatGPT app for it to take effect.`);
       return 0;
     case "desktop": {
       const current = currentDesktopEnv();
-      const expected = sharedAppServerUrl(codexSettings().port);
+      const expected = bridgeUrl(codexSettings().port);
       const same = current?.replace(/\/$/, "") === expected.replace(/\/$/, "");
       console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (host expects ${expected})`}` : "desktop app not linked (run `codex-pocket link-desktop`)");
       return 0;
