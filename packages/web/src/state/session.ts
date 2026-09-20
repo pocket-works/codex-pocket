@@ -183,6 +183,11 @@ export function slugify(text: string, fallback = "new-chat"): string {
   );
 }
 
+/** `git rev-parse --abbrev-ref HEAD` says "HEAD" when nothing is checked out. */
+export function branchLabel(branch: string): string {
+  return branch === "HEAD" ? "Detached HEAD" : branch;
+}
+
 export function isDraft(open: OpenThread): boolean {
   return open.view.threadId === DRAFT_THREAD_ID;
 }
@@ -907,15 +912,16 @@ export class Session {
   }
 
   /**
-   * New worktree at ~/.codex/worktrees/<id>/<repo> on a fresh `codex/<slug>`
-   * branch off `base`, mirroring the desktop app; returns its path.
+   * New worktree at ~/.codex/worktrees/<id>/<repo>, detached at `base` like
+   * the desktop app's: no branch yet, the agent names one when it commits
+   * (or the user picks one later). Returns the worktree's path.
    */
-  async gitWorktreeAdd(cwd: string, home: string, base: string, text: string): Promise<string> {
+  async gitWorktreeAdd(cwd: string, home: string, base: string): Promise<string> {
     const repo = cwd.split("/").filter(Boolean).pop() ?? "repo";
     const id = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
     const root = `${home.replace(/\/$/, "")}/.codex/worktrees`;
     const path = `${root}/${id}/${repo}`;
-    await this.git(cwd, ["worktree", "add", "-b", `codex/${slugify(text)}`, path, base], [cwd, root, ...(await this.gitDirs(cwd))]);
+    await this.git(cwd, ["worktree", "add", "--detach", path, base], [cwd, root, ...(await this.gitDirs(cwd))]);
     return path;
   }
 
