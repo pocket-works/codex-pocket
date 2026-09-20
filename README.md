@@ -37,7 +37,7 @@ pnpm dev:host revoke <id>
 
 A `Makefile` wraps the common tasks (`make start`, `make pair`, `make status`, …); run `make help` for the list.
 
-State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone) and `host.log` (launchd mode).
+State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone), `host.log`.
 
 ## Deploying: HTTPS via Tailscale, run at login
 
@@ -65,10 +65,10 @@ Run at login (launchd):
 ```bash
 pnpm build                                   # builds packages/host/dist and packages/web/dist
 node packages/host/dist/cli.js install       # writes ~/Library/LaunchAgents/com.codex-pocket.host.plist and starts it
-node packages/host/dist/cli.js uninstall     # remove
+node packages/host/dist/cli.js uninstall     # remove the host agent
 ```
 
-Logs go to `~/.codex-pocket/host.log`. After updating the code, `pnpm build` and `install` again to reload.
+Logs go to `~/.codex-pocket/host.log`; the Codex daemon logs to `~/.codex/app-server-control/app-server.log`. After updating the code, `pnpm build` and `install` again to reload.
 
 Once the PWA is built, `serve` picks it up from `packages/web/dist`:
 
@@ -87,7 +87,9 @@ codex-pocket link-desktop   # sets CODEX_APP_SERVER_WS_URL=ws://127.0.0.1:7355/ 
 codex-pocket desktop        # show the link status
 ```
 
-`serve` starts (or reuses) one shared app-server on `ws://127.0.0.1:7355` using the binary bundled with the desktop app; desktop and phone both connect to it, threads open on the desktop continue on the phone, and both stay in sync. `codex-pocket unlink-desktop` restores the default. Setting `"codex": {"mode": "daemon"}` in `~/.codex-pocket/config.json` switches back to the official daemon mode, where threads open on the desktop show as locked.
+`serve` connects to the official Codex daemon (`codex app-server daemon start`, reachable on `~/.codex/app-server-control/app-server-control.sock`) and relays `ws://127.0.0.1:7355` onto that socket for the desktop app. Codex owns the daemon process: it starts it on demand, keeps its pid, and self-updates. The host starts it through your interactive login shell, exactly as the desktop app does over SSH, so the daemon sees the same `PATH`, proxy variables and provider API keys your terminal has. Desktop and phone both end up in that one process, threads open on the desktop continue on the phone, and both stay in sync. `codex-pocket unlink-desktop` restores the desktop's private app-server. `"codex": {"port": N}` in `~/.codex-pocket/config.json` changes the relay port.
+
+When upgrading from a version that ran its own `com.codex-pocket.shared-app-server` LaunchAgent, the next `serve` removes that agent and takes over the port; finish active desktop turns first.
 
 After upgrading Codex, regenerate the protocol types:
 

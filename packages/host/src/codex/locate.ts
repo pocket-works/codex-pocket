@@ -21,19 +21,32 @@ export interface DaemonRunner {
   (args: string[]): Promise<string>;
 }
 
-export function codexCliRunner(codexBin = process.env.CODEX_BIN ?? "codex"): DaemonRunner {
+// The daemon inherits the environment of whoever starts it, and the host may
+// be a launchd job with almost none. Run codex through an interactive login
+// shell, exactly as the desktop app does over SSH, so the daemon sees what
+// the user's rc files export (PATH, proxies, provider API keys).
+export function loginShellCommand(codexBin: string, args: string[], shell = process.env.SHELL || "/bin/zsh"): { file: string; args: string[] } {
+  return { file: shell, args: ["-lic", 'exec "$0" "$@"', codexBin, ...args] };
+}
+
+export function codexCliRunner(codexBin = process.env.CODEX_BIN ?? "codex", shell?: string): DaemonRunner {
   return async (args) => {
-    const { stdout } = await execFileAsync(codexBin, args, { timeout: 30_000 });
+    const cmd = loginShellCommand(codexBin, args, shell);
+    const { stdout } = await execFileAsync(cmd.file, cmd.args, { timeout: 30_000 });
     return stdout;
   };
 }
 
-// `codex app-server daemon start` is idempotent: it starts the shared local
-// daemon if needed and always reports its socket path as JSON. The desktop
-// app manages the same daemon, so whoever starts it first, both share it.
+// `codex app-server daemon start` is idempotent: it starts the local daemon
+// if needed and always reports its socket path as JSON. Codex owns the
+// process from then on (pid file, self-update); the desktop app reaches it
+// through the host's TCP bridge.
 export async function ensureDaemon(run: DaemonRunner = codexCliRunner()): Promise<DaemonInfo> {
   const stdout = await run(["app-server", "daemon", "start"]);
-  const line = stdout.trim().split("\n").find((l) => l.startsWith("{"));
+  const line = stdout
+    .split("\n")
+    .map((l) => l.slice(Math.max(0, l.indexOf("{"))))
+    .find((l) => l.startsWith("{"));
   if (!line) throw new Error(`unexpected output from codex daemon start: ${stdout.slice(0, 200)}`);
   const info = JSON.parse(line) as Partial<DaemonInfo>;
   if (typeof info.socketPath !== "string" || !info.socketPath) {

@@ -2,19 +2,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pocketHome } from "./paths.js";
 
-// How the host reaches Codex.
-//   shared (default): one app-server on a local WebSocket port that the
-//     desktop app is also pointed at (`link-desktop`), so phone and desktop
-//     share every thread.
-//   daemon: the official `codex app-server daemon` unix socket. Threads the
-//     desktop app has open stay locked to it.
+// The host always talks to the official `codex app-server daemon` over its
+// unix socket. `port` is the local TCP port the host relays onto that socket
+// for the ChatGPT desktop app (`link-desktop`), so phone and desktop share
+// one process and every thread.
 export interface CodexSettings {
-  mode: "shared" | "daemon";
   port: number;
-  binary?: string;
 }
 
-export const DEFAULT_CODEX_SETTINGS: CodexSettings = { mode: "shared", port: 7355 };
+export const DEFAULT_CODEX_SETTINGS: CodexSettings = { port: 7355 };
 
 export interface Settings {
   codex?: CodexSettings;
@@ -94,12 +90,10 @@ function settingsFile(): string {
 
 export function parseCodexSettings(raw: unknown): CodexSettings {
   const obj = (raw ?? {}) as Record<string, unknown>;
-  const mode = obj.mode ?? DEFAULT_CODEX_SETTINGS.mode;
-  if (mode !== "shared" && mode !== "daemon") throw new Error(`codex.mode must be "shared" or "daemon"`);
+  // `mode` and `binary` belonged to the retired shared mode and are ignored.
   const port = obj.port ?? DEFAULT_CODEX_SETTINGS.port;
   if (!Number.isInteger(port) || (port as number) <= 0 || (port as number) > 65535) throw new Error("codex.port must be a valid port");
-  const binary = typeof obj.binary === "string" && obj.binary.trim() ? obj.binary.trim() : undefined;
-  return { mode, port: port as number, ...(binary ? { binary } : {}) };
+  return { port: port as number };
 }
 
 export function readSettings(): Settings {

@@ -8,6 +8,8 @@ import { pocketHome } from "./config/paths.js";
 export const LAUNCHD_LABEL = "com.codex-pocket.host";
 export const DESKTOP_ENV_LABEL = "com.codex-pocket.desktop-env";
 export const DESKTOP_ENV_VAR = "CODEX_APP_SERVER_WS_URL";
+// Retired: older versions ran their own app-server under this label.
+export const LEGACY_SHARED_APP_SERVER_LABEL = "com.codex-pocket.shared-app-server";
 
 export interface PlistOptions {
   label: string;
@@ -61,6 +63,39 @@ function plistPath(label = LAUNCHD_LABEL): string {
   return join(homedir(), "Library", "LaunchAgents", `${label}.plist`);
 }
 
+export function writeUserLaunchAgent(label: string, xml: string): string {
+  const file = plistPath(label);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, xml, { mode: 0o600 });
+  return file;
+}
+
+export function installUserLaunchAgent(label: string, xml: string): string {
+  const file = plistPath(label);
+  if (existsSync(file)) {
+    try {
+      launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${label}`);
+    } catch {
+      // Not loaded: replace the definition below.
+    }
+  }
+  writeUserLaunchAgent(label, xml);
+  launchctl("bootstrap", `gui/${process.getuid?.() ?? 501}`, file);
+  return file;
+}
+
+export function uninstallUserLaunchAgent(label: string): boolean {
+  const file = plistPath(label);
+  if (!existsSync(file)) return false;
+  try {
+    launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${label}`);
+  } catch {
+    // Already unloaded.
+  }
+  unlinkSync(file);
+  return true;
+}
+
 // The ChatGPT desktop app reads CODEX_APP_SERVER_WS_URL and, when set,
 // connects to that app-server instead of spawning a private one. GUI apps
 // inherit launchd's environment, so `launchctl setenv` at login is enough.
@@ -97,10 +132,7 @@ export function currentDesktopEnv(): string | null {
 // Sets the variable now and installs an agent that sets it again at login.
 export function linkDesktop(url: string): string {
   execFileSync("launchctl", ["setenv", DESKTOP_ENV_VAR, url]);
-  const file = plistPath(DESKTOP_ENV_LABEL);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, desktopEnvPlist(url));
-  return file;
+  return writeUserLaunchAgent(DESKTOP_ENV_LABEL, desktopEnvPlist(url));
 }
 
 export function unlinkDesktop(): boolean {
@@ -130,8 +162,6 @@ function launchctl(...args: string[]): void {
 }
 
 export function installLaunchAgent(): string {
-  const file = plistPath();
-  mkdirSync(dirname(file), { recursive: true });
   const xml = launchAgentPlist({
     label: LAUNCHD_LABEL,
     node: process.execPath,
@@ -139,26 +169,9 @@ export function installLaunchAgent(): string {
     logFile: join(pocketHome(), "host.log"),
     home: homedir(),
   });
-  if (existsSync(file)) {
-    try {
-      launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${LAUNCHD_LABEL}`);
-    } catch {
-      // Not loaded: nothing to unload.
-    }
-  }
-  writeFileSync(file, xml);
-  launchctl("bootstrap", `gui/${process.getuid?.() ?? 501}`, file);
-  return file;
+  return installUserLaunchAgent(LAUNCHD_LABEL, xml);
 }
 
 export function uninstallLaunchAgent(): boolean {
-  const file = plistPath();
-  if (!existsSync(file)) return false;
-  try {
-    launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${LAUNCHD_LABEL}`);
-  } catch {
-    // Already unloaded.
-  }
-  unlinkSync(file);
-  return true;
+  return uninstallUserLaunchAgent(LAUNCHD_LABEL);
 }

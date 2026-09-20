@@ -1,7 +1,8 @@
 # Common tasks. Run `make` or `make help` for the list.
 #
 # Development runs the host with tsx straight from source (`make start`);
-# production uses the built CLI under launchd (`make install`).
+# production uses the built CLI under launchd (`make install`). In both modes,
+# the Codex app-server is the official daemon, owned by Codex itself.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -51,10 +52,10 @@ stop: ## Stop the background host
 
 restart: stop start ## Restart the background host
 
-status: ## Show host, shared app-server and desktop link status
+status: ## Show host, desktop bridge and desktop link status
 	@echo "host:      $$( [ -n "$(LISTENER)" ] && echo "running on $(PORT) (pid $(LISTENER))" || echo "not running" )"
 	@echo "url:       $$(python3 -c 'import json;print(json.load(open("$(POCKET)/runtime.json"))["publicUrl"])' 2>/dev/null || echo "-")"
-	@echo "app-server clients on 7355: $$(lsof -nP -iTCP:7355 2>/dev/null | awk '$$9 ~ /->127.0.0.1:7355/ {print $$1}' | sort | uniq -c | tr '\n' ' ')"
+	@echo "desktop bridge clients on 7355: $$(lsof -nP -iTCP:7355 2>/dev/null | awk '$$9 ~ /->127.0.0.1:7355/ {print $$1}' | sort | uniq -c | tr '\n' ' ')"
 	@$(HOST) dev desktop
 
 logs: ## Follow the host log
@@ -80,10 +81,10 @@ threads: ## List recent Codex threads
 info: ## Show app-server connection details
 	@$(HOST) dev info
 
-desktop: ## Show whether the ChatGPT desktop app is linked to the shared app-server
+desktop: ## Show whether the ChatGPT desktop app is linked to the host's Codex daemon
 	@$(HOST) dev desktop
 
-link-desktop: ## Point the ChatGPT desktop app at the shared app-server (restart ChatGPT after)
+link-desktop: ## Point the ChatGPT desktop app at the host's Codex daemon (restart ChatGPT after)
 	@$(HOST) dev link-desktop
 
 unlink-desktop: ## Revert the desktop app to its private app-server (restart ChatGPT after)
@@ -94,7 +95,7 @@ unlink-desktop: ## Revert the desktop app to its private app-server (restart Cha
 install: build ## Build and install the launchd agent (host runs at login)
 	$(CLI) install
 
-uninstall: ## Remove the launchd agent
+uninstall: ## Remove the host LaunchAgent
 	$(CLI) uninstall
 
 protocol: ## Regenerate protocol types from the installed codex CLI

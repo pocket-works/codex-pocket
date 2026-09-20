@@ -3,16 +3,20 @@ import { DEFAULT_CODEX_SETTINGS, parseCodexSettings, parsePublicUrl, setSetting,
 import { desktopEnvPlist, DESKTOP_ENV_LABEL } from "../src/launchd.js";
 
 describe("parseCodexSettings", () => {
-  it("defaults to shared mode on the default port", () => {
+  it("defaults to the desktop bridge port", () => {
     expect(parseCodexSettings({})).toEqual(DEFAULT_CODEX_SETTINGS);
+    expect(DEFAULT_CODEX_SETTINGS).toEqual({ port: 7355 });
   });
 
-  it("accepts daemon mode, custom port and binary", () => {
-    expect(parseCodexSettings({ mode: "daemon", port: 8000, binary: "/x/codex" })).toEqual({ mode: "daemon", port: 8000, binary: "/x/codex" });
+  it("accepts a custom port", () => {
+    expect(parseCodexSettings({ port: 8000 })).toEqual({ port: 8000 });
   });
 
-  it("rejects unknown modes and bad ports", () => {
-    expect(() => parseCodexSettings({ mode: "cloud" })).toThrow(/mode/);
+  it("ignores the retired shared-mode keys", () => {
+    expect(parseCodexSettings({ mode: "shared", binary: "/x/codex", port: 7355 })).toEqual({ port: 7355 });
+  });
+
+  it("rejects bad ports", () => {
     expect(() => parseCodexSettings({ port: 70000 })).toThrow(/port/);
   });
 });

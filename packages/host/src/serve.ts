@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
+import { bridgeUrl, startDaemonBridge } from "./codex/daemon-bridge.js";
+import { defaultSocketPath } from "./codex/locate.js";
 import { codexConnector } from "./codex/target.js";
+import { LEGACY_SHARED_APP_SERVER_LABEL, uninstallUserLaunchAgent } from "./launchd.js";
 import { adminToken, devicesFile, findCertFiles, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
 import { PushNotifier } from "./push/notifier.js";
 import { loadOrCreateVapidKeys } from "./push/vapid.js";
@@ -64,7 +67,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     },
     log,
   });
-  const proxy = new CodexProxy({ connect: codexConnector(codex, log), log, tap: (msg) => void notifier.handle(msg) });
+  const proxy = new CodexProxy({ connect: codexConnector(), log, tap: (msg) => void notifier.handle(msg) });
   const publicUrl = fixedUrl ?? `${scheme}://${lanIp}:${opts.port}`;
   const server = createLanServer({
     port: opts.port,
@@ -82,11 +85,17 @@ export async function serve(opts: ServeOptions): Promise<void> {
   });
 
   const addr = await server.listen();
+  // The desktop app dials ws://127.0.0.1:<port> (`link-desktop`); relay it
+  // onto the daemon's unix socket. An older self-managed app-server would
+  // hold that port, so its LaunchAgent is retired first.
+  if (uninstallUserLaunchAgent(LEGACY_SHARED_APP_SERVER_LABEL)) log(`removed retired ${LEGACY_SHARED_APP_SERVER_LABEL} LaunchAgent`);
+  const bridge = await startDaemonBridge({ port: codex.port, socketPath: defaultSocketPath(), log });
+  log(`desktop bridge ${bridgeUrl(bridge.port)} -> ${defaultSocketPath()}`);
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
   const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
   log(`listening on ${publicUrl}${note}`);
   proxy.start().then(
-    () => log(`connected to Codex app-server (${codex.mode === "shared" ? `shared, port ${codex.port}` : "official daemon"})`),
+    () => log("connected to Codex app-server (official daemon)"),
     (err) => log(`Codex app-server not reachable yet, will retry: ${err instanceof Error ? err.message : err}`),
   );
 
@@ -104,7 +113,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const shutdown = () => {
     log("shutting down");
     proxy.stop();
-    server.close().finally(() => process.exit(0));
+    Promise.all([server.close(), bridge.close()]).finally(() => process.exit(0));
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
