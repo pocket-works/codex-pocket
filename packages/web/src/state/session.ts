@@ -559,6 +559,18 @@ export class Session {
     return tier !== null && tier !== "default";
   }
 
+  /**
+   * The tier the next turn would run on when the model does not offer it
+   * (config.toml's global `service_tier` on a third-party model, say).
+   * Codex would drop it with a warning; we send "default" instead.
+   */
+  private static unsupportedTier(open: OpenThread, models: v2.Model[]): boolean {
+    const tier = open.serviceTierOverride ?? open.serviceTier;
+    if (tier === null || tier === "default") return false;
+    const model = models.find((m) => m.model === Session.effectiveModel(open).model);
+    return model !== undefined && !model.serviceTiers.some((t) => t.id === tier);
+  }
+
   /** `null` means standard speed; Codex spells that "default" on the wire. */
   setServiceTier(tier: string | null): void {
     this.store.set((s) => {
@@ -606,7 +618,7 @@ export class Session {
       params.sandboxPolicy = sandboxPolicy(perms.sandbox, open.cwd);
       params.approvalsReviewer = perms.reviewer;
     }
-    const tier = open.serviceTierOverride;
+    const tier = Session.unsupportedTier(open, this.store.get().models) ? "default" : open.serviceTierOverride;
     if (tier) params.serviceTier = tier;
     await this.rpc.request<v2.TurnStartResponse>("turn/start", params);
     this.store.set((s) => {
