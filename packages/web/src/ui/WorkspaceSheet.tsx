@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { v2 } from "@codex-pocket/protocol";
 import { diffStats, splitGitDiff } from "../state/diff.js";
-import type { FileMatch, Session } from "../state/session.js";
+import { branchLabel, type FileMatch, type Session } from "../state/session.js";
 import { DiffBody } from "./DiffView.js";
 import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
 
@@ -135,7 +135,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
             ))}
             {changes && (
               <div className="workspace-foot muted">
-                {changes.branch}
+                {branchLabel(changes.branch)}
                 {changes.upstream && (
                   <>
                     {" "}

@@ -3,7 +3,7 @@ import type { v2 } from "@codex-pocket/protocol";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
 import { emptyDraft } from "../src/state/compose.js";
-import { isDraft, Session } from "../src/state/session.js";
+import { branchLabel, isDraft, Session } from "../src/state/session.js";
 import { initialThreadState } from "../src/state/thread-reducer.js";
 import { getLastModel, setLastModel } from "../src/state/model-prefs.js";
 
@@ -493,15 +493,20 @@ describe("git via command/exec", () => {
     expect(exec(calls, "switch").sandboxPolicy?.writableRoots).toEqual([wt, "/Users/me/Projects/flow/.git", "/Users/me/Projects/flow/.git/worktrees/flow"]);
   });
 
-  it("creates a worktree on a fresh codex/ branch under ~/.codex/worktrees", async () => {
+  it("creates a detached worktree under ~/.codex/worktrees, leaving the branch for later", async () => {
     const { rpc, calls } = stubRpc(gitDirs("/Users/me/Projects/flow/.git"));
-    const path = await new Session(rpc).gitWorktreeAdd("/Users/me/Projects/flow", "/Users/me", "main", "Fix the login bug");
+    const path = await new Session(rpc).gitWorktreeAdd("/Users/me/Projects/flow", "/Users/me", "main");
     expect(path).toMatch(/^\/Users\/me\/\.codex\/worktrees\/[0-9a-f]{4}\/flow$/);
     expect(exec(calls, "worktree")).toMatchObject({
-      command: ["git", "worktree", "add", "-b", "codex/fix-the-login-bug", path, "main"],
+      command: ["git", "worktree", "add", "--detach", path, "main"],
       cwd: "/Users/me/Projects/flow",
       sandboxPolicy: { type: "workspaceWrite", writableRoots: ["/Users/me/Projects/flow", "/Users/me/.codex/worktrees", "/Users/me/Projects/flow/.git"] },
     });
+  });
+
+  it("labels a detached checkout the way the desktop app does", () => {
+    expect(branchLabel("HEAD")).toBe("Detached HEAD");
+    expect(branchLabel("main")).toBe("main");
   });
 });
 

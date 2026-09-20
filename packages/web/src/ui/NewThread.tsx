@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getToken } from "../state/auth.js";
 import type { Draft } from "../state/compose.js";
-import { slugify, type Session } from "../state/session.js";
+import { branchLabel, slugify, type Session } from "../state/session.js";
 import { projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
@@ -113,7 +113,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
       await session.createDirectory(dir);
     } else if (repo && mode === "worktree") {
       if (!me?.home) throw new Error("Still finding your home folder; try again");
-      dir = await session.gitWorktreeAdd(cwd, me.home, chosenBranch ?? repo.branch, draft.text);
+      dir = await session.gitWorktreeAdd(cwd, me.home, chosenBranch ?? repo.branch);
     } else if (repo && chosenBranch && chosenBranch !== repo.branch) {
       await session.gitSwitch(cwd, chosenBranch);
     }
@@ -180,7 +180,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
             </li>
             <li className="setup-row">
               <BranchIcon />
-              <RowMenu label={chosenBranch ?? repo.branch}>
+              <RowMenu label={branchLabel(chosenBranch ?? repo.branch)}>
                 {(close) =>
                   repo.branches.map((b) => <MenuItem key={b} checked={b === chosenBranch} label={b} onPick={() => (setBranch(b), close())} />)
                 }
