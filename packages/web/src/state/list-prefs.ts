@@ -11,3 +11,31 @@ export function getListView(): ListView {
 export function setListView(v: ListView): void {
   localStorage.setItem(KEY, v);
 }
+
+/** List sections that can be folded away, like the official sidebar. */
+export type ListSection = "chats" | "projects";
+
+export type CollapsedSections = Record<ListSection, boolean>;
+
+const COLLAPSED_KEY = "codex-pocket.collapsedSections";
+
+const EXPANDED: CollapsedSections = { chats: false, projects: false };
+
+export function getCollapsedSections(): CollapsedSections {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (!raw) return { ...EXPANDED };
+    const parsed = JSON.parse(raw) as Partial<Record<ListSection, boolean>>;
+    return { chats: parsed.chats === true, projects: parsed.projects === true };
+  } catch {
+    return { ...EXPANDED };
+  }
+}
+
+export function setSectionCollapsed(section: ListSection, collapsed: boolean): void {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify({ ...getCollapsedSections(), [section]: collapsed }));
+  } catch {
+    // Private mode or blocked storage: the fold lasts for this page only.
+  }
+}

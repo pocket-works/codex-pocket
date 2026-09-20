@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getListView, setListView, type ListView } from "../state/list-prefs.js";
+import { getCollapsedSections, getListView, setListView, setSectionCollapsed, type ListSection, type ListView } from "../state/list-prefs.js";
 import { getPins } from "../state/pins.js";
 import { describe, type Session, type ThreadStatus, type ThreadSummary } from "../state/session.js";
 import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
-import { ArchiveIcon, BranchIcon, CheckIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, CheckIcon, ChevronIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
@@ -37,6 +37,7 @@ export function ThreadList({ session }: { session: Session }) {
   const [view, setView] = useState<ListView>(getListView);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(getCollapsedSections);
 
   useEffect(() => {
     if (connection !== "open") return;
@@ -49,6 +50,12 @@ export function ThreadList({ session }: { session: Session }) {
   function changeView(v: ListView) {
     setListView(v);
     setView(v);
+  }
+
+  function toggleSection(section: ListSection) {
+    const next = !collapsed[section];
+    setSectionCollapsed(section, next);
+    setCollapsed((c) => ({ ...c, [section]: next }));
   }
 
   const q = query.trim().toLowerCase();
@@ -107,48 +114,52 @@ export function ThreadList({ session }: { session: Session }) {
           <>
             {chatsExtra.length > 0 && (
               <>
-                <h2 className="section-title">Chats</h2>
-                <ul className="thread-list">
-                  {chatsExtra.map((t) => (
-                    <ThreadRow key={t.id} thread={t} plain onArchive={archive} />
-                  ))}
-                </ul>
+                <SectionHeading label="Chats" count={chatsExtra.length} collapsed={collapsed.chats} onToggle={() => toggleSection("chats")} />
+                {!collapsed.chats && (
+                  <ul className="thread-list">
+                    {chatsExtra.map((t) => (
+                      <ThreadRow key={t.id} thread={t} plain onArchive={archive} />
+                    ))}
+                  </ul>
+                )}
               </>
             )}
-            <h2 className="section-title">Projects</h2>
-            <ul className="project-list">
-              {groups.map((g) => (
-                <li key={g.project.id}>
-                  <div className="project-row">
-                    <button
-                      className="project-main"
-                      aria-expanded={expanded === g.project.id}
-                      onClick={() => setExpanded((e) => (e === g.project.id ? null : g.project.id))}
-                    >
-                      <span className="project-icon">
-                        <FolderIcon />
-                      </span>
-                      <span className="project-name">{g.project.name}</span>
-                      <span className="muted small">{g.threads.length}</span>
-                    </button>
-                    <button
-                      className="icon-btn"
-                      aria-label={`New thread in ${g.project.name}`}
-                      onClick={() => navigate({ name: "new", cwd: g.project.roots[0] ?? "" })}
-                    >
-                      <ComposeIcon />
-                    </button>
-                  </div>
-                  {expanded === g.project.id && (
-                    <ul className="thread-list nested">
-                      {g.threads.map((t) => (
-                        <ThreadRow key={t.id} thread={t} compact onArchive={archive} />
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <SectionHeading label="Projects" count={groups.length} collapsed={collapsed.projects} onToggle={() => toggleSection("projects")} />
+            {!collapsed.projects && (
+              <ul className="project-list">
+                {groups.map((g) => (
+                  <li key={g.project.id}>
+                    <div className="project-row">
+                      <button
+                        className="project-main"
+                        aria-expanded={expanded === g.project.id}
+                        onClick={() => setExpanded((e) => (e === g.project.id ? null : g.project.id))}
+                      >
+                        <span className="project-icon">
+                          <FolderIcon />
+                        </span>
+                        <span className="project-name">{g.project.name}</span>
+                        <span className="muted small">{g.threads.length}</span>
+                      </button>
+                      <button
+                        className="icon-btn"
+                        aria-label={`New thread in ${g.project.name}`}
+                        onClick={() => navigate({ name: "new", cwd: g.project.roots[0] ?? "" })}
+                      >
+                        <ComposeIcon />
+                      </button>
+                    </div>
+                    {expanded === g.project.id && (
+                      <ul className="thread-list nested">
+                        {g.threads.map((t) => (
+                          <ThreadRow key={t.id} thread={t} compact onArchive={archive} />
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         ) : (
           <ul className="thread-list">
@@ -170,6 +181,33 @@ export function ThreadList({ session }: { session: Session }) {
         </button>
       </div>
     </main>
+  );
+}
+
+// A section header that folds its list away, like the official sidebar's
+// collapsible groups. The whole heading is the hit target so it is easy to
+// tap on a phone.
+function SectionHeading({
+  label,
+  count,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <h2 className="section-title">
+      <button className="section-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+        <span className={`section-caret ${collapsed ? "collapsed" : ""}`} aria-hidden>
+          <ChevronIcon />
+        </span>
+        <span>{label}</span>
+        <span className="muted small">{count}</span>
+      </button>
+    </h2>
   );
 }
 
