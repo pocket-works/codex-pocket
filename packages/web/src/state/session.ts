@@ -892,7 +892,18 @@ export class Session {
   }
 
   async gitSwitch(cwd: string, branch: string): Promise<void> {
-    await this.git(cwd, ["switch", branch], [cwd]);
+    await this.git(cwd, ["switch", branch], [cwd, ...(await this.gitDirs(cwd))]);
+  }
+
+  /**
+   * The checkout's git dirs (shared one first, then the worktree's own when
+   * they differ). Codex's workspace-write sandbox keeps `.git` under a
+   * writable root read-only, so commands that touch refs, HEAD or the index
+   * must list these as roots of their own.
+   */
+  private async gitDirs(cwd: string): Promise<string[]> {
+    const out = await this.git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir", "--git-dir"]);
+    return [...new Set(out.split("\n").map((l) => l.trim()).filter(Boolean))];
   }
 
   /**
@@ -904,7 +915,7 @@ export class Session {
     const id = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, "0");
     const root = `${home.replace(/\/$/, "")}/.codex/worktrees`;
     const path = `${root}/${id}/${repo}`;
-    await this.git(cwd, ["worktree", "add", "-b", `codex/${slugify(text)}`, path, base], [cwd, root]);
+    await this.git(cwd, ["worktree", "add", "-b", `codex/${slugify(text)}`, path, base], [cwd, root, ...(await this.gitDirs(cwd))]);
     return path;
   }
 
