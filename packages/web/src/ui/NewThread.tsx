@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getToken } from "../state/auth.js";
 import type { Draft } from "../state/compose.js";
-import { branchLabel, slugify, type Session } from "../state/session.js";
+import { branchLabel, type Session } from "../state/session.js";
 import { projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
@@ -26,12 +26,6 @@ export function optionLabels(cwds: string[]): Map<string, string> {
       return [c, (counts.get(name) ?? 0) > 1 && parts.length > 0 ? `${parts.pop()}/${name}` : name];
     }),
   );
-}
-
-// The desktop app keeps project-less chats in ~/Documents/Codex/<date>/<slug>;
-// using the same layout makes them land under "Chats" in the list.
-export function scratchDir(home: string, text: string, now = new Date()): string {
-  return `${home.replace(/\/$/, "")}/Documents/Codex/${now.toISOString().slice(0, 10)}/${slugify(text)}`;
 }
 
 type Mode = "local" | "worktree";
@@ -109,8 +103,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
     let dir = cwd;
     if (target.kind === "chat") {
       if (!me?.home) throw new Error("Still finding your home folder; try again");
-      dir = scratchDir(me.home, draft.text);
-      await session.createDirectory(dir);
+      dir = await session.createScratchDir(me.home, draft.text);
     } else if (repo && mode === "worktree") {
       if (!me?.home) throw new Error("Still finding your home folder; try again");
       dir = await session.gitWorktreeAdd(cwd, me.home, chosenBranch ?? repo.branch);

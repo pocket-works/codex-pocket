@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseRoute, routeHash } from "../src/ui/route.js";
 import { isScratchThread } from "../src/ui/ThreadList.js";
 import { groupByProject, projectForCwd, type ProjectSummary } from "../src/state/projects.js";
-import { optionLabels, scratchDir } from "../src/ui/NewThread.js";
+import { optionLabels } from "../src/ui/NewThread.js";
 import type { ThreadSummary } from "../src/state/session.js";
 
 const t = (id: string, cwd: string, updatedAt: number, projectId: string | null = null): ThreadSummary => ({
@@ -106,14 +106,5 @@ describe("optionLabels", () => {
   it("shows folder names, disambiguating duplicates with the parent folder", () => {
     const labels = optionLabels(["/Users/me/Projects/flow", "/Users/me/.codex/worktrees/347a/flow", "/Users/me/Projects/app"]);
     expect([...labels.values()]).toEqual(["Projects/flow", "347a/flow", "app"]);
-  });
-});
-
-describe("scratchDir", () => {
-  it("mirrors the desktop app's ~/Documents/Codex/<date>/<slug> layout", () => {
-    const now = new Date("2026-09-19T01:02:03Z");
-    expect(scratchDir("/Users/me", "Say hi in three words.", now)).toBe("/Users/me/Documents/Codex/2026-09-19/say-hi-in-three-words");
-    expect(scratchDir("/Users/me/", "", now)).toBe("/Users/me/Documents/Codex/2026-09-19/new-chat");
-    expect(scratchDir("/Users/me", "统计 Partner API 分类数量", now)).toBe("/Users/me/Documents/Codex/2026-09-19/partner-api");
   });
 });

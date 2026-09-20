@@ -171,16 +171,18 @@ function sandboxPolicy(mode: v2.SandboxMode, cwd: string): v2.SandboxPolicy {
 
 const DRAFT_THREAD_ID = "";
 
-/** Branch/folder-safe name from free text, like the desktop app's `codex/<slug>`. */
-export function slugify(text: string, fallback = "new-chat"): string {
-  return (
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40)
-      .replace(/-+$/, "") || fallback
-  );
+// Project-less chats live in ~/Documents/Codex/<local date>/<name>, the
+// desktop app's layout, so they land under "Chats" in the list. The name is
+// the prompt's first six ASCII words, `new-chat` when it has none (Chinese),
+// with `-2`, `-3`, … appended until the folder is new.
+export function scratchName(prompt: string): string {
+  const words = prompt.toLowerCase().match(/[a-z0-9]+/g);
+  return words ? words.slice(0, 6).join("-").slice(0, 80) : "new-chat";
+}
+
+export function scratchDateDir(home: string, now = new Date()): string {
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return `${home.replace(/\/$/, "")}/Documents/Codex/${date}`;
 }
 
 /** `git rev-parse --abbrev-ref HEAD` says "HEAD" when nothing is checked out. */
@@ -925,8 +927,21 @@ export class Session {
     return path;
   }
 
-  async createDirectory(path: string): Promise<void> {
-    await this.rpc.request("fs/createDirectory", { path, recursive: true });
+  /** Creates a fresh folder for a project-less chat and returns its path. */
+  async createScratchDir(home: string, prompt: string, now = new Date()): Promise<string> {
+    const dateDir = scratchDateDir(home, now);
+    await this.rpc.request("fs/createDirectory", { path: dateDir, recursive: true });
+    const name = scratchName(prompt);
+    for (let n = 1; n <= 100; n++) {
+      const path = `${dateDir}/${n === 1 ? name : `${name}-${n}`}`;
+      try {
+        await this.rpc.request("fs/createDirectory", { path, recursive: false });
+        return path;
+      } catch {
+        // Already there (EEXIST): try the next suffix.
+      }
+    }
+    throw new Error(`Could not find a free folder name under ${dateDir}`);
   }
 
   /** Files and folders under `path`, folders first, for the Files browser. Dotfiles hidden. */
