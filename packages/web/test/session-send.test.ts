@@ -461,17 +461,47 @@ describe("git via command/exec", () => {
     expect(await new Session(rpc).gitInfo("/tmp")).toBeNull();
   });
 
+  // Answers `git rev-parse --git-common-dir --git-dir`; everything else succeeds silently.
+  const gitDirs = (commonDir: string, gitDir = commonDir) => (_m: string, params: unknown) => {
+    const { command } = params as { command: string[] };
+    return { exitCode: 0, stdout: command[1] === "rev-parse" ? `${commonDir}\n${gitDir}\n` : "", stderr: "" };
+  };
+  const exec = (calls: { params: unknown }[], sub: string) => calls.map((c) => c.params as { command: string[]; sandboxPolicy?: { writableRoots: string[] } }).find((p) => p.command[1] === sub)!;
+
   it("switches branches and surfaces git's error", async () => {
-    const { rpc, calls } = stubRpc(() => ({ exitCode: 1, stdout: "", stderr: "error: Your local changes would be overwritten" }));
+    const { rpc, calls } = stubRpc((_m, params) => {
+      if ((params as { command: string[] }).command[1] === "rev-parse") return { exitCode: 0, stdout: "/proj/.git\n/proj/.git\n", stderr: "" };
+      return { exitCode: 1, stdout: "", stderr: "error: Your local changes would be overwritten" };
+    });
     await expect(new Session(rpc).gitSwitch("/proj", "feat/x")).rejects.toThrow(/local changes/);
-    expect(calls[0].params).toMatchObject({ command: ["git", "switch", "feat/x"], cwd: "/proj" });
+    expect(exec(calls, "switch")).toMatchObject({ command: ["git", "switch", "feat/x"], cwd: "/proj" });
+  });
+
+  it("lets ref-writing commands into .git, which the workspace-write sandbox otherwise keeps read-only", async () => {
+    const { rpc, calls } = stubRpc(gitDirs("/proj/.git"));
+    await new Session(rpc).gitSwitch("/proj", "feat/x");
+    const probe = exec(calls, "rev-parse");
+    expect(probe.command).toEqual(["git", "rev-parse", "--path-format=absolute", "--git-common-dir", "--git-dir"]);
+    expect(probe.sandboxPolicy).toBeUndefined();
+    expect(exec(calls, "switch").sandboxPolicy).toMatchObject({ type: "workspaceWrite", writableRoots: ["/proj", "/proj/.git"] });
+  });
+
+  it("opens both the shared and the private git dir when switching inside a linked worktree", async () => {
+    const wt = "/Users/me/.codex/worktrees/1a2b/flow";
+    const { rpc, calls } = stubRpc(gitDirs("/Users/me/Projects/flow/.git", "/Users/me/Projects/flow/.git/worktrees/flow"));
+    await new Session(rpc).gitSwitch(wt, "main");
+    expect(exec(calls, "switch").sandboxPolicy?.writableRoots).toEqual([wt, "/Users/me/Projects/flow/.git", "/Users/me/Projects/flow/.git/worktrees/flow"]);
   });
 
   it("creates a worktree on a fresh codex/ branch under ~/.codex/worktrees", async () => {
-    const { rpc, calls } = stubRpc(() => ({ exitCode: 0, stdout: "", stderr: "" }));
+    const { rpc, calls } = stubRpc(gitDirs("/Users/me/Projects/flow/.git"));
     const path = await new Session(rpc).gitWorktreeAdd("/Users/me/Projects/flow", "/Users/me", "main", "Fix the login bug");
     expect(path).toMatch(/^\/Users\/me\/\.codex\/worktrees\/[0-9a-f]{4}\/flow$/);
-    expect(calls[0].params).toMatchObject({ command: ["git", "worktree", "add", "-b", "codex/fix-the-login-bug", path, "main"], cwd: "/Users/me/Projects/flow" });
+    expect(exec(calls, "worktree")).toMatchObject({
+      command: ["git", "worktree", "add", "-b", "codex/fix-the-login-bug", path, "main"],
+      cwd: "/Users/me/Projects/flow",
+      sandboxPolicy: { type: "workspaceWrite", writableRoots: ["/Users/me/Projects/flow", "/Users/me/.codex/worktrees", "/Users/me/Projects/flow/.git"] },
+    });
   });
 });
 
