@@ -328,6 +328,41 @@ describe("thread management", () => {
     expect(calls[1].params).toMatchObject({ serviceTier: "default" });
     expect(session.store.get().open?.serviceTier).toBeNull();
   });
+
+  // config.toml may set service_tier = "priority" globally; Codex drops it
+  // with a warning on models that lack the tier. Send "default" instead so
+  // the warning never fires and the UI does not claim Fast.
+  it("falls back to the standard tier when the model does not offer the configured one", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
+    const session = readySession(rpc, null);
+    const tiers = (ids: string[]) => ids.map((id) => ({ id, name: id, description: "" }));
+    session.store.set((s) => ({
+      ...s,
+      models: [
+        { model: "m", serviceTiers: tiers(["priority"]) },
+        { model: "deepseek-v4.1-flash", serviceTiers: [] },
+      ] as unknown as v2.Model[],
+      open: { ...s.open!, serviceTier: "priority" },
+    }));
+    // Still on "m", which has the tier: nothing to send.
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[0].params).not.toHaveProperty("serviceTier");
+    expect(Session.isFast(session.store.get().open!)).toBe(true);
+
+    session.setModel("deepseek-v4.1-flash", null);
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[1].params).toMatchObject({ model: "deepseek-v4.1-flash", serviceTier: "default" });
+    expect(session.store.get().open).toMatchObject({ serviceTier: null, serviceTierOverride: null });
+    expect(Session.isFast(session.store.get().open!)).toBe(false);
+  });
+
+  it("does not second-guess the tier before the model list has loaded", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "n" } }));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, open: { ...s.open!, serviceTier: "priority" } }));
+    await session.sendMessage({ ...emptyDraft, text: "go" });
+    expect(calls[0].params).not.toHaveProperty("serviceTier");
+  });
 });
 
 describe("Session.listDirectory", () => {
