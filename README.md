@@ -20,7 +20,7 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 
 - Reach it over Tailscale (or the LAN) only. With `bindHost 127.0.0.1` the port is not exposed on the LAN at all. **Do not** put it on the public internet (Cloudflare Tunnel, port forwarding, …) without an extra layer of authentication.
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
-- Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up.
+- Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up. The host dials chatgpt.com directly and does not read `HTTPS_PROXY`; if your Mac needs a proxy for that, set `config set outboundProxy http://127.0.0.1:1082`. Dictation start errors such as "did not answer session.start in time" usually mean exactly that.
 
 ## Development
 

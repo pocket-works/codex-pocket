@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { connect, type AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket } from "ws";
 import { DICTATION_SUBPROTOCOL, DictationSession, type TranscriptEvent } from "../src/dictation/chatgpt-dictation.js";
@@ -173,6 +173,41 @@ describe("DictationSession", () => {
       await expect(DictationSession.open({ auth: AUTH, sampleRateHz: 16000, url: `ws://127.0.0.1:${port}/x`, onEvent: () => {} })).rejects.toThrow(/401.*sign in/);
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("tunnels through the configured proxy", async () => {
+    backend = await startBackend();
+    // Minimal CONNECT proxy: records the requested authority and splices the sockets.
+    const tunnels: string[] = [];
+    const proxy = createServer();
+    proxy.on("connect", (req, socket, head) => {
+      tunnels.push(req.url ?? "");
+      const [host, port] = (req.url ?? "").split(":");
+      const upstream = connect(Number(port), host, () => {
+        socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        upstream.write(head);
+        upstream.pipe(socket).pipe(upstream);
+      });
+      upstream.on("error", () => socket.destroy());
+    });
+    await new Promise<void>((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    const { port: proxyPort } = proxy.address() as AddressInfo;
+    const backendPort = new URL(backend.url).port;
+    const logs: string[] = [];
+    try {
+      const opening = DictationSession.open({ auth: AUTH, sampleRateHz: 16000, url: backend.url, proxy: `http://127.0.0.1:${proxyPort}`, log: (m) => logs.push(m), onEvent: () => {} });
+      const up = await backend.nextConnection();
+      const start = (await up.nextMessage()) as { config: unknown };
+      send(up.ws, { type: "session.started", session: { config: start.config } });
+      const session = await opening;
+      expect(tunnels).toEqual([`127.0.0.1:${backendPort}`]);
+      expect(up.req.headers.authorization).toBe("Bearer tok-123");
+      expect(logs).toEqual([`dictation: connecting through proxy http://127.0.0.1:${proxyPort}`]);
+      session.abort();
+    } finally {
+      proxy.closeAllConnections();
+      await new Promise<void>((resolve) => proxy.close(() => resolve()));
     }
   });
 });

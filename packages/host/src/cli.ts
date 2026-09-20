@@ -23,6 +23,8 @@ Commands:
   config set <key> <value>    publicUrl: origin phones use when a proxy such as
                               \`tailscale serve\` fronts the host (https://mac.tailnet.ts.net)
                               bindHost:  address serve binds; 127.0.0.1 keeps it off the LAN
+                              outboundProxy: HTTP proxy for the dictation stream to chatgpt.com
+                              (http://127.0.0.1:1082); off by default, HTTPS_PROXY is not read
   config unset <key>
   pair              Print a QR code to pair a new phone (needs a running serve)
   devices           List paired phones

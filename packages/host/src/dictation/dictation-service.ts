@@ -26,6 +26,8 @@ export interface DictationServiceOptions {
   readAuth?: () => CodexAuth | null;
   /** Opens the upstream stream; swapped out in tests. */
   open?: (opts: DictationSessionOptions) => Promise<DictationSession>;
+  /** HTTP proxy for the upstream stream; see the `outboundProxy` setting. */
+  proxy?: string;
   log?: (msg: string) => void;
 }
 
@@ -39,11 +41,13 @@ export class DictationService {
   private readonly readAuth: () => CodexAuth | null;
   private readonly open: (opts: DictationSessionOptions) => Promise<DictationSession>;
   private readonly log: (msg: string) => void;
+  private readonly proxy: string | undefined;
 
   constructor(opts: DictationServiceOptions = {}) {
     this.readAuth = opts.readAuth ?? (() => readCodexAuth());
     this.open = opts.open ?? ((o) => DictationSession.open(o));
     this.log = opts.log ?? (() => {});
+    this.proxy = opts.proxy;
   }
 
   /** Whether Codex is signed in with ChatGPT, which is all dictation needs. */
@@ -72,6 +76,7 @@ export class DictationService {
         const session = await this.open({
           auth,
           sampleRateHz,
+          proxy: this.proxy,
           log: this.log,
           onEvent: (ev) => {
             if (ev.type === "transcript") {

@@ -34,14 +34,17 @@ describe("config set/unset", () => {
   it("validates and stores the known keys", () => {
     let s = setSetting({}, "publicUrl", "https://mac.tailnet.ts.net/");
     s = setSetting(s, "bindHost", " 127.0.0.1 ");
-    expect(s).toEqual({ publicUrl: "https://mac.tailnet.ts.net", bindHost: "127.0.0.1" });
-    expect(unsetSetting(s, "publicUrl")).toEqual({ bindHost: "127.0.0.1" });
+    s = setSetting(s, "outboundProxy", "http://127.0.0.1:1082");
+    expect(s).toEqual({ publicUrl: "https://mac.tailnet.ts.net", bindHost: "127.0.0.1", outboundProxy: "http://127.0.0.1:1082" });
+    expect(unsetSetting(s, "publicUrl")).toEqual({ bindHost: "127.0.0.1", outboundProxy: "http://127.0.0.1:1082" });
   });
 
   it("rejects unknown keys and bad values", () => {
     expect(() => setSetting({}, "colour", "red")).toThrow(/unknown setting/);
     expect(() => setSetting({}, "bindHost", "")).toThrow(/bindHost/);
     expect(() => setSetting({}, "bindHost", "10.0.0.1 evil")).toThrow(/bindHost/);
+    expect(() => setSetting({}, "outboundProxy", "127.0.0.1:1082")).toThrow(/outboundProxy/);
+    expect(() => setSetting({}, "outboundProxy", "socks5://127.0.0.1:1080")).toThrow(/outboundProxy/);
     expect(() => unsetSetting({}, "codex")).toThrow(/unknown setting/);
   });
 });

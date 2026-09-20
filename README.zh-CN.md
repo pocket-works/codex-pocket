@@ -20,7 +20,7 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 
 - 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
-- 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。
+- 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。host 是直连 chatgpt.com 的，不读 `HTTPS_PROXY`；如果这台 Mac 访问它需要代理，用 `config set outboundProxy http://127.0.0.1:1082` 指定。听写启动报 "did not answer session.start in time" 之类的错，多半就是这个原因。
 
 ## 开发
 
