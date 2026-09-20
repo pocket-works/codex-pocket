@@ -3,7 +3,7 @@ import type { v2 } from "@codex-pocket/protocol";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
 import { emptyDraft } from "../src/state/compose.js";
-import { branchLabel, isDraft, Session } from "../src/state/session.js";
+import { branchLabel, isDraft, scratchDateDir, scratchName, Session } from "../src/state/session.js";
 import { initialThreadState } from "../src/state/thread-reducer.js";
 import { getLastModel, setLastModel } from "../src/state/model-prefs.js";
 
@@ -507,6 +507,38 @@ describe("git via command/exec", () => {
   it("labels a detached checkout the way the desktop app does", () => {
     expect(branchLabel("HEAD")).toBe("Detached HEAD");
     expect(branchLabel("main")).toBe("main");
+  });
+});
+
+describe("project-less chat folders", () => {
+  it("names the folder after the prompt's first six words, like the desktop app", () => {
+    expect(scratchName("Say hi in three words.")).toBe("say-hi-in-three-words");
+    expect(scratchName("gcloud logging read 'resource.type=cloud_run_job' --limit 50")).toBe("gcloud-logging-read-resource-type-cloud");
+    expect(scratchName("统计 Partner API 分类数量")).toBe("partner-api");
+    expect(scratchName("今天星期几？")).toBe("new-chat");
+    expect(scratchName("")).toBe("new-chat");
+    expect(scratchName("x".repeat(100))).toHaveLength(80);
+  });
+
+  it("files the day by local time, not UTC", () => {
+    const lateEvening = new Date(2026, 8, 20, 0, 5); // 2026-09-20 00:05 local
+    expect(scratchDateDir("/Users/me/", lateEvening)).toBe("/Users/me/Documents/Codex/2026-09-20");
+  });
+
+  it("appends -2, -3, … until the folder does not exist yet", async () => {
+    const taken = new Set(["/Users/me/Documents/Codex/2026-09-20/hi", "/Users/me/Documents/Codex/2026-09-20/hi-2"]);
+    const { rpc, calls } = stubRpc((_m, params) => {
+      const { path, recursive } = params as { path: string; recursive: boolean };
+      return !recursive && taken.has(path) ? new Error("File exists (os error 17)") : {};
+    });
+    const dir = await new Session(rpc).createScratchDir("/Users/me", "hi", new Date(2026, 8, 20, 12));
+    expect(dir).toBe("/Users/me/Documents/Codex/2026-09-20/hi-3");
+    expect(calls.map((c) => c.params)).toEqual([
+      { path: "/Users/me/Documents/Codex/2026-09-20", recursive: true },
+      { path: "/Users/me/Documents/Codex/2026-09-20/hi", recursive: false },
+      { path: "/Users/me/Documents/Codex/2026-09-20/hi-2", recursive: false },
+      { path: "/Users/me/Documents/Codex/2026-09-20/hi-3", recursive: false },
+    ]);
   });
 });
 
