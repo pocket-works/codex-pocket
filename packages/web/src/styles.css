@@ -1436,6 +1436,39 @@ pre.diff {
   margin: 8px 16px 4px;
 }
 
+/* Foldable section header: the whole row is the tap target. */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.section-toggle .small {
+  font-weight: 500;
+}
+
+.section-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);
+}
+
+.section-caret.collapsed {
+  transform: rotate(0deg);
+}
+
 .thread-list.nested {
   padding-left: 12px;
 }
