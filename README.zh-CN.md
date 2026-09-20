@@ -87,7 +87,7 @@ codex-pocket link-desktop   # 设置 CODEX_APP_SERVER_WS_URL=ws://127.0.0.1:7355
 codex-pocket desktop        # 查看链接状态
 ```
 
-`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`），并把 `ws://127.0.0.1:7355` 转发到这个 socket 供桌面 App 使用。daemon 进程由 Codex 自己管理：按需启动、记录 pid、自动升级。host 通过你的交互式登录 shell 启动它（与桌面 App 走 SSH 时的做法一致），因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与你终端里一致。桌面和手机最终在同一个进程里，桌面打开的线程在手机上可以直接继续，双方实时同步。`codex-pocket unlink-desktop` 可恢复桌面 App 的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口。
+`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`），并把 `ws://127.0.0.1:7355` 转发到这个 socket 供桌面 App 使用。daemon 进程由 Codex 自己管理：按需启动、记录 pid、自动升级。host 通过你的交互式登录 shell 启动它（与桌面 App 走 SSH 时的做法一致），因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与你终端里一致。桌面和手机最终在同一个进程里，桌面打开的线程在手机上可以直接继续，双方实时同步。`link-desktop` 会先检查 daemon 的 `account/read` 是否带 `workspaceRouting`：桌面 App 的所有后端请求（登录信息、听写）都要经过这个字段，缺了会静默失效——standalone 版 codex 0.155.1 就没有，而 ChatGPT.app 自带的那份已经有了。在稳定版跟上之前该命令会拒绝执行（`--force` 可强制），桌面 App 继续用自己的私有 app-server。`codex-pocket unlink-desktop` 可恢复桌面 App 的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口。
 
 从曾经自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，下一次 `serve` 会移除该 agent 并接管端口；请先等桌面上正在进行的轮次结束。
 

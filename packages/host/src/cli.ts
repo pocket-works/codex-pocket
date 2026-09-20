@@ -5,6 +5,7 @@ import { CodexClient } from "./codex/codex-client.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { bridgeUrl } from "./codex/daemon-bridge.js";
 import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, LEGACY_SHARED_APP_SERVER_LABEL, linkDesktop, uninstallLaunchAgent, uninstallUserLaunchAgent, unlinkDesktop } from "./launchd.js";
+import { desktopCompat } from "./codex/desktop-compat.js";
 import { codexConnector } from "./codex/target.js";
 import { codexSettings } from "./config/settings.js";
 import { renderQrTerminal } from "./pairing/qr.js";
@@ -34,6 +35,7 @@ Commands:
   install           Install the host LaunchAgent so serve runs at login
   uninstall         Remove the host LaunchAgent
   link-desktop      Make the ChatGPT desktop app share the host's Codex daemon (restart ChatGPT after)
+    --force           Link even if the daemon's codex lacks what the desktop app needs
   unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
   desktop           Show whether the desktop app is linked
 `;
@@ -139,6 +141,23 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "link-desktop": {
+      // The desktop app breaks quietly (sign-in, dictation) against a daemon
+      // whose account/read lacks workspaceRouting, so look before linking.
+      if (!flags.values.has("force")) {
+        const client = await codexConnector()();
+        let compat;
+        try {
+          const account = await client.rawRequest("account/read", { refreshToken: false });
+          // userAgent looks like "codex-pocket/0.155.1 (Mac OS ...)"; the version is the daemon's.
+          compat = desktopCompat(account, client.serverInfo.userAgent.split(" ")[0]?.split("/")[1]);
+        } finally {
+          client.close();
+        }
+        if (!compat.ok) {
+          console.error(`not linking: ${compat.reason}\nPass --force to link anyway.`);
+          return 1;
+        }
+      }
       const url = bridgeUrl(codexSettings().port);
       const file = linkDesktop(url);
       console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})
