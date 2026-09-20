@@ -22,6 +22,24 @@ export interface Settings {
   publicUrl?: string;
   /** Address `serve` binds; 127.0.0.1 keeps the host off the LAN when a proxy fronts it. */
   bindHost?: string;
+  /**
+   * HTTP proxy for connections the host makes to the internet (currently
+   * just the dictation stream to chatgpt.com). Off by default: `ws` does
+   * not read HTTPS_PROXY, so this is the only way to route it.
+   */
+  outboundProxy?: string;
+}
+
+export function parseOutboundProxy(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  let url: URL;
+  try {
+    url = new URL(v);
+  } catch {
+    throw new Error(`outboundProxy must be an http(s) proxy URL such as http://127.0.0.1:1082, got ${JSON.stringify(raw)}`);
+  }
+  if (!/^https?:$/.test(url.protocol)) throw new Error(`outboundProxy must use http:// or https://, got ${v}`);
+  return v;
 }
 
 export function parseBindHost(raw: unknown): string {
@@ -32,7 +50,11 @@ export function parseBindHost(raw: unknown): string {
 
 // Keys `codex-pocket config set/unset` may touch; the nested codex block is
 // edited by hand.
-const SETTABLE: Record<"publicUrl" | "bindHost", (raw: unknown) => string> = { publicUrl: parsePublicUrl, bindHost: parseBindHost };
+const SETTABLE: Record<"publicUrl" | "bindHost" | "outboundProxy", (raw: unknown) => string> = {
+  publicUrl: parsePublicUrl,
+  bindHost: parseBindHost,
+  outboundProxy: parseOutboundProxy,
+};
 
 type SettableKey = keyof typeof SETTABLE;
 
@@ -88,6 +110,7 @@ export function readSettings(): Settings {
     ...(raw.codex ? { codex: parseCodexSettings(raw.codex) } : {}),
     ...(raw.publicUrl ? { publicUrl: parsePublicUrl(raw.publicUrl) } : {}),
     ...(raw.bindHost ? { bindHost: parseBindHost(raw.bindHost) } : {}),
+    ...(raw.outboundProxy ? { outboundProxy: parseOutboundProxy(raw.outboundProxy) } : {}),
   };
 }
 

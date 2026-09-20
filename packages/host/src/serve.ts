@@ -77,7 +77,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     adminToken: adminToken(),
     pairingUrl: (code) => pairingUrl(publicUrl, code),
     push: { vapidPublicKey: vapid.publicKey, notifier },
-    dictation: new DictationService({ log }),
+    dictation: new DictationService({ log, proxy: settings.outboundProxy }),
     log,
   });
 

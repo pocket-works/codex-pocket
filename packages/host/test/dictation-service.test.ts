@@ -27,11 +27,12 @@ class FakeSession {
   }
 }
 
-function setup(opts: { auth?: typeof AUTH | null; openError?: string } = {}) {
+function setup(opts: { auth?: typeof AUTH | null; openError?: string; proxy?: string } = {}) {
   const sessions: FakeSession[] = [];
   const out: JsonRpcMessage[] = [];
   const service = new DictationService({
     readAuth: () => (opts.auth === undefined ? AUTH : opts.auth),
+    proxy: opts.proxy,
     open: async (o) => {
       if (opts.openError) throw new Error(opts.openError);
       const s = new FakeSession(o);
@@ -52,6 +53,13 @@ describe("DictationService", () => {
     expect(setup({ auth: null }).service.available).toBe(false);
   });
 
+  it("hands the configured proxy to every upstream session", async () => {
+    const { sessions, request, response } = setup({ proxy: "http://127.0.0.1:1082" });
+    request(1, DICTATION_START, { sampleRateHz: 16000 });
+    await response(1);
+    expect(sessions[0].opts.proxy).toBe("http://127.0.0.1:1082");
+  });
+
   it("ignores messages that are not dictation", () => {
     const { handle } = setup();
     expect(handle.handle({ jsonrpc: "2.0", id: 1, method: "thread/list", params: {} })).toBe(false);
@@ -63,7 +71,7 @@ describe("DictationService", () => {
     const started = (await response(1)) as { result: { sessionId: string } };
     const { sessionId } = started.result;
     expect(sessionId).toMatch(/^[0-9a-f]{16}$/);
-    expect(sessions[0].opts).toMatchObject({ auth: AUTH, sampleRateHz: 48000 });
+    expect(sessions[0].opts).toMatchObject({ auth: AUTH, sampleRateHz: 48000, proxy: undefined });
 
     notify(DICTATION_AUDIO, { sessionId, audio: "AAAA" });
     notify(DICTATION_AUDIO, { sessionId: "other", audio: "BBBB" });

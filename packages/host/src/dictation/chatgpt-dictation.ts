@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import WebSocket from "ws";
 import type { CodexAuth } from "../codex/auth.js";
 
@@ -32,6 +33,8 @@ export interface DictationSessionOptions {
   onEvent: (event: TranscriptEvent) => void;
   url?: string;
   userAgent?: string;
+  /** HTTP proxy to tunnel through (`outboundProxy` setting); direct otherwise. */
+  proxy?: string;
   log?: (msg: string) => void;
 }
 
@@ -54,7 +57,12 @@ export class DictationSession {
         "User-Agent": opts.userAgent ?? DEFAULT_USER_AGENT,
       };
       if (opts.auth.accountId) headers["ChatGPT-Account-Id"] = opts.auth.accountId;
-      const ws = new WebSocket(opts.url ?? DICTATION_STREAM_URL, [DICTATION_SUBPROTOCOL], { headers, perMessageDeflate: false });
+      const url = opts.url ?? DICTATION_STREAM_URL;
+      // `ws` ignores HTTPS_PROXY, so proxying is an explicit setting rather
+      // than something picked up from the environment.
+      if (opts.proxy) opts.log?.(`dictation: connecting through proxy ${opts.proxy}`);
+      const agent = opts.proxy ? new HttpsProxyAgent(opts.proxy) : undefined;
+      const ws = new WebSocket(url, [DICTATION_SUBPROTOCOL], { headers, perMessageDeflate: false, agent });
       const session = new DictationSession(ws, opts);
       let settled = false;
       const settle = (fn: () => void) => {
