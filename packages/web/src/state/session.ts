@@ -3,6 +3,7 @@ import { isConnectionError, RpcClient, RpcError, type ConnectionState } from "..
 import { createStore, type Store } from "./store.js";
 import { friendlyError } from "./errors.js";
 import {
+  addAlert,
   addPending,
   applyNotification,
   applyServerRequest,
@@ -351,6 +352,27 @@ export class Session {
 
   dismissToast(id: number): void {
     this.store.set((s) => (s.toasts.some((t) => t.id === id) ? { ...s, toasts: s.toasts.filter((t) => t.id !== id) } : s));
+  }
+
+  /** An informational line inside the open thread (the /status command). */
+  info(message: string): void {
+    this.store.set((s) => (s.open ? { ...s, open: { ...s.open, view: addAlert(s.open.view, "info", message) } } : s));
+  }
+
+  /** What /status shows: thread id, context use and rate limits, like the official app. */
+  statusLine(): string {
+    const s = this.store.get();
+    const parts: string[] = [];
+    if (s.open) parts.push(`Thread ${s.open.view.threadId}`);
+    const usage = s.open?.view.tokenUsage;
+    if (usage) parts.push(usage.contextWindow ? `Context ${Math.round((usage.contextTokens / usage.contextWindow) * 100)}% of ${Math.round(usage.contextWindow / 1000)}k` : `Context ${Math.round(usage.contextTokens / 1000)}k tokens`);
+    for (const w of [s.rateLimits?.primary, s.rateLimits?.secondary]) {
+      if (!w) continue;
+      const span = w.durationMins === null ? "" : w.durationMins >= 7 * 1440 ? "Weekly" : w.durationMins >= 1440 ? `${Math.round(w.durationMins / 1440)}d` : `${Math.round(w.durationMins / 60)}h`;
+      parts.push(`${span ? `${span} limit` : "Limit"} ${Math.round(w.usedPercent)}% used`);
+    }
+    if (s.rateLimits?.credits) parts.push(`Credits ${s.rateLimits.credits}`);
+    return parts.join(" · ");
   }
 
   dismissAlert(id: number): void {

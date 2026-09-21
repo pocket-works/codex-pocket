@@ -28,6 +28,12 @@ export function App({ session }: { session: Session }) {
     else void session.closeThread();
   }, [route.name === "thread" ? route.id : route.name, session]);
 
+  // A thread opened directly (a push notification, a reload) never showed
+  // the list, which is where titles come from; fetch it in the background.
+  useEffect(() => {
+    if (connection === "open" && route.name === "thread" && session.store.get().threads.length === 0) void session.loadThreads();
+  }, [connection, route.name, session]);
+
   // On the LAN the socket is back in under a second, so a blip (waking the
   // phone, switching Wi-Fi) should not flash a banner at all: only mention a
   // problem once it has lasted a moment. If the socket is still not open
