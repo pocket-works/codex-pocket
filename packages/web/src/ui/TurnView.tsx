@@ -5,7 +5,7 @@ import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, stripD
 import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
-import { renderMarkdown } from "./markdown.js";
+import { handleCodeCopy, renderMarkdown } from "./markdown.js";
 import { navigate } from "./route.js";
 import { useUploadedImage } from "./uploaded-image.js";
 import type { v2 } from "@codex-pocket/protocol";
@@ -225,7 +225,7 @@ function ToolDetail({ item, cwd }: { item: ThreadItem; cwd: string }) {
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.
 function Markdown({ text, className, strip }: { text: string; className: string; strip?: boolean }) {
   const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
-  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className={className} onClick={(e) => void handleCodeCopy(e)} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // A test run or an install can print tens of thousands of lines; laying all
