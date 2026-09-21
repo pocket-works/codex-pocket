@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { useSheetDrag } from "./gestures.js";
+import { useDialog } from "./dialog.js";
 
 // Bottom sheet for the next turn's model and reasoning effort, laid out like
 // the official app: a Model row, and an "Intelligence" slider whose stops are
@@ -10,6 +11,7 @@ export function ModelSheet({ session, onClose }: { session: Session; onClose: ()
   const open = useStore(session.store, (s) => s.open);
   const models = useStore(session.store, (s) => s.models);
   const drag = useSheetDrag(onClose);
+  const dialog = useDialog("Model and reasoning", onClose);
 
   useEffect(() => {
     void session.loadModels().catch(() => {});
@@ -36,7 +38,7 @@ export function ModelSheet({ session, onClose }: { session: Session; onClose: ()
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className={`sheet model-sheet ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
+      <div ref={dialog.ref} {...dialog.props} className={`sheet model-sheet ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
         <div className="sheet-grip" />
         <h2>
           {current?.displayName ?? (effective.model || "Model")} <span className="muted">{effortLabel}</span>

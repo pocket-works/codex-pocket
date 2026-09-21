@@ -1,6 +1,7 @@
 import type { Session } from "../state/session.js";
 import type { PendingApproval, ThreadItem } from "../state/thread-reducer.js";
 import { FileDiff } from "./DiffView.js";
+import { useDialog } from "./dialog.js";
 
 // One approval at a time, newest-first is not what we want: the oldest
 // blocks Codex, so ThreadView passes approvals[0].
@@ -9,6 +10,7 @@ export function ApprovalSheet({ session, approval, items, cwd }: { session: Sess
   const isCommand = approval.method === "item/commandExecution/requestApproval";
   const isFile = approval.method === "item/fileChange/requestApproval";
   const isPermissions = approval.method === "item/permissions/requestApproval";
+  const dialog = useDialog(isCommand ? "Run command?" : isFile ? "Apply file changes?" : "Grant permissions?");
 
   function decide(decision: string) {
     session.answerApproval(approval.id, { decision });
@@ -24,7 +26,7 @@ export function ApprovalSheet({ session, approval, items, cwd }: { session: Sess
 
   return (
     <div className="sheet-backdrop">
-      <div className="sheet approval">
+      <div ref={dialog.ref} {...dialog.props} className="sheet approval">
         <h2>{isCommand ? "Run command?" : isFile ? "Apply file changes?" : "Grant permissions?"}</h2>
         {p.reason && <p className="muted">{p.reason}</p>}
         {isCommand && <pre className="mono">{p.command}</pre>}
