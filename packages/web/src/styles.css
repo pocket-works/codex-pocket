@@ -1979,7 +1979,16 @@ pre.diff {
   white-space: nowrap;
 }
 
+.tree-empty {
+  font-size: 14px;
+  padding: 6px 0;
+  list-style: none;
+}
+
 .workspace-search {
+  /* .search-pill grows to share the list bar; in the sheet's column it
+     would swallow the spare height and turn into a giant blob. */
+  flex: none;
   margin: 8px 16px calc(10px + var(--safe-bottom));
 }
 
