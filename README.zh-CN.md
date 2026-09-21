@@ -22,6 +22,18 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
 - 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。host 是直连 chatgpt.com 的，不读 `HTTPS_PROXY`；如果这台 Mac 访问它需要代理，用 `config set outboundProxy http://127.0.0.1:1082` 指定。听写启动报 "did not answer session.start in time" 之类的错，多半就是这个原因。
 
+## 运行：菜单栏应用
+
+host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host，后台不会留下任何进程。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。
+
+```bash
+pnpm install
+make app            # 生成 packages/desktop/release/mac-arm64/Codex Pocket.app
+make open-app       # 或者把 .app 拖到 /Applications 再打开
+```
+
+应用内置了 host 和 PWA，不依赖系统 Node。未签名，第一次打开请右键 → 打开。Codex app-server 本身是官方 daemon（`codex app-server daemon start`），归 Codex 管，应用只显示它的连接状态，不会去停它。
+
 ## 开发
 
 ```bash
@@ -35,11 +47,11 @@ pnpm dev:host devices   # 已配对设备
 pnpm dev:host revoke <id>
 ```
 
-常用操作都包在 `Makefile` 里（`make start`、`make pair`、`make status`…），`make help` 查看列表。
+常用操作都包在 `Makefile` 里（`make app`、`make start`、`make pair`、`make status`…），`make help` 查看列表。`pnpm --filter @codex-pocket/desktop dev` 从工作区直接跑菜单栏应用（会先把 host 从源码打包）；改了 host 代码后重新跑一次，或者 `pnpm --filter @codex-pocket/desktop bundle` 之后在菜单里点 **Restart host**。
 
 状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`。
 
-## 部署：Tailscale HTTPS + 开机常驻
+## 部署：Tailscale HTTPS
 
 host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止，一个地址在家和在外都能用（同一局域网时 Tailscale 会走内网直连）：
 
@@ -60,15 +72,7 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 
 不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
 
-开机常驻（launchd）：
-
-```bash
-pnpm build                                   # 生成 packages/host/dist 和 packages/web/dist
-node packages/host/dist/cli.js install       # 写入 ~/Library/LaunchAgents/com.codex-pocket.host.plist 并启动
-node packages/host/dist/cli.js uninstall     # 移除 host 的 LaunchAgent
-```
-
-host 日志在 `~/.codex-pocket/host.log`，Codex daemon 日志在 `~/.codex/app-server-control/app-server.log`。代码更新后重新 `pnpm build`，再 `install` 一次即可重载。
+host 日志在 `~/.codex-pocket/host.log`，Codex daemon 日志在 `~/.codex/app-server-control/app-server.log`。
 
 构建 PWA 后 `serve` 会自动从 `packages/web/dist` 提供页面：
 

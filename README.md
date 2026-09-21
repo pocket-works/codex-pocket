@@ -22,6 +22,18 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
 - Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up. The host dials chatgpt.com directly and does not read `HTTPS_PROXY`; if your Mac needs a proxy for that, set `config set outboundProxy http://127.0.0.1:1082`. Dictation start errors such as "did not answer session.start in time" usually mean exactly that.
 
+## Running it: the menu bar app
+
+The host runs inside **Codex Pocket**, a small macOS menu bar app in `packages/desktop`. Opening the app starts the host and quitting it stops the host; nothing stays behind in the background. The dot in the menu bar shows the state (grey stopped, yellow starting, green running, red error) and the menu shows the address, whether the Codex daemon is connected, the paired phones (with revoke), and **Pair a phone…**, which shows the QR code and the typed code.
+
+```bash
+pnpm install
+make app            # builds packages/desktop/release/mac-arm64/Codex Pocket.app
+make open-app       # or drag the .app to /Applications and open it from there
+```
+
+The app bundles the host and the PWA, so it does not need a system Node. It is unsigned; on first launch use right-click → Open. The Codex app-server itself is the official daemon (`codex app-server daemon start`) and belongs to Codex, so the app only reports its connection state and never stops it.
+
 ## Development
 
 ```bash
@@ -35,11 +47,11 @@ pnpm dev:host devices   # paired phones
 pnpm dev:host revoke <id>
 ```
 
-A `Makefile` wraps the common tasks (`make start`, `make pair`, `make status`, …); run `make help` for the list.
+A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `make status`, …); run `make help` for the list. `pnpm --filter @codex-pocket/desktop dev` runs the menu bar app from the workspace (it bundles the host from source first); after changing host code, run it again or pick **Restart host** in the menu after `pnpm --filter @codex-pocket/desktop bundle`.
 
 State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone), `host.log`.
 
-## Deploying: HTTPS via Tailscale, run at login
+## Deploying: HTTPS via Tailscale
 
 The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of it, so one URL works at home and away (on the same LAN, Tailscale takes the direct path):
 
@@ -60,15 +72,7 @@ The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of 
 
 Without Tailscale, drop your own PEMs into `~/.codex-pocket/certs/fullchain.pem` and `certs/privkey.pem` and the host serves HTTPS itself (`--no-tls` forces plain HTTP). On a trusted LAN you can skip HTTPS altogether — leave `bindHost` unset and open `http://<LAN IP>:7333` — at the cost of features that need a secure context, such as push notifications.
 
-Run at login (launchd):
-
-```bash
-pnpm build                                   # builds packages/host/dist and packages/web/dist
-node packages/host/dist/cli.js install       # writes ~/Library/LaunchAgents/com.codex-pocket.host.plist and starts it
-node packages/host/dist/cli.js uninstall     # remove the host agent
-```
-
-Logs go to `~/.codex-pocket/host.log`; the Codex daemon logs to `~/.codex/app-server-control/app-server.log`. After updating the code, `pnpm build` and `install` again to reload.
+Logs go to `~/.codex-pocket/host.log`; the Codex daemon logs to `~/.codex/app-server-control/app-server.log`.
 
 Once the PWA is built, `serve` picks it up from `packages/web/dist`:
 

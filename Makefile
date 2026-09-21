@@ -1,7 +1,7 @@
 # Common tasks. Run `make` or `make help` for the list.
 #
-# Development runs the host with tsx straight from source (`make start`);
-# production uses the built CLI under launchd (`make install`). In both modes,
+# Day to day the Codex Pocket menu bar app owns the host (`make app`, then
+# open it); `make start` runs the host from source instead. In both modes,
 # the Codex app-server is the official daemon, owned by Codex itself.
 
 SHELL := /bin/bash
@@ -9,16 +9,17 @@ SHELL := /bin/bash
 
 HOST      := pnpm --filter @codex-pocket/host --silent
 WEB       := pnpm --filter @codex-pocket/web --silent
-CLI       := node packages/host/dist/cli.js
+DESKTOP   := pnpm --filter @codex-pocket/desktop --silent
+APP       := packages/desktop/release/mac-arm64/Codex Pocket.app
 PORT      ?= 7333
 POCKET    := $(HOME)/.codex-pocket
 LOG       := $(POCKET)/host.log
 # pid of whatever is listening on $(PORT)
 LISTENER   = $$(lsof -nP -t -iTCP:$(PORT) -sTCP:LISTEN 2>/dev/null | head -1)
 
-.PHONY: help deps build web test typecheck start stop restart status logs \
-        pair devices revoke threads info desktop link-desktop unlink-desktop \
-        install uninstall protocol
+.PHONY: help deps build web test typecheck app open-app start stop restart \
+        status logs pair devices revoke threads info desktop link-desktop \
+        unlink-desktop protocol
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -37,6 +38,14 @@ test: ## Run all tests
 
 typecheck: ## Type-check all packages
 	pnpm -s typecheck
+
+# --- menu bar app ------------------------------------------------------------
+
+app: web ## Build the Codex Pocket menu bar app into packages/desktop/release
+	$(DESKTOP) app
+
+open-app: ## Launch the built menu bar app (it starts the host; quit it to stop)
+	open "$(APP)"
 
 # --- running the host (development, from source) ---------------------------
 
@@ -89,14 +98,6 @@ link-desktop: ## Point the ChatGPT desktop app at the host's Codex daemon (resta
 
 unlink-desktop: ## Revert the desktop app to its private app-server (restart ChatGPT after)
 	@$(HOST) dev unlink-desktop
-
-# --- production / launchd -----------------------------------------------------
-
-install: build ## Build and install the launchd agent (host runs at login)
-	$(CLI) install
-
-uninstall: ## Remove the host LaunchAgent
-	$(CLI) uninstall
 
 protocol: ## Regenerate protocol types from the installed codex CLI
 	pnpm --filter @codex-pocket/protocol generate

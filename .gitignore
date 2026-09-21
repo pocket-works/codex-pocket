@@ -5,3 +5,5 @@ dist/
 .env
 .pnpm-store/
 .claude/settings.local.json
+packages/desktop/build/
+packages/desktop/release/
