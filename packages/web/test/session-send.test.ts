@@ -669,4 +669,20 @@ describe("Session.forkThread", () => {
     expect(open.state).toBe("ready");
     expect(open.view.items.map((i) => i.id)).toEqual(["m1"]);
   });
+
+  it("names the fork after the source's first message when the list is not loaded", async () => {
+    const { rpc, calls } = stubRpc((method) => {
+      if (method === "thread/fork") return { thread: { id: "t2" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+      if (method === "thread/resume") return { thread: { id: "t2" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+      if (method === "thread/items/list" || method === "thread/turns/list") return { data: [], nextCursor: null };
+      return {};
+    });
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({
+      ...s,
+      open: s.open && { ...s.open, view: { ...s.open.view, items: [{ type: "userMessage", id: "u1", clientId: null, content: [{ type: "text", text: "  What is the weather like today in Shanghai, and tomorrow?  ", text_elements: [] }] }] } },
+    }));
+    await session.forkThread("t1");
+    expect(calls).toContainEqual({ method: "thread/name/set", params: { threadId: "t2", name: "Fork of What is the weather like today in Shangh…" } });
+  });
 });

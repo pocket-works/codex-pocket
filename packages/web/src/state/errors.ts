@@ -8,6 +8,7 @@ const FRIENDLY: [RegExp, string][] = [
   [/^thread not ready$/i, "This thread is still loading. Try again in a moment."],
   [/connection closed before response|proxy stopped|ENOENT|ECONNREFUSED/i, "Codex isn't running on your Mac. Start the Codex app and try again."],
   [/^Compact is disabled while a turn is in progress$/i, "Wait for the current turn to finish before compacting."],
+  [/no rollout found/i, "Codex hasn't saved this thread yet. Send a message first."],
 ];
 
 /** The message to show a person for `err`. */
