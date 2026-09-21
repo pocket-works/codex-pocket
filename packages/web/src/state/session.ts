@@ -54,6 +54,13 @@ export interface Notice {
   message: string;
 }
 
+/** Something happened in a thread that is not on screen; tapping goes there. */
+export interface Toast {
+  id: number;
+  threadId: string;
+  message: string;
+}
+
 export interface FileMatch {
   name: string;
   path: string;
@@ -131,6 +138,7 @@ export interface SessionState {
   rateLimits: RateLimits | null;
   /** Warnings not tied to a thread; shown app-wide until dismissed. */
   notices: Notice[];
+  toasts: Toast[];
   /** What the send button does while a turn runs (per device). */
   followUp: FollowUpMode;
 }
@@ -138,6 +146,8 @@ export interface SessionState {
 const HISTORY_PAGE = 40;
 /** How long a sent message stays "pending" if Codex never echoes it. */
 const PENDING_ECHO_TIMEOUT_MS = 10_000;
+/** How long a "finished elsewhere" toast stays. */
+const TOAST_MS = 6000;
 
 let nextNoticeId = 1;
 
@@ -235,6 +245,7 @@ export class Session {
       open: null,
       rateLimits: null,
       notices: [],
+      toasts: [],
       followUp: getFollowUpMode(),
     });
     // The host reports Codex's status the moment we attach, so keep the last
@@ -329,6 +340,17 @@ export class Session {
 
   dismissNotice(id: number): void {
     this.store.set((s) => ({ ...s, notices: s.notices.filter((n) => n.id !== id) }));
+  }
+
+  /** Transient, one per thread: a newer one for the same thread replaces the old. */
+  toast(threadId: string, message: string): void {
+    const id = nextNoticeId++;
+    this.store.set((s) => ({ ...s, toasts: [...s.toasts.filter((t) => t.threadId !== threadId), { id, threadId, message }] }));
+    setTimeout(() => this.dismissToast(id), TOAST_MS);
+  }
+
+  dismissToast(id: number): void {
+    this.store.set((s) => (s.toasts.some((t) => t.id === id) ? { ...s, toasts: s.toasts.filter((t) => t.id !== id) } : s));
   }
 
   dismissAlert(id: number): void {
@@ -1103,6 +1125,17 @@ export class Session {
       }
       return threads === s.threads ? s : { ...s, threads };
     });
+    // A turn finishing somewhere else while the app is open: say so, since
+    // push stays quiet for a visible app and the list is not on screen.
+    if (n.method === "turn/completed") {
+      const { threadId } = n.params as { threadId: string };
+      const s = this.store.get();
+      const visible = typeof document === "undefined" || document.visibilityState === "visible";
+      if (visible && s.open?.view.threadId !== threadId) {
+        const title = s.threads.find((t) => t.id === threadId)?.title ?? "A thread";
+        this.toast(threadId, `${title} finished`);
+      }
+    }
     this.store.set((s) => {
       if (!s.open) return s;
       const view = applyNotification(s.open.view, n);

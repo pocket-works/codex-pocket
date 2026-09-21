@@ -105,3 +105,20 @@ describe("Session across a reconnect", () => {
     expect(session.store.get()).toMatchObject({ connection: "closed", upstreamConnected: true });
   });
 });
+
+describe("turns finishing elsewhere", () => {
+  const completed = (threadId: string) => ({ jsonrpc: "2.0" as const, method: "turn/completed", params: { threadId, turn: { id: "x", status: "completed" } } });
+
+  it("raises a toast for a thread that is not on screen, naming it", () => {
+    const session = withReadyThread(new Session(stubRpc(() => ({})).rpc));
+    session.store.set((s) => ({ ...s, threads: [{ ...s.threads[0], id: "t2", title: "Other work" } as (typeof s.threads)[number]] }));
+    session.handleNotification(completed("t2"));
+    expect(session.store.get().toasts).toMatchObject([{ threadId: "t2", message: "Other work finished" }]);
+  });
+
+  it("stays quiet for the thread on screen", () => {
+    const session = withReadyThread(new Session(stubRpc(() => ({})).rpc));
+    session.handleNotification(completed("t1"));
+    expect(session.store.get().toasts).toEqual([]);
+  });
+});

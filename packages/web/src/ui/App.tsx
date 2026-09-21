@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { NewThread } from "./NewThread.js";
 import { ThreadList } from "./ThreadList.js";
 import { ThreadView } from "./ThreadView.js";
-import { useRoute } from "./route.js";
+import { navigate, useRoute } from "./route.js";
 import { ArchivedList } from "./ArchivedList.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 import { checkForUpdate } from "../state/updates.js";
@@ -14,6 +14,12 @@ export function App({ session }: { session: Session }) {
   const connection = useStore(session.store, (s) => s.connection);
   const upstream = useStore(session.store, (s) => s.upstreamConnected);
   const notices = useStore(session.store, (s) => s.notices);
+  const toasts = useStore(session.store, (s) => s.toasts);
+  const openId = useStore(session.store, (s) => s.open?.view.threadId ?? null);
+  // Threads blocked on you that are not the one on screen. The list shows
+  // its own marks, so the strip appears on the other screens only.
+  const threads = useStore(session.store, (s) => s.threads);
+  const waiting = useMemo(() => threads.filter((t) => t.status === "waiting" && t.id !== openId), [threads, openId]);
 
   // Keep the open thread in sync with the URL.
   useEffect(() => {
@@ -42,14 +48,42 @@ export function App({ session }: { session: Session }) {
         ? "Mac reached, waiting for Codex app-server…"
         : null;
 
+  // An iPad or a desktop window: the list stays on the left and the
+  // screens open beside it, like the official app's sidebar.
+  const split = useMediaQuery(SPLIT_QUERY);
+  const screen = (
+    <>
+      {route.name === "new" && <NewThread session={session} presetCwd={route.cwd} />}
+      {route.name === "archived" && <ArchivedList session={session} />}
+      {route.name === "settings" && <SettingsScreen session={session} />}
+      {route.name === "thread" && <ThreadView session={session} />}
+    </>
+  );
+
   return (
-    <div className="app">
+    <div className={`app ${split ? "split" : ""}`}>
       {banner && <div className="banner">{banner}</div>}
       {updated && !banner && (
         <button className="banner update" onClick={() => location.reload()}>
           Codex Pocket was updated — tap to reload
         </button>
       )}
+      {route.name !== "list" && waiting.length > 0 && (
+        <button className="event-strip" onClick={() => navigate(waiting.length === 1 ? { name: "thread", id: waiting[0].id } : { name: "list" })}>
+          <span className="event-dot" aria-hidden />
+          <span className="event-text">
+            {waiting.length === 1 ? `${waiting[0].title} is waiting for your ${waiting[0].waitingFor === "input" ? "answer" : "approval"}` : `${waiting.length} threads are waiting for you`}
+          </span>
+          <span aria-hidden>›</span>
+        </button>
+      )}
+      {toasts.map((t) => (
+        <button key={t.id} className="event-strip done" onClick={() => (session.dismissToast(t.id), navigate({ name: "thread", id: t.threadId }))}>
+          <span className="event-dot" aria-hidden />
+          <span className="event-text">{t.message}</span>
+          <span aria-hidden>›</span>
+        </button>
+      ))}
       {notices.map((n) => (
         <div key={n.id} className="alert warning">
           <span>{n.message}</span>
@@ -58,13 +92,36 @@ export function App({ session }: { session: Session }) {
           </button>
         </div>
       ))}
-      {route.name === "list" && <ThreadList session={session} />}
-      {route.name === "new" && <NewThread session={session} presetCwd={route.cwd} />}
-      {route.name === "archived" && <ArchivedList session={session} />}
-      {route.name === "settings" && <SettingsScreen session={session} />}
-      {route.name === "thread" && <ThreadView session={session} />}
+      {split ? (
+        <div className="split-body">
+          <aside className="split-list">
+            <ThreadList session={session} />
+          </aside>
+          <section className="split-main">
+            {route.name === "list" ? <p className="muted center split-empty">Pick a thread, or start one.</p> : screen}
+          </section>
+        </div>
+      ) : (
+        <>
+          {route.name === "list" && <ThreadList session={session} />}
+          {screen}
+        </>
+      )}
     </div>
   );
+}
+
+const SPLIT_QUERY = "(min-width: 900px)";
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
 }
 
 const BANNER_AFTER_MS = 1500;

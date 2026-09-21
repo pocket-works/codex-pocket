@@ -96,6 +96,42 @@ img {
   margin: 0 auto;
 }
 
+/* From 900px the list stays on the left and screens open beside it. */
+.app.split {
+  max-width: 1200px;
+}
+
+.split-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.split-list {
+  flex: none;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.split-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.split-empty {
+  margin: auto;
+}
+
+.thread-row[aria-current] {
+  background: var(--card);
+}
+
 /* Track the visible area on mobile browsers whose toolbars come and go. */
 .app {
   height: 100dvh;
@@ -149,6 +185,45 @@ img {
 
 .banner + .screen {
   padding-top: 0;
+}
+
+/* Something happened in another thread: waiting on you (amber), or a turn
+   finished (green). The whole strip is the tap target and leads there. */
+.event-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  font-size: calc(14rem / 17);
+  text-align: left;
+}
+
+.event-strip .event-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.event-strip.done .event-dot {
+  background: var(--ok);
 }
 
 /* A new build is on the host; the whole strip reloads the page. */
