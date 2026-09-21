@@ -895,7 +895,10 @@ export class Session {
     // A fork has no name or preview of its own (Codex keeps the copied
     // history in memory, not in its rollout), so it would read "(untitled)"
     // everywhere until its first turn. Name it after the source.
-    const source = this.store.get().threads.find((t) => t.id === threadId)?.title;
+    // The list may not have loaded (a thread opened from a push notification
+    // skips it), so fall back to the source's first message.
+    const state = this.store.get();
+    const source = state.threads.find((t) => t.id === threadId)?.title ?? firstUserText(state.open?.view.threadId === threadId ? state.open.view : null);
     if (source) void this.renameThread(res.thread.id, `Fork of ${source}`).catch(() => {});
     await this.openThread(res.thread.id, { force: true });
     return res.thread.id;
@@ -1168,6 +1171,18 @@ export class Session {
       return view === s.open.view ? s : { ...s, open: { ...s.open, view } };
     });
   }
+}
+
+/** The first user message's text, shortened to a title's length, or null. */
+function firstUserText(view: ThreadViewState | null): string | null {
+  const first = view?.items.find((i) => i.type === "userMessage");
+  if (!first || first.type !== "userMessage") return null;
+  const text = first.content
+    .map((c) => (c.type === "text" ? c.text : ""))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text ? (text.length > 40 ? `${text.slice(0, 40)}…` : text) : null;
 }
 
 export function describe(err: unknown): string {
