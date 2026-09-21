@@ -8,6 +8,15 @@ import { ArchiveIcon, BranchIcon, CheckIcon, ChevronIcon, ComposeIcon, FolderIco
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
+/** Re-renders the caller once a minute so "3m" ages while the list sits open. */
+export function useMinuteTick(): void {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+}
+
 export function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
   const min = Math.round(diff / 60000);
@@ -38,6 +47,7 @@ export function ThreadList({ session }: { session: Session }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(getCollapsedSections);
+  useMinuteTick();
 
   useEffect(() => {
     if (connection !== "open") return;
@@ -98,6 +108,7 @@ export function ThreadList({ session }: { session: Session }) {
 
       {error && <p className="error">{error}</p>}
       {threads.length === 0 && !loading && !error && <p className="muted center">No threads yet.</p>}
+      {threads.length === 0 && loading && <ListSkeleton />}
 
       <div className="list-scroll">
         {pinned.length > 0 && (
@@ -181,6 +192,20 @@ export function ThreadList({ session }: { session: Session }) {
         </button>
       </div>
     </main>
+  );
+}
+
+// Cold start: the list has nothing to show until thread/list answers.
+function ListSkeleton() {
+  return (
+    <div className="skeleton-rows" aria-hidden>
+      {[68, 44, 56, 38, 60].map((w, i) => (
+        <div key={i} className="skeleton-row">
+          <span className="skeleton" style={{ width: "30%" }} />
+          <span className="skeleton" style={{ width: `${w}%` }} />
+        </div>
+      ))}
+    </div>
   );
 }
 
