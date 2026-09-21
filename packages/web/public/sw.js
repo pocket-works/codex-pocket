@@ -1,6 +1,6 @@
 // App-shell cache: the PWA opens instantly even before the host answers.
 // API and WebSocket traffic never goes through here.
-const CACHE = "codex-pocket-shell-v1";
+const CACHE = "codex-pocket-shell-v2";
 
 // When the phone's Tailscale is off, a request to the host does not fail: the
 // ts.net name still resolves to a 100.x address, and the connect just hangs
@@ -10,7 +10,7 @@ const CACHE = "codex-pocket-shell-v1";
 const SHELL_NETWORK_TIMEOUT_MS = 3000;
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon.svg"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon.svg?v=2"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
@@ -61,8 +61,8 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "Codex", {
       body: data.body || "",
       tag: data.tag || threadId || undefined,
-      icon: "/icon-180.png",
-      badge: "/icon-180.png",
+      icon: "/icon-180.png?v=2",
+      badge: "/icon-180.png?v=2",
       data: { threadId },
     }),
   );

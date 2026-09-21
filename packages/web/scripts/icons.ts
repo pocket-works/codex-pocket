@@ -1,5 +1,7 @@
 // Regenerates the PNG icons from icon.svg with macOS's own rasteriser:
-// `node scripts/icons.ts` (also `pnpm icons`).
+// `node scripts/icons.ts` (also `pnpm icons`). Afterwards bump the `?v=`
+// on the icon URLs in index.html, manifest.webmanifest, sw.js and
+// PairScreen.tsx: iOS keeps the old Home Screen icon for a URL it has seen.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
