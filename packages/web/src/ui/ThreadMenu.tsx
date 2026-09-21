@@ -6,6 +6,7 @@ import { WorkspaceSheet, type WorkspaceTab } from "./WorkspaceSheet.js";
 import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon } from "./icons.js";
 import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
+import { friendlyError } from "../state/errors.js";
 
 // "⋯" in the thread topbar, laid out like the official iOS app's thread
 // menu: title, Pin / Rename / Copy thread ID / Archive, then Changes and
@@ -48,7 +49,7 @@ export function ThreadMenu({ session }: { session: Session }) {
       await action();
       close();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }

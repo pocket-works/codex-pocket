@@ -7,6 +7,7 @@ import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
 import { BranchIcon, ChatIcon, CheckIcon, ChevronsIcon, FolderIcon, LaptopIcon, MonitorIcon, WorktreeIcon } from "./icons.js";
 import { navigate } from "./route.js";
+import { friendlyError } from "../state/errors.js";
 
 /** Where the thread will run: a project folder, or a scratch folder like the desktop app's "Chat". */
 type Target = { kind: "project"; cwd: string } | { kind: "chat" };
@@ -258,7 +259,7 @@ function FolderBrowser({ session, start, onPick, onClose }: { session: Session; 
     session
       .listDirectory(path)
       .then((d) => !cancelled && setDirs(d))
-      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) => !cancelled && setError(friendlyError(err)));
     return () => {
       cancelled = true;
     };

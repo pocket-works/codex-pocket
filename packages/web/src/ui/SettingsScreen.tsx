@@ -5,6 +5,7 @@ import { dictationSupported } from "../state/dictation.js";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
+import { friendlyError } from "../state/errors.js";
 
 interface Me {
   device: { id: string; name: string; createdAt: number };
@@ -32,7 +33,7 @@ export function SettingsScreen({ session }: { session: Session }) {
     try {
       setPush(await (was === "on" ? disablePush() : enablePush()));
     } catch (err) {
-      setPushError(err instanceof Error ? err.message : String(err));
+      setPushError(friendlyError(err));
       setPush(was);
     }
   }
