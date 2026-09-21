@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
-import { changeTotals, formatDuration, groupTurns, isToolItem, stripDirectives, summarizeTools, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
+import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, stripDirectives, summarizeTools, tailLines, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
@@ -28,7 +28,12 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
   );
 }
 
-function TurnBlock({ group, session, cwd, latest, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; progress: Record<string, string> }) {
+// Every delta re-renders the transcript; turns whose items did not change
+// are skipped wholesale so a long thread stays smooth while the last one
+// streams.
+const TurnBlock = memo(TurnBlockImpl, (a, b) => a.session === b.session && a.cwd === b.cwd && a.latest === b.latest && a.progress === b.progress && sameGroup(a.group, b.group));
+
+function TurnBlockImpl({ group, session, cwd, latest, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; progress: Record<string, string> }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const expanded = open ?? (latest || group.inProgress);
   const hasWork = group.work.length > 0;
@@ -124,7 +129,7 @@ function WorkSection({ items, cwd, progress }: { items: ThreadItem[]; cwd: strin
     }
     flush();
     if (item.type === "agentMessage" || item.type === "plan") {
-      rows.push(<div key={item.id} className="work-note" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.text) }} />);
+      rows.push(<Markdown key={item.id} className="work-note" text={item.text} />);
     } else if (item.type === "contextCompaction") rows.push(<div key={item.id} className="work-muted">Context compacted</div>);
   }
   flush();
@@ -181,7 +186,7 @@ function ToolDetail({ item, cwd }: { item: ThreadItem; cwd: string }) {
       return (
         <div className="tool-detail">
           <pre className="mono">$ {item.command}</pre>
-          {item.aggregatedOutput && <pre className="mono">{item.aggregatedOutput}</pre>}
+          {item.aggregatedOutput && <CommandOutput text={item.aggregatedOutput} />}
           {item.exitCode !== null && item.exitCode !== 0 && <p className="error small">exit {item.exitCode}</p>}
         </div>
       );
@@ -217,6 +222,31 @@ function ToolDetail({ item, cwd }: { item: ThreadItem; cwd: string }) {
   }
 }
 
+// Parsing + sanitising is the expensive part of a re-render; do it once per text.
+function Markdown({ text, className, strip }: { text: string; className: string; strip?: boolean }) {
+  const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
+  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// A test run or an install can print tens of thousands of lines; laying all
+// of that out freezes the phone, and the end is what matters anyway.
+const OUTPUT_TAIL_LINES = 200;
+
+function CommandOutput({ text }: { text: string }) {
+  const [all, setAll] = useState(false);
+  const { tail, hidden } = useMemo(() => (all ? { tail: text, hidden: 0 } : tailLines(text, OUTPUT_TAIL_LINES)), [text, all]);
+  return (
+    <>
+      {hidden > 0 && (
+        <button className="link-btn small output-more" onClick={() => setAll(true)}>
+          Show {hidden.toLocaleString()} earlier line{hidden === 1 ? "" : "s"}
+        </button>
+      )}
+      <pre className="mono">{tail}</pre>
+    </>
+  );
+}
+
 function Reasoning({ items }: { items: Extract<ThreadItem, { type: "reasoning" }>[] }) {
   const [open, setOpen] = useState(false);
   const texts = items.map((i) => [...i.summary, ...i.content].filter(Boolean).join("\n\n")).filter(Boolean);
@@ -231,7 +261,7 @@ function Reasoning({ items }: { items: Extract<ThreadItem, { type: "reasoning" }
           <ChevronIcon />
         </span>
       </button>
-      {open && <div className="tool-detail prose muted" dangerouslySetInnerHTML={{ __html: renderMarkdown(texts.join("\n\n---\n\n")) }} />}
+      {open && <Markdown className="tool-detail prose muted" text={texts.join("\n\n---\n\n")} />}
     </div>
   );
 }
@@ -304,7 +334,7 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
 
   return (
     <div className="final">
-      <div className="final-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(stripDirectives(text)) }} />
+      <Markdown className="final-text" text={text} strip />
       {group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">
