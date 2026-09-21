@@ -107,6 +107,8 @@ export interface OpenThread {
   view: ThreadViewState;
   state: OpenState;
   error: string | null;
+  /** The last message is being edited: its turn is dropped and rerun on send. */
+  editing?: { turnId: string; text: string } | null;
   /** Model/effort the thread currently runs with (from resume/start). */
   model: string;
   effort: ReasoningEffort | null;
@@ -668,11 +670,22 @@ export class Session {
   }
 
   async sendMessage(draft: Draft): Promise<void> {
-    const open = this.store.get().open;
+    let open = this.store.get().open;
     if (!open || open.state !== "ready") throw new Error("thread not ready");
     const threadId = open.view.threadId;
     const input = buildUserInput(draft);
     if (input.length === 0) return;
+
+    // Editing the last message: drop its turn from the thread's history
+    // first, then send the new text as a fresh turn. thread/revert only
+    // rewrites history, so the transcript is reloaded to match.
+    if (open.editing && !open.view.activeTurnId) {
+      await this.rpc.request<v2.ThreadRevertResponse>("thread/revert", { threadId, beforeTurnId: open.editing.turnId });
+      this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, editing: null } } : s));
+      await this.openThread(threadId, { force: true });
+      open = this.store.get().open;
+      if (!open || open.view.threadId !== threadId || open.state !== "ready") throw new Error("thread not ready");
+    }
 
     // Show the message at once; Codex echoes it back as a userMessage item
     // (which retires the pending copy) only after the round trip.
@@ -742,6 +755,15 @@ export class Session {
     });
     if (open.override) setLastModel(open.override);
     return true;
+  }
+
+  /** Puts the last turn's message back in the composer; sending replaces that turn. */
+  beginEdit(turnId: string, text: string): void {
+    this.store.set((s) => (s.open && !s.open.view.activeTurnId ? { ...s, open: { ...s.open, editing: { turnId, text } } } : s));
+  }
+
+  cancelEdit(): void {
+    this.store.set((s) => (s.open?.editing ? { ...s, open: { ...s.open, editing: null } } : s));
   }
 
   /** Sends the last user message again after a turn failed (network, model errors). */
@@ -1180,6 +1202,12 @@ export class Session {
             }
           : s,
       );
+      return;
+    }
+    // History rewritten elsewhere (the desktop edited a message): reload it.
+    if (n.method === "thread/reverted") {
+      const { threadId } = n.params as v2.ThreadRevertedNotification;
+      if (this.store.get().open?.view.threadId === threadId) void this.openThread(threadId, { force: true });
       return;
     }
     if (n.method === "thread/queue/changed") {

@@ -64,6 +64,15 @@ export function Composer({
 
   useEffect(() => saveDraft(draftKey, draft), [draftKey, draft]);
 
+  // "Edit" on the last message: its text replaces the draft until sent or cancelled.
+  const editing = useStore(session.store, (s) => s.open?.editing ?? null);
+  useEffect(() => {
+    if (!editing) return;
+    setDraft((d) => ({ ...d, text: editing.text }));
+    setFocused(true);
+    textRef.current?.focus();
+  }, [editing]);
+
   // Grow the box with its content up to the CSS max-height, whichever way the
   // text got there (typing, paste, dictation, or clearing after send).
   useLayoutEffect(() => {
@@ -255,6 +264,21 @@ export function Composer({
   return (
     <div className="composer">
       {modelSheet && <ModelSheet session={session} onClose={() => setModelSheet(false)} />}
+      {editing && (
+        <p className="muted small composer-hint editing-hint">
+          Editing your last message — sending replaces it and its reply.
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              session.cancelEdit();
+              setDraft((d) => ({ ...d, text: "" }));
+            }}
+          >
+            Cancel
+          </button>
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
       {blocker && hasDraft && <p className="muted small composer-hint">{blocker}</p>}
       {popover?.kind === "files" && files.length > 0 && (
