@@ -85,6 +85,17 @@ body,
   padding-top: 0;
 }
 
+/* A new build is on the host; the whole strip reloads the page. */
+.banner.update {
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .topbar {
   display: flex;
   align-items: center;
