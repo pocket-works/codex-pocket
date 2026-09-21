@@ -54,6 +54,8 @@ export function ThreadList({ session }: { session: Session }) {
   const [expanded, setExpanded] = useState<string | null>(remembered.expanded);
   const [collapsed, setCollapsed] = useState(getCollapsedSections);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Highlighted in the split layout, where the list stays beside the thread.
+  const openId = useStore(session.store, (s) => s.open?.view.threadId ?? null);
   useMinuteTick();
 
   useLayoutEffect(() => {
@@ -136,7 +138,7 @@ export function ThreadList({ session }: { session: Session }) {
             <h2 className="section-title">Pinned</h2>
             <ul className="thread-list">
               {pinned.map((t) => (
-                <ThreadRow key={t.id} thread={t} showProject={!isScratchThread(t)} plain onArchive={archive} />
+                <ThreadRow key={t.id} thread={t} selected={t.id === openId} showProject={!isScratchThread(t)} plain onArchive={archive} />
               ))}
             </ul>
           </>
@@ -149,7 +151,7 @@ export function ThreadList({ session }: { session: Session }) {
                 {!collapsed.chats && (
                   <ul className="thread-list">
                     {chatsExtra.map((t) => (
-                      <ThreadRow key={t.id} thread={t} plain onArchive={archive} />
+                      <ThreadRow key={t.id} thread={t} selected={t.id === openId} plain onArchive={archive} />
                     ))}
                   </ul>
                 )}
@@ -183,7 +185,7 @@ export function ThreadList({ session }: { session: Session }) {
                     {expanded === g.project.id && (
                       <ul className="thread-list nested">
                         {g.threads.map((t) => (
-                          <ThreadRow key={t.id} thread={t} compact onArchive={archive} />
+                          <ThreadRow key={t.id} thread={t} selected={t.id === openId} compact onArchive={archive} />
                         ))}
                       </ul>
                     )}
@@ -195,7 +197,7 @@ export function ThreadList({ session }: { session: Session }) {
         ) : (
           <ul className="thread-list">
             {rest.map((t) => (
-              <ThreadRow key={t.id} thread={t} showProject={!isScratchThread(t)} plain onArchive={archive} />
+              <ThreadRow key={t.id} thread={t} selected={t.id === openId} showProject={!isScratchThread(t)} plain onArchive={archive} />
             ))}
             {q && filtered.length === 0 && <p className="muted center">No matches.</p>}
           </ul>
@@ -258,12 +260,15 @@ function SectionHeading({
 
 export function ThreadRow({
   thread,
+  selected,
   showProject,
   compact,
   plain,
   onArchive,
 }: {
   thread: ThreadSummary;
+  /** The thread open beside the list (split layout). */
+  selected?: boolean;
   showProject?: boolean;
   compact?: boolean;
   /** Title and project only, like the official "Chats" section. */
@@ -271,11 +276,12 @@ export function ThreadRow({
   onArchive: (id: string) => void;
 }) {
   const open = () => navigate({ name: "thread", id: thread.id });
+  const current = selected ? ("page" as const) : undefined;
   if (compact) {
     // Inside a project: one line, title left, time right.
     return (
       <SwipeRow onArchive={() => onArchive(thread.id)}>
-        <button className="thread-row compact" onClick={open}>
+        <button className="thread-row compact" aria-current={current} onClick={open}>
           <span className="thread-title">{thread.title}</span>
           {isWorktree(thread.cwd) && (
             <span className="thread-worktree muted" title="Worktree">
@@ -290,7 +296,7 @@ export function ThreadRow({
   }
   return (
     <SwipeRow onArchive={() => onArchive(thread.id)}>
-      <button className="thread-row" onClick={open}>
+      <button className="thread-row" aria-current={current} onClick={open}>
         <div className="thread-row-body">
           {showProject && <div className="thread-project">{projectName(thread.cwd)}</div>}
           <div className="thread-title">{thread.title}</div>
