@@ -122,3 +122,18 @@ describe("turns finishing elsewhere", () => {
     expect(session.store.get().toasts).toEqual([]);
   });
 });
+
+describe("archived threads", () => {
+  it("shows an archived thread read-only instead of an error", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return new RpcError(-32600, "session t1 is archived. Run `codex unarchive t1` to unarchive it first.");
+      if (method === "thread/items/list") return { data: [{ turnId: "u1", item: { type: "userMessage", id: "m1", clientId: null, content: [{ type: "text", text: "old", text_elements: [] }] } }], nextCursor: null };
+      if (method === "thread/turns/list") return { data: [], nextCursor: null };
+      return {};
+    });
+    const session = new Session(rpc);
+    await session.openThread("t1");
+    expect(session.store.get().open).toMatchObject({ state: "archived", error: null });
+    expect(session.store.get().open?.view.items.map((i) => i.id)).toEqual(["m1"]);
+  });
+});

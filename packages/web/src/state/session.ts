@@ -100,7 +100,8 @@ export function permissionPreset(p: Permissions | null): PermissionPreset | null
   return null;
 }
 
-export type OpenState = "loading" | "ready" | "locked" | "error";
+/** "archived": Codex refuses to resume it, but its history can be read. */
+export type OpenState = "loading" | "ready" | "locked" | "archived" | "error";
 
 export interface OpenThread {
   view: ThreadViewState;
@@ -225,6 +226,10 @@ function withDefaultModel(open: OpenThread, models: v2.Model[]): OpenThread {
 
 function isLockedError(err: unknown): boolean {
   return err instanceof RpcError && /active writer/i.test(err.message);
+}
+
+function isArchivedError(err: unknown): boolean {
+  return err instanceof RpcError && /is archived/i.test(err.message);
 }
 
 // Everything the UI can do, on top of one RpcClient. State is in `store`.
@@ -508,6 +513,18 @@ export class Session {
       // The socket dropped mid-load (or was not open yet): the reconnect
       // re-opens the thread, so leave it loading rather than flash an error.
       if (isConnectionError(err)) return;
+      if (isArchivedError(err)) {
+        // Archived threads cannot be resumed, but thread/read still works:
+        // show the transcript read-only with a way to bring it back.
+        const history = await this.loadHistory(threadId).catch(() => null);
+        if (generation !== this.openGeneration) return;
+        this.store.set((s) => {
+          if (!s.open || s.open.view.threadId !== threadId) return s;
+          const view = history ? mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns) : s.open.view;
+          return { ...s, open: { ...s.open, view, state: "archived", error: null } };
+        });
+        return;
+      }
       this.store.set((s) =>
         s.open && s.open.view.threadId === threadId
           ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: friendlyError(err) } }
@@ -905,6 +922,8 @@ export class Session {
   async unarchiveThread(threadId: string): Promise<void> {
     await this.rpc.request("thread/unarchive", { threadId });
     await this.loadThreads();
+    // Restored while on screen: it can be resumed now.
+    if (this.store.get().open?.view.threadId === threadId) await this.openThread(threadId, { force: true });
   }
 
   async archiveThread(threadId: string): Promise<void> {

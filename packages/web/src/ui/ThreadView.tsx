@@ -14,6 +14,7 @@ import { QueuedList } from "./QueuedList.js";
 import { WorkspaceSheet } from "./WorkspaceSheet.js";
 import { threadChangeTotals } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
+import { friendlyError } from "../state/errors.js";
 import { useSwipeBack } from "./gestures.js";
 
 export function ThreadView({ session }: { session: Session }) {
@@ -83,6 +84,12 @@ export function ThreadView({ session }: { session: Session }) {
         <div className="notice">
           <p>This thread is open in the Codex desktop app. Close it there to continue from your phone.</p>
           <button onClick={() => void session.openThread(open.view.threadId, { force: true })}>Retry</button>
+        </div>
+      )}
+      {open.state === "archived" && (
+        <div className="notice">
+          <p>This thread is archived. Unarchive it to continue.</p>
+          <button onClick={() => void session.unarchiveThread(open.view.threadId).catch((err) => session.notify(friendlyError(err)))}>Unarchive and open</button>
         </div>
       )}
       {open.state === "error" && (
