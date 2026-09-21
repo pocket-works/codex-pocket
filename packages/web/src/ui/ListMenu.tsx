@@ -72,6 +72,7 @@ export function MenuItem({
       className={`menu-item ${danger ? "danger" : ""}`}
       role={checked === undefined ? "menuitem" : "menuitemradio"}
       aria-checked={checked}
+      aria-label={label}
       disabled={disabled}
       onClick={onClick}
     >
