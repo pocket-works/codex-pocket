@@ -127,6 +127,12 @@ describe("turn plan, token usage and alerts", () => {
     expect(s.alerts).toEqual([]);
   });
 
+  it("drops the config service-tier nag Codex sends on every resume", () => {
+    const s = initialThreadState(T);
+    const message = "Configured service tier `priority` is not advertised as supported for model `deepseek-v4.1-flash` and will be omitted from requests.";
+    expect(applyNotification(s, { method: "warning", params: { threadId: T, message } })).toBe(s);
+  });
+
   it("ignores warnings for other threads and dismisses alerts by id", () => {
     let s = initialThreadState(T);
     expect(applyNotification(s, { method: "warning", params: { threadId: "other", message: "x" } })).toBe(s);
