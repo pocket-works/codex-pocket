@@ -5,6 +5,7 @@ import { branchLabel, type FileMatch, type Session } from "../state/session.js";
 import { DiffBody } from "./DiffView.js";
 import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { friendlyError } from "../state/errors.js";
+import { useSheetDrag } from "./gestures.js";
 
 // Scratch chats and plain folders are not repositories; that is a fact
 // about the folder, not a failure to report in red.
@@ -28,6 +29,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
   const [changes, setChanges] = useState<{ files: v2.FileUpdateChange[]; branch: string; upstream: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<{ path: string; text: string | null } | null>(null);
+  const drag = useSheetDrag(onClose);
 
   async function openFile(path: string) {
     setError(null);
@@ -64,7 +66,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
   if (file) {
     return (
       <div className="sheet-backdrop" onClick={onClose}>
-        <div className="sheet workspace" onClick={(e) => e.stopPropagation()}>
+        <div className={`sheet workspace ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
           <FileViewer file={file} root={cwd} onBack={() => setFile(null)} onClose={onClose} />
         </div>
       </div>
@@ -73,7 +75,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet workspace" onClick={(e) => e.stopPropagation()}>
+      <div className={`sheet workspace ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
         <header className="workspace-head">
           <span className="workspace-head-side" />
           <div className="workspace-title">

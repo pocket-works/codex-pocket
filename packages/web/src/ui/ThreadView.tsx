@@ -13,6 +13,7 @@ import { QueuedList } from "./QueuedList.js";
 import { WorkspaceSheet } from "./WorkspaceSheet.js";
 import { threadChangeTotals } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
+import { useSwipeBack } from "./gestures.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
@@ -23,6 +24,7 @@ export function ThreadView({ session }: { session: Session }) {
   const stickToBottom = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
+  const back = useSwipeBack(() => navigate({ name: "list" }));
 
   const items = open?.view.items ?? [];
   const lastItem = items[items.length - 1];
@@ -64,7 +66,7 @@ export function ThreadView({ session }: { session: Session }) {
   const totals = threadChangeTotals(open.view, diffStats);
 
   return (
-    <main className="screen thread">
+    <main className={`screen thread ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
       <header className="topbar">
         <button className="icon-btn" aria-label="Back" onClick={() => navigate({ name: "list" })}>
           ‹

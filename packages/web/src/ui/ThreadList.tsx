@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCollapsedSections, getListView, setListView, setSectionCollapsed, type ListSection, type ListView } from "../state/list-prefs.js";
 import { getPins } from "../state/pins.js";
 import type { Session, ThreadStatus, ThreadSummary } from "../state/session.js";
@@ -38,6 +38,11 @@ export function projectName(cwd: string): string {
 // state/projects.ts, which groups by app-server's projects rather than by cwd.
 export { groupByProject, isScratchThread, isWorktree };
 
+// Where the list was when a thread was opened, so coming back lands on the
+// same rows with the same project unfolded, as a native list would. Module
+// state: the list unmounts while a thread is on screen, but the page lives on.
+const remembered = { scrollTop: 0, expanded: null as string | null };
+
 export function ThreadList({ session }: { session: Session }) {
   const threads = useStore(session.store, (s) => s.threads);
   const projects = useStore(session.store, (s) => s.projects);
@@ -46,9 +51,23 @@ export function ThreadList({ session }: { session: Session }) {
   const connection = useStore(session.store, (s) => s.connection);
   const [view, setView] = useState<ListView>(getListView);
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(remembered.expanded);
   const [collapsed, setCollapsed] = useState(getCollapsedSections);
+  const scrollRef = useRef<HTMLDivElement>(null);
   useMinuteTick();
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = remembered.scrollTop;
+    // Read it back on unmount: the node is still attached while cleanups run.
+    return () => {
+      remembered.scrollTop = el.scrollTop;
+    };
+  }, []);
+  useEffect(() => {
+    remembered.expanded = expanded;
+  }, [expanded]);
 
   useEffect(() => {
     if (connection !== "open") return;
@@ -111,7 +130,7 @@ export function ThreadList({ session }: { session: Session }) {
       {threads.length === 0 && !loading && !error && <p className="muted center">No threads yet.</p>}
       {threads.length === 0 && loading && <ListSkeleton />}
 
-      <div className="list-scroll">
+      <div className="list-scroll" ref={scrollRef}>
         {pinned.length > 0 && (
           <>
             <h2 className="section-title">Pinned</h2>

@@ -7,6 +7,7 @@ import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
 import { BranchIcon, ChatIcon, CheckIcon, ChevronsIcon, FolderIcon, LaptopIcon, MonitorIcon, WorktreeIcon } from "./icons.js";
 import { navigate } from "./route.js";
+import { useSheetDrag, useSwipeBack } from "./gestures.js";
 import { friendlyError } from "../state/errors.js";
 
 /** Where the thread will run: a project folder, or a scratch folder like the desktop app's "Chat". */
@@ -45,6 +46,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
   const threads = useStore(session.store, (s) => s.threads);
   const projects = useStore(session.store, (s) => s.projects);
   const connection = useStore(session.store, (s) => s.connection);
+  const back = useSwipeBack(() => navigate({ name: "list" }));
   // Every project root is offered, so multi-folder and empty projects are
   // reachable; recent folders from the thread list fill in the gaps.
   const cwds = useMemo(() => {
@@ -129,7 +131,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
   const extra = cwd && !cwds.includes(cwd) ? [cwd] : [];
 
   return (
-    <main className="screen new-thread">
+    <main className={`screen new-thread ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
       <header className="topbar plain">
         <button className="icon-btn round" aria-label="Back" onClick={() => navigate({ name: "list" })}>
           ‹
@@ -248,6 +250,7 @@ function parentOf(path: string): string {
 // Walks directories on the Mac via fs/readDirectory. Starts next to the
 // most recent project so sibling repos are one tap away.
 function FolderBrowser({ session, start, onPick, onClose }: { session: Session; start: string; onPick: (path: string) => void; onClose: () => void }) {
+  const drag = useSheetDrag(onClose);
   const [path, setPath] = useState(parentOf(start));
   const [dirs, setDirs] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -267,7 +270,7 @@ function FolderBrowser({ session, start, onPick, onClose }: { session: Session; 
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet folder-browser" onClick={(e) => e.stopPropagation()}>
+      <div className={`sheet folder-browser ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
         <div className="sheet-grip" />
         <div className="folder-path">
           <button type="button" className="icon-btn" aria-label="Up" disabled={path === "/"} onClick={() => setPath(parentOf(path))}>

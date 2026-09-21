@@ -5,6 +5,7 @@ import { dictationSupported } from "../state/dictation.js";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { navigate } from "./route.js";
+import { useSwipeBack } from "./gestures.js";
 import { friendlyError } from "../state/errors.js";
 
 interface Me {
@@ -19,6 +20,7 @@ export function SettingsScreen({ session }: { session: Session }) {
   const upstream = useStore(session.store, (s) => s.upstreamConnected);
   const [me, setMe] = useState<Me | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const back = useSwipeBack(() => navigate({ name: "list" }));
   const [push, setPush] = useState<PushStatus | "busy">("off");
   const [pushError, setPushError] = useState<string | null>(null);
 
@@ -54,7 +56,7 @@ export function SettingsScreen({ session }: { session: Session }) {
   }
 
   return (
-    <main className="screen">
+    <main className={`screen ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
       <header className="topbar">
         <button className="icon-btn" aria-label="Back" onClick={() => navigate({ name: "list" })}>
           ‹
