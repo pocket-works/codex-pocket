@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session, ThreadSummary } from "../state/session.js";
 import { ArchiveIcon } from "./icons.js";
 import { navigate } from "./route.js";
+import { useSwipeBack } from "./gestures.js";
 import { projectName, relativeTime, useMinuteTick } from "./ThreadList.js";
 import { friendlyError } from "../state/errors.js";
 
@@ -10,6 +11,7 @@ export function ArchivedList({ session }: { session: Session }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useMinuteTick();
+  const back = useSwipeBack(() => navigate({ name: "list" }));
 
   useEffect(() => {
     session
@@ -31,7 +33,7 @@ export function ArchivedList({ session }: { session: Session }) {
   }
 
   return (
-    <main className="screen">
+    <main className={`screen ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
       <header className="topbar">
         <button className="icon-btn" aria-label="Back" onClick={() => navigate({ name: "list" })}>
           ‹
