@@ -8,7 +8,8 @@ import { PlanView } from "./PlanView.js";
 import { ThreadMenu } from "./ThreadMenu.js";
 import { navigate } from "./route.js";
 import { UserInputSheet } from "./UserInputSheet.js";
-import { USER_INPUT_METHOD } from "../state/thread-reducer.js";
+import { ELICITATION_METHOD, USER_INPUT_METHOD } from "../state/thread-reducer.js";
+import { ElicitationSheet } from "./ElicitationSheet.js";
 import { QueuedList } from "./QueuedList.js";
 import { WorkspaceSheet } from "./WorkspaceSheet.js";
 import { threadChangeTotals } from "../state/turns.js";
@@ -145,7 +146,8 @@ export function ThreadView({ session }: { session: Session }) {
       {showChanges && <WorkspaceSheet session={session} cwd={open.cwd} initialTab="modified" onClose={() => setShowChanges(false)} />}
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
-      {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
+      {pending && pending.method === ELICITATION_METHOD && <ElicitationSheet session={session} request={pending} />}
+      {pending && pending.method !== USER_INPUT_METHOD && pending.method !== ELICITATION_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
       <Composer
         key={open.view.threadId}

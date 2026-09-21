@@ -243,11 +243,15 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
 // Server-initiated requests that need a human decision. Anything else the
 // phone cannot answer is left for other clients (or the host's timeout).
 export const USER_INPUT_METHOD = "item/tool/requestUserInput";
-const APPROVAL_METHODS = new Set([
+/** An MCP server asking the user something (a form, a URL to visit, a verification). */
+export const ELICITATION_METHOD = "mcpServer/elicitation/request";
+/** Server requests that block the turn until the person answers, shown as a sheet. */
+export const APPROVAL_METHODS = new Set([
   "item/commandExecution/requestApproval",
   "item/fileChange/requestApproval",
   "item/permissions/requestApproval",
   USER_INPUT_METHOD,
+  ELICITATION_METHOD,
 ]);
 
 export function applyServerRequest(state: ThreadViewState, req: JsonRpcRequest): ThreadViewState {
