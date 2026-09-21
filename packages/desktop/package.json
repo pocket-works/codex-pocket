@@ -58,7 +58,8 @@
       "identity": null,
       "extendInfo": {
         "LSUIElement": true
-      }
+      },
+      "icon": "build/icon.icns"
     }
   }
 }
