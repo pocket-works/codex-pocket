@@ -44,6 +44,35 @@ export function groupTurns(view: ThreadViewState): TurnGroup[] {
   return groups;
 }
 
+/**
+ * Whether two groupings of the same turn would render identically. Groups
+ * are rebuilt on every store change, but the items inside keep their
+ * identity unless they changed, so this lets React skip untouched turns
+ * while a later one streams.
+ */
+export function sameGroup(a: TurnGroup, b: TurnGroup): boolean {
+  return (
+    a.turnId === b.turnId &&
+    a.meta === b.meta &&
+    a.inProgress === b.inProgress &&
+    a.final === b.final &&
+    sameItems(a.userMessages, b.userMessages) &&
+    sameItems(a.work, b.work) &&
+    sameItems(a.fileChanges, b.fileChanges)
+  );
+}
+
+function sameItems(a: readonly ThreadItem[], b: readonly ThreadItem[]): boolean {
+  return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
+/** The last `max` lines of a command's output, and how many came before them. */
+export function tailLines(text: string, max: number): { tail: string; hidden: number } {
+  const lines = text.split("\n");
+  if (lines.length <= max) return { tail: text, hidden: 0 };
+  return { tail: lines.slice(-max).join("\n"), hidden: lines.length - max };
+}
+
 // The final answer is the last agent message of the turn unless Codex
 // labelled it interim commentary. Everything before it is "work".
 function promoteFinal(g: TurnGroup): void {

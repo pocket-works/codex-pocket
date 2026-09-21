@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, stripShellWrapper, summarizeTools, threadChangeTotals, toolLabel, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, sameGroup, stripShellWrapper, summarizeTools, tailLines, threadChangeTotals, toolLabel, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -108,5 +108,39 @@ describe("stripDirectives", () => {
   it("drops ::inbox-item lines and keeps the answer", async () => {
     const { stripDirectives } = await import("../src/state/turns.js");
     expect(stripDirectives('Done.\n\n::inbox-item{title="x" summary="y"}\n')).toBe("Done.");
+  });
+});
+
+describe("sameGroup", () => {
+  const started = (s: ReturnType<typeof initialThreadState>, id: string, item: ThreadItem) =>
+    applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t1", item } });
+
+  it("treats a turn whose items are untouched as unchanged across store updates", () => {
+    let s = initialThreadState(T);
+    s = started(s, "t1", user("u1", "hi"));
+    s = started(s, "t1", agent("m1", "done"));
+    const before = groupTurns(s)[0];
+    // A later delta in another turn leaves this turn's items as they were.
+    s = applyNotification(s, { method: "item/agentMessage/delta", params: { threadId: T, turnId: "t2", itemId: "m2", delta: "x" } });
+    expect(sameGroup(before, groupTurns(s)[0])).toBe(true);
+  });
+
+  it("notices a delta to one of the turn's own items", () => {
+    let s = initialThreadState(T);
+    s = started(s, "t1", user("u1", "hi"));
+    s = started(s, "t1", agent("m1", "par"));
+    const before = groupTurns(s)[0];
+    s = applyNotification(s, { method: "item/agentMessage/delta", params: { threadId: T, turnId: "t1", itemId: "m1", delta: "tial" } });
+    expect(sameGroup(before, groupTurns(s)[0])).toBe(false);
+  });
+});
+
+describe("tailLines", () => {
+  it("returns short output whole", () => {
+    expect(tailLines("a\nb", 5)).toEqual({ tail: "a\nb", hidden: 0 });
+  });
+
+  it("keeps the last lines and counts the rest", () => {
+    expect(tailLines("1\n2\n3\n4\n5", 2)).toEqual({ tail: "4\n5", hidden: 3 });
   });
 });

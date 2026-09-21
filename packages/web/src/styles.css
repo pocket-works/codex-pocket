@@ -2233,6 +2233,12 @@ pre.diff {
   gap: 6px;
 }
 
+.output-more {
+  align-self: flex-start;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .tool-detail pre {
   margin: 0;
   white-space: pre-wrap;
