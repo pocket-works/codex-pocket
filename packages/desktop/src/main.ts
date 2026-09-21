@@ -63,8 +63,8 @@ function spawnHost(location: HostLocation, log: WriteStream): HostChild {
   };
 }
 
-// The PWA icon in the menu bar's text colour, with the state as the dot on
-// the phone's screen; a stopped host fades the glyph.
+// The PWA tile in the menu bar's text colour, with the state as the dot at
+// the end of its short line; a stopped host fades the tile.
 function trayIcon(state: HostState): Electron.NativeImage {
   const glyph: [number, number, number] = nativeTheme.shouldUseDarkColors ? [255, 255, 255] : [0, 0, 0];
   const img = nativeImage.createEmpty();
