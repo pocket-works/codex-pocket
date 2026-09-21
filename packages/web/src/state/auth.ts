@@ -27,20 +27,23 @@ export async function redeemPairingCode(code: string): Promise<string> {
   const res = await fetch("/api/pair", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, deviceName: guessDeviceName() }),
+    body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
   });
   if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Run `codex-pocket pair` again." : `Pairing failed (HTTP ${res.status})`);
   const { token } = (await res.json()) as { token: string };
   return token;
 }
 
-function guessDeviceName(): string {
-  const ua = navigator.userAgent;
-  if (/iPhone/.test(ua)) return "iPhone";
-  if (/iPad/.test(ua)) return "iPad";
-  if (/Android/.test(ua)) return "Android phone";
-  if (/Macintosh/.test(ua)) return "Mac browser";
-  return "Browser";
+export function isStandalone(): boolean {
+  return window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+}
+
+// The Home Screen app and the browser tab on the same phone keep separate
+// storage and so pair separately; say which one this is so the Mac can tell
+// them apart.
+export function deviceName(userAgent: string, standalone: boolean): string {
+  const kind = /iPhone/.test(userAgent) ? "iPhone" : /iPad/.test(userAgent) ? "iPad" : /Android/.test(userAgent) ? "Android phone" : /Macintosh/.test(userAgent) ? "Mac" : "Device";
+  return `${kind} (${standalone ? "Home Screen" : "browser"})`;
 }
 
 export function wsUrl(): string {

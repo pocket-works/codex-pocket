@@ -15,7 +15,8 @@ export interface Device {
   id: string;
   name: string;
   createdAt: number;
-  lastSeenAt: number | null;
+  lastSeenAt: number;
+  push: boolean;
 }
 
 interface RuntimeInfo {
