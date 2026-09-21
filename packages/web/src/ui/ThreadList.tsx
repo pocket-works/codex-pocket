@@ -157,8 +157,8 @@ export function ThreadList({ session }: { session: Session }) {
                 )}
               </>
             )}
-            <SectionHeading label="Projects" count={groups.length} collapsed={collapsed.projects} onToggle={() => toggleSection("projects")} />
-            {!collapsed.projects && (
+            <h2 className="section-title">Projects</h2>
+            {groups.length > 0 && (
               <ul className="project-list">
                 {groups.map((g) => (
                   <li key={g.project.id}>
@@ -231,9 +231,10 @@ function ListSkeleton() {
   );
 }
 
-// A section header that folds its list away, like the official sidebar's
-// collapsible groups. The whole heading is the hit target so it is easy to
-// tap on a phone.
+// A section header that folds its list away, like the official app's "Chats"
+// group (projects never fold). The whole heading is the hit target so it is
+// easy to tap on a phone; the chevron sits after the label as in the official
+// sidebar.
 function SectionHeading({
   label,
   count,
@@ -248,10 +249,10 @@ function SectionHeading({
   return (
     <h2 className="section-title">
       <button className="section-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+        <span>{label}</span>
         <span className={`section-caret ${collapsed ? "collapsed" : ""}`} aria-hidden>
           <ChevronIcon />
         </span>
-        <span>{label}</span>
         <span className="muted small">{count}</span>
       </button>
     </h2>
@@ -353,7 +354,8 @@ function ThreadStateMark({ thread }: { thread: ThreadSummary }) {
   return null;
 }
 
-const SWIPE_REVEAL = 96;
+// Pill width plus its right inset, so the row stops flush with the button.
+const SWIPE_REVEAL = 108;
 
 // Swipe a row left to reveal an Archive button, as in the official app.
 // Touch only: a mouse gets no hint, so desktop keeps the thread menu.
