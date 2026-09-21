@@ -34,10 +34,18 @@ export interface TurnMeta {
   durationMs: number | null;
 }
 
+/** A message the phone sent that Codex has not echoed back as an item yet. */
+export interface PendingMessage {
+  id: string;
+  input: v2.UserInput[];
+}
+
 export interface ThreadViewState {
   threadId: string;
   /** Items in display order (oldest first). */
   items: ThreadItem[];
+  /** Sent messages shown at the end of the transcript until their item arrives. */
+  pending: PendingMessage[];
   /** itemId -> turnId, so items can be grouped per turn. */
   itemTurns: Record<string, string>;
   turns: Record<string, TurnMeta>;
@@ -54,7 +62,15 @@ export interface ThreadViewState {
 }
 
 export function initialThreadState(threadId: string): ThreadViewState {
-  return { threadId, items: [], itemTurns: {}, turns: {}, activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [], toolProgress: {} };
+  return { threadId, items: [], pending: [], itemTurns: {}, turns: {}, activeTurnId: null, lastTurnError: null, approvals: [], plan: null, tokenUsage: null, alerts: [], toolProgress: {} };
+}
+
+export function addPending(state: ThreadViewState, message: PendingMessage): ThreadViewState {
+  return { ...state, pending: [...state.pending, message] };
+}
+
+export function removePending(state: ThreadViewState, id: string): ThreadViewState {
+  return state.pending.some((m) => m.id === id) ? { ...state, pending: state.pending.filter((m) => m.id !== id) } : state;
 }
 
 let nextAlertId = 1;
@@ -159,6 +175,9 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
     case "item/completed": {
       const { item, turnId } = p as unknown as v2.ItemStartedNotification;
       let next = withTurn({ ...state, items: upsert(state.items, item) }, item.id, turnId);
+      // Codex echoes what we sent in order, so the first pending message is
+      // the one this user item stands for.
+      if (item.type === "userMessage" && next.pending.length > 0 && !state.items.some((i) => i.id === item.id)) next = { ...next, pending: next.pending.slice(1) };
       if (n.method === "item/completed" && item.id in next.toolProgress) {
         const { [item.id]: _done, ...toolProgress } = next.toolProgress;
         next = { ...next, toolProgress };

@@ -7,6 +7,8 @@ import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
 import { renderMarkdown } from "./markdown.js";
 import { navigate } from "./route.js";
+import { useUploadedImage } from "./uploaded-image.js";
+import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
 // "Worked for …" section (reasoning, tools, interim notes), then the final
@@ -19,6 +21,9 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
       {groups.map((g, i) => (
         <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} progress={view.toolProgress} />
       ))}
+      {view.pending.map((m) => (
+        <UserBubble key={m.id} content={m.input} pending />
+      ))}
     </>
   );
 }
@@ -29,9 +34,7 @@ function TurnBlock({ group, session, cwd, latest, progress }: { group: TurnGroup
   const hasWork = group.work.length > 0;
   return (
     <section className="turn">
-      {group.userMessages.map((m) => (
-        <UserBubble key={m.id} item={m} />
-      ))}
+      {group.userMessages.map((m) => m.type === "userMessage" && <UserBubble key={m.id} content={m.content} />)}
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
@@ -45,12 +48,30 @@ function TurnBlock({ group, session, cwd, latest, progress }: { group: TurnGroup
   );
 }
 
-function UserBubble({ item }: { item: ThreadItem }) {
-  if (item.type !== "userMessage") return null;
-  const text = item.content
-    .map((c) => (c.type === "text" ? c.text : c.type === "mention" || c.type === "skill" ? `@${c.name}` : c.type === "image" || c.type === "localImage" ? "[image]" : `[${c.type}]`))
+// Text first, attached images underneath; a pending bubble is one the phone
+// sent that Codex has not echoed back yet.
+function UserBubble({ content, pending }: { content: v2.UserInput[]; pending?: boolean }) {
+  const text = content
+    .map((c) => (c.type === "text" ? c.text : c.type === "mention" || c.type === "skill" ? `@${c.name}` : c.type === "image" || c.type === "localImage" ? "" : `[${c.type}]`))
     .join("");
-  return <div className="msg user">{text}</div>;
+  const images = content.filter((c) => c.type === "image" || c.type === "localImage");
+  return (
+    <div className={`msg user ${pending ? "pending" : ""}`}>
+      {text}
+      {images.length > 0 && (
+        <div className="msg-images">
+          {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} path={c.path} /> : c.type === "image" ? <img key={i} src={c.url} alt="" /> : null))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserImage({ path }: { path: string }) {
+  const url = useUploadedImage(path);
+  // An image attached from the desktop app lives somewhere on the Mac the
+  // host will not serve; name it rather than show nothing.
+  return url ? <img src={url} alt="" /> : <span className="msg-image-name">{path.slice(path.lastIndexOf("/") + 1)}</span>;
 }
 
 function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded: boolean; onToggle: () => void }) {
