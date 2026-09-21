@@ -11,6 +11,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".map": "application/json",
