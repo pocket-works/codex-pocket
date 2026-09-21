@@ -504,6 +504,60 @@ code,
   }
 }
 
+/* Placeholder shapes while the first list / transcript page loads: the
+   screen has structure from the first frame instead of being blank. */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--card) 0%, var(--line) 50%, var(--card) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.skeleton-rows {
+  padding: 4px 16px;
+}
+
+.skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.skeleton-row .skeleton {
+  height: 12px;
+}
+
+.skeleton-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.skeleton-msg {
+  height: 40px;
+  border-radius: 16px;
+  max-width: 92%;
+}
+
+.skeleton-msg.user {
+  align-self: flex-end;
+  width: 55%;
+}
+
+.skeleton-msg.agent {
+  align-self: flex-start;
+  width: 80%;
+  height: 72px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
 .composer {
   padding: 6px 10px calc(8px + var(--safe-bottom));
 }

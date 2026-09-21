@@ -96,7 +96,14 @@ export function ThreadView({ session }: { session: Session }) {
 
       <div className="items" ref={listRef} onScroll={onScroll}>
         {open.loadingOlder && <p className="muted center">Loading…</p>}
-        {open.state === "loading" && items.length === 0 && <p className="muted center">Loading…</p>}
+        {open.state === "loading" && items.length === 0 && (
+          <div className="skeleton-msgs" aria-hidden>
+            <span className="skeleton skeleton-msg user" />
+            <span className="skeleton skeleton-msg agent" />
+            <span className="skeleton skeleton-msg user" />
+            <span className="skeleton skeleton-msg agent" />
+          </div>
+        )}
         <Transcript session={session} view={open.view} cwd={open.cwd} />
         {open.view.plan && <PlanView plan={open.view.plan} />}
         {open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}

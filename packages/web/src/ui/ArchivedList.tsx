@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import type { Session, ThreadSummary } from "../state/session.js";
 import { ArchiveIcon } from "./icons.js";
 import { navigate } from "./route.js";
-import { projectName, relativeTime } from "./ThreadList.js";
+import { projectName, relativeTime, useMinuteTick } from "./ThreadList.js";
 
 export function ArchivedList({ session }: { session: Session }) {
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  useMinuteTick();
 
   useEffect(() => {
     session
