@@ -94,6 +94,26 @@ function promoteFinal(g: TurnGroup): void {
   }
 }
 
+/**
+ * The conversation as Markdown for pasting elsewhere: each turn's message
+ * and final answer, with a one-line note of the work in between.
+ */
+export function transcriptMarkdown(view: ThreadViewState, title: string | null): string {
+  const out: string[] = [];
+  if (title) out.push(`# ${title}`, "");
+  for (const g of groupTurns(view)) {
+    for (const m of g.userMessages) {
+      if (m.type !== "userMessage") continue;
+      const text = m.content.map((c) => (c.type === "text" ? c.text : c.type === "skill" ? `/${c.name} ` : c.type === "image" || c.type === "localImage" ? "[image] " : "")).join("").trim();
+      out.push("### You", "", text, "");
+    }
+    const tools = g.work.filter(isToolItem);
+    if (tools.length > 0) out.push(`_${summarizeTools(tools)}_`, "");
+    if (g.final) out.push("### Codex", "", stripDirectives(g.final.text).trim(), "");
+  }
+  return out.join("\n").trim() + "\n";
+}
+
 /** "1m 55s", "36s", "2h 3m". */
 export function formatDuration(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));

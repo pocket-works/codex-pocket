@@ -961,9 +961,11 @@ export class Session {
    * rollout on disk from the moment it exists, so it is opened the normal
    * way and the copied history shows up rather than an empty transcript.
    */
-  async forkThread(threadId: string, lastTurnId?: string): Promise<string> {
+  async forkThread(threadId: string, lastTurnId?: string, cwd?: string): Promise<string> {
     const params: v2.ThreadForkParams = { threadId, excludeTurns: true };
     if (lastTurnId) params.lastTurnId = lastTurnId;
+    // A fork into a fresh worktree keeps the history but works elsewhere.
+    if (cwd) params.cwd = cwd;
     const res = await this.rpc.request<v2.ThreadForkResponse>("thread/fork", params);
     // A fork has no name or preview of its own (Codex keeps the copied
     // history in memory, not in its rollout), so it would read "(untitled)"

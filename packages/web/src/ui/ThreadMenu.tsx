@@ -3,7 +3,9 @@ import type { Session } from "../state/session.js";
 import { isPinned, togglePin } from "../state/pins.js";
 import { useStore } from "../state/store.js";
 import { WorkspaceSheet, type WorkspaceTab } from "./WorkspaceSheet.js";
-import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, CopyIcon, FolderIcon, PencilIcon, PinIcon, WorktreeIcon } from "./icons.js";
+import { fetchMe } from "../state/me.js";
+import { transcriptMarkdown } from "../state/turns.js";
 import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
 import { friendlyError } from "../state/errors.js";
@@ -93,6 +95,20 @@ export function ThreadMenu({ session }: { session: Session }) {
               />
               <MenuItem icon={<PencilIcon />} label="Rename" disabled={busy} onClick={() => setRenaming(title ?? "")} />
               <MenuItem icon={<CopyIcon />} label="Copy thread ID" disabled={busy} onClick={() => void run(() => navigator.clipboard.writeText(threadId))} />
+              <MenuItem icon={<CopyIcon />} label="Copy as Markdown" disabled={busy} onClick={() => void run(() => navigator.clipboard.writeText(transcriptMarkdown(open.view, title)))} />
+              <MenuItem
+                icon={<WorktreeIcon />}
+                label="Fork in new worktree"
+                disabled={busy || running || !open.cwd}
+                onClick={() =>
+                  void run(async () => {
+                    const [repo, me] = await Promise.all([session.gitInfo(open.cwd), fetchMe()]);
+                    if (!repo) throw new Error("A Git repository is required to fork in a new worktree");
+                    const dir = await session.gitWorktreeAdd(open.cwd, me.home, repo.branch);
+                    navigate({ name: "thread", id: await session.forkThread(threadId, undefined, dir) });
+                  })
+                }
+              />
               <MenuItem
                 icon={<ArchiveIcon />}
                 label="Archive"
