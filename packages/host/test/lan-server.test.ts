@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -230,6 +230,27 @@ describe("LanServer", () => {
     it("requires a device token", async () => {
       const res = await fetch(`${base}/api/uploads`, { method: "POST", headers: { "Content-Type": "image/png" }, body: png });
       expect(res.status).toBe(401);
+    });
+
+    it("serves an uploaded image back by its name", async () => {
+      const token = await pair();
+      const up = await fetch(`${base}/api/uploads`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/png" }, body: png });
+      const { path } = (await up.json()) as { path: string };
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      const res = await fetch(`${base}/api/uploads/${name}`, { headers: { Authorization: `Bearer ${token}` } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("image/png");
+      expect(Buffer.from(await res.arrayBuffer()).equals(png)).toBe(true);
+      expect((await fetch(`${base}/api/uploads/${name}`)).status).toBe(401);
+    });
+
+    it("serves only names of its own making", async () => {
+      const token = await pair();
+      writeFileSync(join(uploadsDir, "..", "secret.png"), png);
+      for (const name of ["..%2Fsecret.png", "secret.png", "0123456789abcdef.txt", "0123456789abcdef.png"]) {
+        const res = await fetch(`${base}/api/uploads/${name}`, { headers: { Authorization: `Bearer ${token}` } });
+        expect(res.status, name).toBe(404);
+      }
     });
 
     it("rejects non-image bodies", async () => {

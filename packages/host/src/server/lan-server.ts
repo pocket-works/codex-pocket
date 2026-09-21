@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
@@ -68,6 +68,9 @@ const IMAGE_EXT: Record<string, string> = {
   "image/gif": "gif",
   "image/heic": "heic",
 };
+const IMAGE_TYPE: Record<string, string> = Object.fromEntries(Object.entries(IMAGE_EXT).map(([type, ext]) => [ext, type]));
+/** Names the upload route hands out: 16 hex chars and a known extension, nothing that could walk the tree. */
+const UPLOAD_NAME = /^[0-9a-f]{16}\.(jpg|png|webp|gif|heic)$/;
 
 export function createLanServer(opts: LanServerOptions): LanServer {
   const log = opts.log ?? (() => {});
@@ -214,6 +217,25 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     const file = join(opts.uploadsDir, `${randomBytes(8).toString("hex")}.${ext}`);
     writeFileSync(file, body, { mode: 0o600 });
     return sendJson(res, 200, { path: file });
+  }
+
+  // Reads back an image the phone uploaded, so the transcript can show it.
+  // Only files this route's own naming scheme produced are served: a
+  // `localImage` attached from the desktop app points anywhere on the Mac.
+  const upload = path.startsWith("/api/uploads/") && method === "GET" ? UPLOAD_NAME.exec(path.slice("/api/uploads/".length)) : null;
+  if (upload) {
+    const device = await opts.deviceStore.verifyToken(bearerToken(req));
+    if (!device) return sendJson(res, 401, { error: "unauthorized" });
+    if (!opts.uploadsDir) return sendJson(res, 404, { error: "uploads disabled" });
+    let body: Buffer;
+    try {
+      body = readFileSync(join(opts.uploadsDir, upload[0]));
+    } catch {
+      return sendJson(res, 404, { error: "not found" });
+    }
+    res.writeHead(200, { "Content-Type": IMAGE_TYPE[upload[1]], "Content-Length": body.length, "Cache-Control": "private, max-age=31536000, immutable" });
+    res.end(body);
+    return;
   }
 
   if (path === "/api/push/vapid" && method === "GET") {
