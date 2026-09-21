@@ -41,7 +41,15 @@ export function groupTurns(view: ThreadViewState): TurnGroup[] {
     else g.work.push(item);
   }
   for (const g of groups) promoteFinal(g);
+  // A review's items carry a different turn id from its turn/started, so
+  // no group matches the active id; the newest group is the live one then.
+  const last = groups[groups.length - 1];
+  if (view.activeTurnId !== null && last && !groups.some((g) => g.inProgress) && !isFinished(last.meta)) last.inProgress = true;
   return groups;
+}
+
+function isFinished(meta: TurnMeta | null): boolean {
+  return meta !== null && meta.status !== "inProgress";
 }
 
 /**

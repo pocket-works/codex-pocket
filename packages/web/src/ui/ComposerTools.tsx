@@ -60,6 +60,7 @@ export function PermissionsButton({ session, disabled }: { session: Session; dis
               className={`popover-option ${active === p.value ? "active" : ""}`}
               role="menuitemradio"
               aria-checked={active === p.value}
+              aria-label={p.title}
               onClick={() => {
                 session.setPermissionPreset(p.value);
                 setShow(false);

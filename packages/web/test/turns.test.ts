@@ -144,3 +144,32 @@ describe("tailLines", () => {
     expect(tailLines("1\n2\n3\n4\n5", 2)).toEqual({ tail: "4\n5", hidden: 3 });
   });
 });
+
+describe("review turns, whose ids disagree", () => {
+  // Codex answers review/start with turn A, sends turn/started for turn B,
+  // and files the review's items under A.
+  it("shows the newest group as live while a turn is active under another id", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "A", item: user("u1", "Review the changes") } });
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "B", status: "inProgress" } } });
+    const groups = groupTurns(s);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].inProgress).toBe(true);
+  });
+
+  it("is idle again once any turn completes", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "B", status: "inProgress" } } });
+    s = applyNotification(s, { method: "turn/completed", params: { threadId: T, turn: { id: "A", status: "interrupted" } } });
+    expect(s.activeTurnId).toBeNull();
+  });
+
+  it("does not resurrect a finished turn as live", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "A", status: "inProgress" } } });
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "A", item: user("u1", "hi") } });
+    s = applyNotification(s, { method: "turn/completed", params: { threadId: T, turn: { id: "A", status: "completed" } } });
+    s = { ...s, activeTurnId: "C" };
+    expect(groupTurns(s)[0].inProgress).toBe(false);
+  });
+});
