@@ -200,6 +200,7 @@ code,
   margin: 0;
   padding: 0 0 var(--safe-bottom);
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Project name over the title on the left; the state mark (and time, where
@@ -331,6 +332,10 @@ code,
 .items {
   flex: 1;
   overflow-y: auto;
+  /* overflow-y alone makes the box scroll sideways too, so one long token
+     in a note let the whole transcript pan off to the right on a phone.
+     Code blocks scroll on their own; the transcript itself never should. */
+  overflow-x: hidden;
   padding: 12px 12px 4px;
   display: flex;
   flex-direction: column;
@@ -1525,6 +1530,7 @@ pre.diff {
 .screen.list .list-scroll {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: 96px;
   -webkit-overflow-scrolling: touch;
 }
@@ -2161,6 +2167,7 @@ pre.diff {
 .work-note {
   font-size: 16px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .work-note > :first-child {
@@ -2262,7 +2269,7 @@ pre.diff {
 .final-text {
   font-size: 17px;
   line-height: 1.55;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .final-text > :first-child {
