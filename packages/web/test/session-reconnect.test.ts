@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import type { ConnectionState, RpcClient } from "../src/rpc/client.js";
+import { CONNECTION_ERROR, RpcError } from "../src/rpc/client.js";
+import { Session } from "../src/state/session.js";
+import { initialThreadState } from "../src/state/thread-reducer.js";
+
+// The test environment is node; a Map is all the preference code needs.
+const memory = new Map<string, string>();
+globalThis.localStorage = {
+  getItem: (k: string) => memory.get(k) ?? null,
+  setItem: (k: string, v: string) => void memory.set(k, v),
+  removeItem: (k: string) => void memory.delete(k),
+  clear: () => memory.clear(),
+} as unknown as Storage;
+
+// Just enough of RpcClient for Session: answers from a table and lets a test
+// drive the connection state.
+function stubRpc(answer: (method: string) => unknown) {
+  const calls: string[] = [];
+  let onState: (s: ConnectionState) => void = () => {};
+  const rpc = {
+    connectionState: "open",
+    start() {},
+    notify() {},
+    request(method: string) {
+      calls.push(method);
+      const r = answer(method);
+      return r instanceof Error ? Promise.reject(r) : Promise.resolve(r);
+    },
+    respond() {},
+    onStateChange(l: (s: ConnectionState) => void) {
+      onState = l;
+      return () => {};
+    },
+    onNotification() {
+      return () => {};
+    },
+    onServerRequest() {
+      return () => {};
+    },
+  };
+  return { rpc: rpc as unknown as RpcClient, calls, setState: (s: ConnectionState) => onState(s) };
+}
+
+const dropped = () => new RpcError(CONNECTION_ERROR, "connection closed");
+
+function withReadyThread(session: Session): Session {
+  session.store.set((s) => ({
+    ...s,
+    open: {
+      view: initialThreadState("t1"),
+      state: "ready",
+      error: null,
+      model: "m",
+      effort: null,
+      override: null,
+      cwd: "/proj",
+      olderCursor: null,
+      loadingOlder: false,
+      queue: [],
+      permissions: null,
+      permissionOverride: null,
+      serviceTier: null,
+      serviceTierOverride: null,
+    },
+  }));
+  return session;
+}
+
+describe("Session across a reconnect", () => {
+  it("keeps a thread loading, not errored, when the socket drops mid-open", async () => {
+    const session = new Session(stubRpc(dropped).rpc);
+    await session.openThread("t1");
+    expect(session.store.get().open).toMatchObject({ state: "loading", error: null });
+  });
+
+  it("still surfaces real errors from opening a thread", async () => {
+    const session = new Session(stubRpc(() => new RpcError(-32000, "no such thread")).rpc);
+    await session.openThread("t1");
+    expect(session.store.get().open).toMatchObject({ state: "error", error: "no such thread" });
+  });
+
+  it("refreshes a ready thread in place instead of flipping it back to loading", async () => {
+    let fail: (e: Error) => void = () => {};
+    const { rpc } = stubRpc(() => new Promise((_, reject) => (fail = reject)));
+    const session = withReadyThread(new Session(rpc));
+    const done = session.openThread("t1", { force: true });
+    expect(session.store.get().open?.state).toBe("ready");
+    fail(new RpcError(-32000, "bail"));
+    await done;
+    expect(session.store.get().open?.state).toBe("error");
+  });
+
+  it("does not turn a dropped socket into a thread-list error", async () => {
+    const session = new Session(stubRpc(dropped).rpc);
+    await session.loadThreads();
+    expect(session.store.get()).toMatchObject({ threadsLoading: false, threadsError: null });
+  });
+
+  it("keeps the last known Codex status while the socket is down", () => {
+    const { rpc, setState } = stubRpc(() => ({}));
+    const session = new Session(rpc);
+    session.handleNotification({ jsonrpc: "2.0", method: "pocket/upstream/status", params: { connected: true } });
+    setState("closed");
+    expect(session.store.get()).toMatchObject({ connection: "closed", upstreamConnected: true });
+  });
+});

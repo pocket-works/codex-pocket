@@ -21,13 +21,18 @@ export function App({ session }: { session: Session }) {
     else void session.closeThread();
   }, [route.name === "thread" ? route.id : route.name, session]);
 
-  // On the LAN the socket is back in under a second. If it is still not open
-  // after this long, the Mac is unreachable — with Tailscale off on the phone
-  // the connect hangs rather than fails — so say so instead of spinning.
+  // On the LAN the socket is back in under a second, so a blip (waking the
+  // phone, switching Wi-Fi) should not flash a banner at all: only mention a
+  // problem once it has lasted a moment. If the socket is still not open
+  // after STUCK_AFTER_MS, the Mac is unreachable — with Tailscale off on the
+  // phone the connect hangs rather than fails — so say so instead of spinning.
+  const trouble = connection !== "open" || !upstream;
+  const showBanner = useStuck(trouble, BANNER_AFTER_MS);
   const stuck = useStuck(connection !== "open", STUCK_AFTER_MS);
 
-  const banner =
-    connection !== "open"
+  const banner = !showBanner
+    ? null
+    : connection !== "open"
       ? stuck
         ? "Can't reach your Mac. Away from home? Check that Tailscale is on."
         : "Connecting to your Mac…"
@@ -55,6 +60,7 @@ export function App({ session }: { session: Session }) {
   );
 }
 
+const BANNER_AFTER_MS = 1500;
 const STUCK_AFTER_MS = 8000;
 
 /** True once `active` has held for `ms`; resets as soon as it drops. */
