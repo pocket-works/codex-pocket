@@ -1,5 +1,5 @@
 import type { JsonRpcNotification, JsonRpcRequest, ReasoningEffort, v2 } from "@codex-pocket/protocol";
-import { RpcClient, RpcError, type ConnectionState } from "../rpc/client.js";
+import { isConnectionError, RpcClient, RpcError, type ConnectionState } from "../rpc/client.js";
 import { createStore, type Store } from "./store.js";
 import {
   applyNotification,
@@ -232,8 +232,10 @@ export class Session {
       notices: [],
       followUp: getFollowUpMode(),
     });
+    // The host reports Codex's status the moment we attach, so keep the last
+    // known value across a socket blip instead of flashing "waiting for Codex".
     rpc.onStateChange((connection) => {
-      this.store.set((s) => ({ ...s, connection, upstreamConnected: connection === "open" ? s.upstreamConnected : false }));
+      this.store.set((s) => ({ ...s, connection }));
       if (connection === "open") this.onReconnected();
     });
     rpc.onNotification((n) => this.handleNotification(n));
@@ -295,7 +297,9 @@ export class Session {
       const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "recency_at" });
       this.store.set((s) => ({ ...s, threads: mergeThreadList(s.threads, res.data), threadsLoading: false }));
     } catch (err) {
-      this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: describe(err) }));
+      // A dropped socket is not a list error: the banner says we are
+      // reconnecting, and the list reloads as soon as the socket is back.
+      this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: isConnectionError(err) ? null : describe(err) }));
     }
   }
 
@@ -390,11 +394,15 @@ export class Session {
     if (!opts.force && current?.view.threadId === threadId && current.state === "ready") return;
     const generation = ++this.openGeneration;
     if (current && current.view.threadId !== threadId) void this.unsubscribe(current.view.threadId);
+    // A forced re-open of a thread that is already on screen (after a
+    // reconnect) refreshes it in place: the transcript stays, the composer
+    // stays enabled, nothing flickers.
+    const refreshing = current?.view.threadId === threadId && current.state === "ready";
     this.store.set((s) => ({
       ...s,
       open: {
         view: current?.view.threadId === threadId ? current.view : initialThreadState(threadId),
-        state: "loading",
+        state: refreshing ? "ready" : "loading",
         error: null,
         model: current?.model ?? "",
         effort: current?.effort ?? null,
@@ -438,6 +446,9 @@ export class Session {
       void this.loadQueue(threadId);
     } catch (err) {
       if (generation !== this.openGeneration) return;
+      // The socket dropped mid-load (or was not open yet): the reconnect
+      // re-opens the thread, so leave it loading rather than flash an error.
+      if (isConnectionError(err)) return;
       this.store.set((s) =>
         s.open && s.open.view.threadId === threadId
           ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: describe(err) } }

@@ -4,6 +4,14 @@ export type ConnectionState = "connecting" | "open" | "closed";
 export type NotificationListener = (n: JsonRpcNotification) => void;
 export type ServerRequestListener = (req: JsonRpcRequest) => void;
 
+/** Error code for requests that failed because the socket was not open. */
+export const CONNECTION_ERROR = -32001;
+
+/** True when a request failed only because the socket dropped; the reconnect retries it. */
+export function isConnectionError(err: unknown): boolean {
+  return err instanceof RpcError && err.code === CONNECTION_ERROR;
+}
+
 export class RpcError extends Error {
   readonly code: number;
   readonly data: unknown;
@@ -69,7 +77,7 @@ export class RpcClient {
 
   request<T = unknown>(method: string, params?: unknown): Promise<T> {
     const ws = this.ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new RpcError(-32001, "not connected"));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new RpcError(CONNECTION_ERROR, "not connected"));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
@@ -156,7 +164,7 @@ export class RpcClient {
   }
 
   private rejectAllPending(reason: string): void {
-    for (const p of this.pending.values()) p.reject(new RpcError(-32001, reason));
+    for (const p of this.pending.values()) p.reject(new RpcError(CONNECTION_ERROR, reason));
     this.pending.clear();
   }
 
