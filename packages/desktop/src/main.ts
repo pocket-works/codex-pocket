@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
 import { AdminClient, pocketHome, type Device } from "./admin.js";
 import { encodePng, trayGlyph } from "./icons.js";
-import { buildMenu, COLORS, trayTooltip, type MenuAction, type MenuEntry } from "./menu.js";
+import { buildMenu, staleDevices, trayColor, trayTooltip, type MenuAction, type MenuEntry } from "./menu.js";
 import { pairPageFor } from "./pair-page.js";
 import { HostSupervisor, type HostChild, type HostState } from "./supervisor.js";
 
@@ -13,6 +13,7 @@ import { HostSupervisor, type HostChild, type HostState } from "./supervisor.js"
 // Codex daemon itself belongs to Codex and is only observed here.
 
 const KILL_GRACE_MS = 5000;
+const DEVICE_REFRESH_MS = 30_000;
 
 interface HostLocation {
   script: string;
@@ -69,7 +70,7 @@ function trayIcon(state: HostState): Electron.NativeImage {
   const img = nativeImage.createEmpty();
   for (const scale of [1, 2]) {
     const size = 16 * scale;
-    const { rgba } = trayGlyph({ size, glyph, glyphAlpha: state.kind === "stopped" ? 0.45 : 1, dot: COLORS[state.kind] });
+    const { rgba } = trayGlyph({ size, glyph, glyphAlpha: state.kind === "stopped" ? 0.45 : 1, dot: trayColor(state) });
     img.addRepresentation({ scaleFactor: scale, width: size, height: size, buffer: encodePng(size, size, rgba) });
   }
   return img;
@@ -116,6 +117,11 @@ async function main(): Promise<void> {
     },
   });
 
+  const refreshDevices = async () => {
+    devices = await admin.devices().catch(() => []);
+    render();
+  };
+
   const showPairWindow = async () => {
     const html = await pairPageFor(await admin.pairingCode());
     if (!pairWindow) {
@@ -138,10 +144,22 @@ async function main(): Promise<void> {
       else if (action === "pair") await showPairWindow();
       else if (action === "log") await shell.openPath(logFile());
       else if (action === "quit") app.quit();
-      else if ("revoke" in action) {
+      else if (action === "revoke-stale") {
+        const stale = staleDevices(devices, Date.now());
+        const { response } = await dialog.showMessageBox({
+          type: "warning",
+          buttons: ["Revoke", "Cancel"],
+          defaultId: 1,
+          cancelId: 1,
+          message: `Revoke ${stale.length} phone${stale.length === 1 ? "" : "s"} not seen in the last 7 days?`,
+          detail: stale.map((d) => `${d.name} · last seen ${new Date(d.lastSeenAt).toLocaleString()}`).join("\n"),
+        });
+        if (response !== 0) return;
+        for (const d of stale) await admin.revoke(d.id);
+        await refreshDevices();
+      } else if ("revoke" in action) {
         await admin.revoke(action.revoke);
-        devices = await admin.devices().catch(() => []);
-        render();
+        await refreshDevices();
       }
     } catch (err) {
       dialog.showErrorBox("Codex Pocket", err instanceof Error ? err.message : String(err));
@@ -162,6 +180,11 @@ async function main(): Promise<void> {
   // A menu bar app has no windows to keep it alive.
   app.on("window-all-closed", () => {});
   nativeTheme.on("updated", render);
+
+  // Keep "last seen" honest while the menu sits open all day.
+  setInterval(() => {
+    if (supervisor.state.kind === "running") void refreshDevices();
+  }, DEVICE_REFRESH_MS).unref();
 
   render();
   supervisor.start();

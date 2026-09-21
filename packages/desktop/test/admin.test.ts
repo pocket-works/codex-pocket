@@ -16,7 +16,7 @@ describe("AdminClient", () => {
       seen.push({ method: req.method ?? "", url: req.url ?? "", auth: req.headers.authorization ?? "" });
       res.setHeader("Content-Type", "application/json");
       if (req.url === "/api/admin/status") res.end(JSON.stringify({ publicUrl: "http://x", codexConnected: false, deviceCount: 0 }));
-      else if (req.url === "/api/admin/devices") res.end(JSON.stringify({ devices: [{ id: "d1", name: "Pixel", createdAt: 1, lastSeenAt: null }] }));
+      else if (req.url === "/api/admin/devices") res.end(JSON.stringify({ devices: [{ id: "d1", name: "Pixel", createdAt: 1, lastSeenAt: 2, push: false }] }));
       else res.writeHead(404).end("{}");
     });
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -34,7 +34,7 @@ describe("AdminClient", () => {
     const admin = new AdminClient(home);
     expect(await admin.status()).toEqual({ publicUrl: "http://x", codexConnected: false, deviceCount: 0 });
     expect(seen[0]).toEqual({ method: "GET", url: "/api/admin/status", auth: "Bearer secret" });
-    expect(await admin.devices()).toEqual([{ id: "d1", name: "Pixel", createdAt: 1, lastSeenAt: null }]);
+    expect(await admin.devices()).toEqual([{ id: "d1", name: "Pixel", createdAt: 1, lastSeenAt: 2, push: false }]);
   });
 
   it("status is null when nothing is listening yet", async () => {

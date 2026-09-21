@@ -77,4 +77,14 @@ describe("DeviceStore concurrent writes", () => {
     ]);
     expect((await store.listPushSubscriptions()).length).toBe(1);
   });
+
+  it("tells the admin which devices can receive push", async () => {
+    const store = new DeviceStore(join(mkdtempSync(join(tmpdir(), "cp-ds-")), "devices.json"));
+    const quiet = (await store.redeemPairingCode(store.createPairingCode(), "iPad"))!;
+    const noisy = (await store.redeemPairingCode(store.createPairingCode(), "iPhone"))!;
+    await store.setPushSubscription(noisy.deviceId, { endpoint: "https://push/x", keys: { p256dh: "p", auth: "a" } });
+    const byId = new Map((await store.list()).map((d) => [d.id, d.push]));
+    expect(byId.get(quiet.deviceId)).toBe(false);
+    expect(byId.get(noisy.deviceId)).toBe(true);
+  });
 });

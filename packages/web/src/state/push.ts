@@ -1,13 +1,9 @@
-import { getToken } from "./auth.js";
+import { getToken, isStandalone } from "./auth.js";
 
 export type PushStatus = "unsupported" | "needs-install" | "denied" | "off" | "on";
 
 function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${getToken() ?? ""}` };
-}
-
-function isStandalone(): boolean {
-  return window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
 }
 
 function isIos(): boolean {

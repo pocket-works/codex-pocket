@@ -7,6 +7,8 @@ export interface Device {
   name: string;
   createdAt: number;
   lastSeenAt: number;
+  /** Whether the phone has registered for Web Push, i.e. it is an installed, active app. */
+  push: boolean;
 }
 
 /** What `PushManager.subscribe` returns, as sent by the phone. */
@@ -16,7 +18,7 @@ export interface PushSubscription {
   expirationTime?: number | null;
 }
 
-interface StoredDevice extends Device {
+interface StoredDevice extends Omit<Device, "push"> {
   tokenHash: string;
   pushSubscription?: PushSubscription;
 }
@@ -176,5 +178,5 @@ export class DeviceStore {
 }
 
 function publicView(d: StoredDevice): Device {
-  return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt };
+  return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, push: d.pushSubscription !== undefined };
 }
