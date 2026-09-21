@@ -57,12 +57,16 @@ function TurnBlockImpl({ group, session, cwd, latest, progress }: { group: TurnG
 // Text first, attached images underneath; a pending bubble is one the phone
 // sent that Codex has not echoed back yet.
 function UserBubble({ content, pending }: { content: v2.UserInput[]; pending?: boolean }) {
+  // A mention's `@name` is already written in the text part; the skill is
+  // shown as the /command it was typed as.
   const text = content
-    .map((c) => (c.type === "text" ? c.text : c.type === "mention" || c.type === "skill" ? `@${c.name}` : c.type === "image" || c.type === "localImage" ? "" : `[${c.type}]`))
+    .map((c) => (c.type === "text" ? c.text : c.type === "image" || c.type === "localImage" || c.type === "mention" || c.type === "skill" ? "" : `[${c.type}]`))
     .join("");
+  const skills = content.filter((c) => c.type === "skill");
   const images = content.filter((c) => c.type === "image" || c.type === "localImage");
   return (
     <div className={`msg user ${pending ? "pending" : ""}`}>
+      {skills.map((c, i) => c.type === "skill" && <span key={i} className="msg-skill">/{c.name}</span>)}
       {text}
       {images.length > 0 && (
         <div className="msg-images">

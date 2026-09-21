@@ -532,6 +532,17 @@ code,
   opacity: 0.6;
 }
 
+/* The /skill a message was sent with, ahead of its text. */
+.msg-skill {
+  display: inline-block;
+  margin: 0 6px 2px 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.18);
+  font-size: calc(13rem / 17);
+  font-weight: 600;
+}
+
 .msg-images {
   display: flex;
   flex-wrap: wrap;
