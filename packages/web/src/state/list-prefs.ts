@@ -12,21 +12,22 @@ export function setListView(v: ListView): void {
   localStorage.setItem(KEY, v);
 }
 
-/** List sections that can be folded away, like the official sidebar. */
-export type ListSection = "chats" | "projects";
+/** List sections that can be folded away. Only "Chats" folds, as in the
+    official app; projects always stay listed. */
+export type ListSection = "chats";
 
 export type CollapsedSections = Record<ListSection, boolean>;
 
 const COLLAPSED_KEY = "codex-pocket.collapsedSections";
 
-const EXPANDED: CollapsedSections = { chats: false, projects: false };
+const EXPANDED: CollapsedSections = { chats: false };
 
 export function getCollapsedSections(): CollapsedSections {
   try {
     const raw = localStorage.getItem(COLLAPSED_KEY);
     if (!raw) return { ...EXPANDED };
     const parsed = JSON.parse(raw) as Partial<Record<ListSection, boolean>>;
-    return { chats: parsed.chats === true, projects: parsed.projects === true };
+    return { chats: parsed.chats === true };
   } catch {
     return { ...EXPANDED };
   }

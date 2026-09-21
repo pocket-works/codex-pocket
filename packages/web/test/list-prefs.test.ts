@@ -25,24 +25,27 @@ describe("list view preference", () => {
 describe("collapsed sections", () => {
   beforeEach(() => memory.clear());
 
-  it("starts with every section open", () => {
-    expect(getCollapsedSections()).toEqual({ chats: false, projects: false });
+  it("starts with Chats open", () => {
+    expect(getCollapsedSections()).toEqual({ chats: false });
   });
 
-  it("remembers one folded section without touching the other", () => {
+  it("remembers the fold across reads", () => {
     setSectionCollapsed("chats", true);
-    expect(getCollapsedSections()).toEqual({ chats: true, projects: false });
-    setSectionCollapsed("projects", true);
-    expect(getCollapsedSections()).toEqual({ chats: true, projects: true });
+    expect(getCollapsedSections()).toEqual({ chats: true });
     setSectionCollapsed("chats", false);
-    expect(getCollapsedSections()).toEqual({ chats: false, projects: true });
+    expect(getCollapsedSections()).toEqual({ chats: false });
+  });
+
+  it("ignores the old projects flag: projects never fold", () => {
+    localStorage.setItem("codex-pocket.collapsedSections", JSON.stringify({ chats: true, projects: true }));
+    expect(getCollapsedSections()).toEqual({ chats: true });
   });
 
   it("falls back to open when storage holds junk", () => {
     localStorage.setItem("codex-pocket.collapsedSections", "{not json");
-    expect(getCollapsedSections()).toEqual({ chats: false, projects: false });
-    localStorage.setItem("codex-pocket.collapsedSections", JSON.stringify({ chats: "yes", projects: 1 }));
-    expect(getCollapsedSections()).toEqual({ chats: false, projects: false });
+    expect(getCollapsedSections()).toEqual({ chats: false });
+    localStorage.setItem("codex-pocket.collapsedSections", JSON.stringify({ chats: "yes" }));
+    expect(getCollapsedSections()).toEqual({ chats: false });
   });
 });
 

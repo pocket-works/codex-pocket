@@ -380,7 +380,9 @@ code,
   border: none;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
-  padding: 12px 16px;
+  padding: 13px 16px;
+  /* List body text is 17pt in the official app, one step above the page body. */
+  font-size: calc(17rem / 17);
 }
 
 .thread-row-body {
@@ -1766,9 +1768,9 @@ pre.diff {
 }
 
 .section-title {
-  font-size: calc(20rem / 17);
+  font-size: calc(22rem / 17);
   font-weight: 700;
-  margin: 8px 16px 4px;
+  margin: 10px 16px 4px;
 }
 
 /* Foldable section header: the whole row is the tap target. */
@@ -1790,6 +1792,8 @@ pre.diff {
   font-weight: 500;
 }
 
+/* Chevron after the label, as in the official "Chats ›": right when folded,
+   down when open. */
 .section-caret {
   display: inline-flex;
   align-items: center;
@@ -1798,6 +1802,11 @@ pre.diff {
   color: var(--muted);
   transition: transform 0.15s ease;
   transform: rotate(90deg);
+}
+
+.section-caret svg {
+  width: 16px;
+  height: 16px;
 }
 
 .section-caret.collapsed {
@@ -1898,7 +1907,9 @@ pre.diff {
   -webkit-appearance: none;
 }
 
-.chat-btn {
+/* Element selector so it outranks button.primary: the official app's Chat
+   button is iOS blue in both themes, not the accent. */
+button.chat-btn {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -1907,8 +1918,8 @@ pre.diff {
   padding: 0 20px;
   min-height: 48px;
   font-weight: 600;
-  background: #3b82f6;
-  border-color: #3b82f6;
+  background: #0a84ff;
+  border-color: #0a84ff;
   color: #fff;
 }
 
@@ -2634,12 +2645,14 @@ pre.diff {
   font-size: calc(14rem / 17);
 }
 
+/* Threads under a project: same size as the project name and aligned with
+   it (16px inset + 22px folder icon + 14px gap), as the official list does. */
 .thread-row.compact {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px 12px 44px;
-  font-size: calc(15rem / 17);
+  padding: 14px 16px 14px 52px;
+  font-size: calc(17rem / 17);
 }
 
 .thread-row.compact .thread-title {
@@ -2774,25 +2787,25 @@ pre.diff {
 
 .swipe-action {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 4px;
+  bottom: 4px;
   right: 12px;
-  width: 84px;
+  width: 96px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   border: none;
   border-radius: 999px;
   background: var(--danger);
   color: #fff;
-  font-size: calc(15rem / 17);
+  font-size: calc(17rem / 17);
   padding: 0;
 }
 
 .swipe-action svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 /* --- pairing --- */
