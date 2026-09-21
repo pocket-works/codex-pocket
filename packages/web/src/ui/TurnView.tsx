@@ -20,7 +20,7 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
   return (
     <>
       {groups.map((g, i) => (
-        <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} progress={view.toolProgress} />
+        <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={i === groups.length - 1 && view.activeTurnId === null && g.meta !== null} progress={view.toolProgress} />
       ))}
       {view.pending.map((m) => (
         <UserBubble key={m.id} content={m.input} pending />
@@ -32,15 +32,15 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
 // Every delta re-renders the transcript; turns whose items did not change
 // are skipped wholesale so a long thread stays smooth while the last one
 // streams.
-const TurnBlock = memo(TurnBlockImpl, (a, b) => a.session === b.session && a.cwd === b.cwd && a.latest === b.latest && a.progress === b.progress && sameGroup(a.group, b.group));
+const TurnBlock = memo(TurnBlockImpl, (a, b) => a.session === b.session && a.cwd === b.cwd && a.latest === b.latest && a.editable === b.editable && a.progress === b.progress && sameGroup(a.group, b.group));
 
-function TurnBlockImpl({ group, session, cwd, latest, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; progress: Record<string, string> }) {
+function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; editable: boolean; progress: Record<string, string> }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const expanded = open ?? (latest || group.inProgress);
   const hasWork = group.work.length > 0;
   return (
     <section className="turn">
-      {group.userMessages.map((m) => m.type === "userMessage" && <UserBubble key={m.id} content={m.content} />)}
+      {group.userMessages.map((m, i) => m.type === "userMessage" && <UserBubble key={m.id} content={m.content} onEdit={editable && i === 0 ? () => session.beginEdit(group.turnId, plainText(m.content)) : undefined} />)}
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
@@ -56,7 +56,12 @@ function TurnBlockImpl({ group, session, cwd, latest, progress }: { group: TurnG
 
 // Text first, attached images underneath; a pending bubble is one the phone
 // sent that Codex has not echoed back yet.
-function UserBubble({ content, pending }: { content: v2.UserInput[]; pending?: boolean }) {
+/** The text a user message was typed as, for editing it. */
+function plainText(content: v2.UserInput[]): string {
+  return content.map((c) => (c.type === "text" ? c.text : "")).join("");
+}
+
+function UserBubble({ content, pending, onEdit }: { content: v2.UserInput[]; pending?: boolean; onEdit?: () => void }) {
   // A mention's `@name` is already written in the text part; the skill is
   // shown as the /command it was typed as.
   const text = content
@@ -72,6 +77,11 @@ function UserBubble({ content, pending }: { content: v2.UserInput[]; pending?: b
         <div className="msg-images">
           {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} path={c.path} /> : c.type === "image" ? <img key={i} src={c.url} alt="" /> : null))}
         </div>
+      )}
+      {onEdit && (
+        <button type="button" className="msg-edit" aria-label="Edit this message" onClick={onEdit}>
+          Edit
+        </button>
       )}
     </div>
   );

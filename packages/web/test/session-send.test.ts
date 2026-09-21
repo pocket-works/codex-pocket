@@ -686,3 +686,29 @@ describe("Session.forkThread", () => {
     expect(calls).toContainEqual({ method: "thread/name/set", params: { threadId: "t2", name: "Fork of What is the weather like today in Shangh…" } });
   });
 });
+
+describe("editing the last message", () => {
+  it("reverts the thread before that turn, reloads, then starts the new turn", async () => {
+    const { rpc, calls } = stubRpc((method) => {
+      if (method === "thread/resume") return { thread: { id: "t1" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+      if (method === "thread/items/list" || method === "thread/turns/list" || method === "thread/queue/list") return { data: [], nextCursor: null };
+      if (method === "thread/revert") return { thread: { id: "t1" }, turnsBackwardsCursor: null, itemsBackwardsCursor: null };
+      return { turn: { id: "new" } };
+    });
+    const session = readySession(rpc, null);
+    session.beginEdit("turn-9", "old text");
+    expect(session.store.get().open?.editing).toEqual({ turnId: "turn-9", text: "old text" });
+    await session.sendMessage({ ...emptyDraft, text: "new text" });
+    const methods = calls.map((c) => c.method);
+    expect(methods.indexOf("thread/revert")).toBeLessThan(methods.indexOf("turn/start"));
+    expect(calls.find((c) => c.method === "thread/revert")?.params).toEqual({ threadId: "t1", beforeTurnId: "turn-9" });
+    expect(calls.find((c) => c.method === "turn/start")?.params).toMatchObject({ input: [{ type: "text", text: "new text" }] });
+    expect(session.store.get().open?.editing).toBeFalsy();
+  });
+
+  it("does not begin an edit while a turn is running", () => {
+    const session = readySession(stubRpc(() => ({})).rpc, "active");
+    session.beginEdit("turn-9", "x");
+    expect(session.store.get().open?.editing).toBeUndefined();
+  });
+});
