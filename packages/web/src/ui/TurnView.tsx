@@ -326,7 +326,9 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
     if (!threadId || forking) return;
     setForking(true);
     try {
-      const newId = await session.forkThread(threadId);
+      // Fork through this turn: later turns stay behind. An orphan group
+      // (items without a known turn) forks the whole thread.
+      const newId = await session.forkThread(threadId, group.meta ? group.turnId : undefined);
       navigate({ name: "thread", id: newId });
     } catch (err) {
       session.notify(friendlyError(err));

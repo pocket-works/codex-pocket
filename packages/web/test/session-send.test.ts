@@ -277,15 +277,6 @@ describe("thread management", () => {
     expect(session.store.get().open).toBeNull();
   });
 
-  it("forks the open thread and opens the copy", async () => {
-    const { rpc, calls } = stubRpc(() => ({ thread: { id: "t2" }, model: "m", reasoningEffort: null, cwd: "/proj", approvalPolicy: "on-request", sandbox: { type: "readOnly", networkAccess: false } }));
-    const session = readySession(rpc, null);
-    const id = await session.forkThread("t1");
-    expect(id).toBe("t2");
-    expect(calls[0]).toEqual({ method: "thread/fork", params: { threadId: "t1" } });
-    expect(session.store.get().open?.view.threadId).toBe("t2");
-  });
-
   it("starts a review of uncommitted changes on the open thread", async () => {
     const { rpc, calls } = stubRpc(() => ({ turn: { id: "r" }, reviewThreadId: "t1" }));
     await readySession(rpc, null).startReview();
@@ -654,5 +645,28 @@ describe("Session.sendMessage pending echo", () => {
     session.setFollowUpMode("queue");
     await session.sendMessage({ ...emptyDraft, text: "later" });
     expect(session.store.get().open?.view.pending).toHaveLength(0);
+  });
+});
+
+describe("Session.forkThread", () => {
+  it("forks through the given turn and opens the copy with its history", async () => {
+    const { rpc, calls } = stubRpc((method, params) => {
+      if (method === "thread/fork") return { thread: { id: "t2" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+      if (method === "thread/resume") return { thread: { id: (params as { threadId: string }).threadId }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+      if (method === "thread/items/list") return { data: [{ turnId: "u1", item: { id: "m1", type: "userMessage", clientId: null, content: [{ type: "text", text: "hi", text_elements: [] }] } }], nextCursor: null };
+      if (method === "thread/turns/list") return { data: [], nextCursor: null };
+      return {};
+    });
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [{ id: "t1", title: "Weather" } as (typeof s.threads)[number]] }));
+    const id = await session.forkThread("t1", "turn-1");
+    expect(id).toBe("t2");
+    expect(calls[0]).toEqual({ method: "thread/fork", params: { threadId: "t1", excludeTurns: true, lastTurnId: "turn-1" } });
+    expect(calls).toContainEqual({ method: "thread/name/set", params: { threadId: "t2", name: "Fork of Weather" } });
+    expect(calls.map((c) => c.method)).toContain("thread/resume");
+    const open = session.store.get().open!;
+    expect(open.view.threadId).toBe("t2");
+    expect(open.state).toBe("ready");
+    expect(open.view.items.map((i) => i.id)).toEqual(["m1"]);
   });
 });
