@@ -35,7 +35,7 @@ Commands:
   link-desktop      Make the ChatGPT desktop app share the host's Codex daemon (restart ChatGPT after)
     --force           Link even if the daemon's codex lacks what the desktop app needs
   unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
-  desktop           Show whether the desktop app is linked
+  desktop           Show whether the desktop app is linked and whether the daemon is ready for it
 `;
 
 interface Flags {
@@ -131,15 +131,7 @@ async function main(argv: string[]): Promise<number> {
       // The desktop app breaks quietly (sign-in, dictation) against a daemon
       // whose account/read lacks workspaceRouting, so look before linking.
       if (!flags.values.has("force")) {
-        const client = await codexConnector()();
-        let compat;
-        try {
-          const account = await client.rawRequest("account/read", { refreshToken: false });
-          // userAgent looks like "codex-pocket/0.155.1 (Mac OS ...)"; the version is the daemon's.
-          compat = desktopCompat(account, client.serverInfo.userAgent.split(" ")[0]?.split("/")[1]);
-        } finally {
-          client.close();
-        }
+        const compat = await probeDesktopCompat();
         if (!compat.ok) {
           console.error(`not linking: ${compat.reason}\nPass --force to link anyway.`);
           return 1;
@@ -159,7 +151,12 @@ Quit and reopen the ChatGPT app for it to take effect.`);
       const current = currentDesktopEnv();
       const expected = bridgeUrl(codexSettings().port);
       const same = current?.replace(/\/$/, "") === expected.replace(/\/$/, "");
-      console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (host expects ${expected})`}` : "desktop app not linked (run `codex-pocket link-desktop`)");
+      console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (host expects ${expected})`}` : "desktop app not linked");
+      // The same probe link-desktop runs, so this answers "can I link yet?"
+      // after a codex update without trying.
+      const compat = await probeDesktopCompat();
+      if (compat.ok) console.log(current ? "daemon: ready for the desktop app" : "daemon: ready for the desktop app (run `codex-pocket link-desktop`)");
+      else console.log(`daemon: not ready, ${compat.reason}`);
       return 0;
     }
     case "info":
@@ -188,6 +185,19 @@ function formatCode(code: string): string {
 
 function fmt(ms: number): string {
   return new Date(ms).toLocaleString("sv-SE").slice(0, 16);
+}
+
+// Asks the daemon what link-desktop needs to know: signed in, and account/read
+// carrying workspaceRouting.
+async function probeDesktopCompat() {
+  const client = await codexConnector()();
+  try {
+    const account = await client.rawRequest("account/read", { refreshToken: false });
+    // userAgent looks like "codex-pocket/0.155.1 (Mac OS ...)"; the version is the daemon's.
+    return desktopCompat(account, client.serverInfo.userAgent.split(" ")[0]?.split("/")[1]);
+  } finally {
+    client.close();
+  }
 }
 
 async function withClient(fn: (client: CodexClient) => Promise<void>): Promise<number> {
