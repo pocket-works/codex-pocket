@@ -2350,12 +2350,30 @@ button.chat-btn {
   gap: 16px;
 }
 
+.settings .setting-group {
+  /* The column's gap spaces the groups; the group's own margin would add to it. */
+  margin-bottom: 0;
+}
+
 .settings .setting-row {
   font-size: calc(16rem / 17);
+  gap: 16px;
+}
+
+/* Label stays on one line; a long value (a tailnet host name, the device
+   id) wraps on the right, as in the iOS Settings app. */
+.settings .setting-row > span:first-child {
+  flex: none;
+  white-space: nowrap;
 }
 
 .settings .setting-value {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
   gap: 8px;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .danger-row {
