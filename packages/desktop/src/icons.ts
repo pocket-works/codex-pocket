@@ -13,7 +13,7 @@ export interface Bitmap {
 export interface TrayGlyphOptions {
   /** Pixel size; the glyph is designed on a 16pt grid and scaled. */
   size: number;
-  /** Colour of the phone outline: black on a light menu bar, white on a dark one. */
+  /** Colour of the pocket and phone: black on a light menu bar, white on a dark one. */
   glyph: Rgb;
   glyphAlpha?: number;
   /** Colour of the status dot in the bottom-right corner. */
@@ -30,29 +30,48 @@ function roundedRect(px: number, py: number, cx: number, cy: number, hw: number,
 
 const coverage = (d: number) => Math.max(0, Math.min(1, 0.5 - d));
 
-/** A phone outline with a status dot over its bottom-right corner. */
+// Distance from a point to a line segment.
+function segment(px: number, py: number, x0: number, y0: number, x1: number, y1: number): number {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
+}
+
+/**
+ * The PWA icon in one colour: a phone tucked into a pocket, with the flap
+ * drawn as a cut. The dot on the phone's screen is the status colour.
+ */
 export function trayGlyph(o: TrayGlyphOptions): Bitmap {
   const { size } = o;
   const k = size / 16;
   const glyphAlpha = o.glyphAlpha ?? 1;
   const rgba = Buffer.alloc(size * size * 4);
-  // Geometry on the 16pt grid.
-  const stroke = 1.5 * k;
-  const body = { cx: 7.5 * k, cy: 8 * k, hw: 4 * k, hh: 6.5 * k, r: 2 * k };
-  const dot = { cx: 12.5 * k, cy: 12.5 * k, r: 3 * k, gap: 1 * k };
+  // Geometry on the 16pt grid, following the 64-unit PWA artwork.
+  const phone = { cx: 8 * k, cy: 5.5 * k, hw: 2.5 * k, hh: 4.5 * k, r: 1 * k };
+  // Square top, rounded bottom: the union of a rounded box and a plain box over its top half.
+  const pocket = { cx: 8 * k, top: 6.5 * k, bottom: 14.5 * k, hw: 5.5 * k, r: 3 * k };
+  const flap = { x0: 3.2 * k, x1: 12.8 * k, y: 6.5 * k, tipX: 8 * k, tipY: 9 * k, half: 0.55 * k };
+  const dot = { cx: 8 * k, cy: 3.9 * k, r: 1.2 * k, gap: 0.5 * k };
+  const pocketCy = (pocket.top + pocket.bottom) / 2;
+  const pocketHh = (pocket.bottom - pocket.top) / 2;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const px = x + 0.5;
       const py = y + 0.5;
+      const dPhone = roundedRect(px, py, phone.cx, phone.cy, phone.hw, phone.hh, phone.r);
+      const dPocket = Math.min(
+        roundedRect(px, py, pocket.cx, pocketCy, pocket.hw, pocketHh, pocket.r),
+        roundedRect(px, py, pocket.cx, pocket.top + pocketHh / 2, pocket.hw, pocketHh / 2, 0),
+      );
+      const dFlap = Math.min(segment(px, py, flap.x0, flap.y, flap.tipX, flap.tipY), segment(px, py, flap.tipX, flap.tipY, flap.x1, flap.y)) - flap.half;
       const dDot = Math.hypot(px - dot.cx, py - dot.cy) - dot.r;
-      const dBody = Math.abs(roundedRect(px, py, body.cx, body.cy, body.hw, body.hh, body.r)) - stroke / 2;
-      // The dot punches a clear ring through the outline so it stays legible.
-      const outline = coverage(dBody) * (1 - coverage(dDot - dot.gap)) * glyphAlpha;
+      const body = coverage(Math.min(dPhone, dPocket)) * (1 - coverage(dFlap)) * (1 - coverage(dDot - dot.gap)) * glyphAlpha;
       const dotCov = coverage(dDot);
       const i = (y * size + x) * 4;
-      const a = dotCov + outline * (1 - dotCov);
+      const a = dotCov + body * (1 - dotCov);
       if (a <= 0) continue;
-      for (let c = 0; c < 3; c++) rgba[i + c] = Math.round((o.dot[c] * dotCov + o.glyph[c] * outline * (1 - dotCov)) / a);
+      for (let c = 0; c < 3; c++) rgba[i + c] = Math.round((o.dot[c] * dotCov + o.glyph[c] * body * (1 - dotCov)) / a);
       rgba[i + 3] = Math.round(a * 255);
     }
   }
