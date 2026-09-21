@@ -137,3 +137,18 @@ describe("archived threads", () => {
     expect(session.store.get().open?.view.items.map((i) => i.id)).toEqual(["m1"]);
   });
 });
+
+describe("threads another process is writing to", () => {
+  it("shows the transcript read-only behind the locked notice", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return new RpcError(-32600, "thread t1 has an active writer in another process");
+      if (method === "thread/items/list") return { data: [{ turnId: "u1", item: { type: "userMessage", id: "m1", clientId: null, content: [{ type: "text", text: "old", text_elements: [] }] } }], nextCursor: null };
+      if (method === "thread/turns/list") return { data: [], nextCursor: null };
+      return {};
+    });
+    const session = new Session(rpc);
+    await session.openThread("t1");
+    expect(session.store.get().open).toMatchObject({ state: "locked", error: null });
+    expect(session.store.get().open?.view.items.map((i) => i.id)).toEqual(["m1"]);
+  });
+});

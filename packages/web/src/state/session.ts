@@ -528,23 +528,22 @@ export class Session {
       // The socket dropped mid-load (or was not open yet): the reconnect
       // re-opens the thread, so leave it loading rather than flash an error.
       if (isConnectionError(err)) return;
-      if (isArchivedError(err)) {
-        // Archived threads cannot be resumed, but thread/read still works:
-        // show the transcript read-only with a way to bring it back.
+      // Archived threads cannot be resumed, and one another process is
+      // writing to (the desktop app, or a codex CLI) refuses a second writer.
+      // Reading the transcript needs neither, so show it read-only with the
+      // notice and a way onward instead of an empty screen.
+      const readOnly = isArchivedError(err) ? "archived" : isLockedError(err) ? "locked" : null;
+      if (readOnly) {
         const history = await this.loadHistory(threadId).catch(() => null);
         if (generation !== this.openGeneration) return;
         this.store.set((s) => {
           if (!s.open || s.open.view.threadId !== threadId) return s;
           const view = history ? mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns) : s.open.view;
-          return { ...s, open: { ...s.open, view, state: "archived", error: null } };
+          return { ...s, open: { ...s.open, view, state: readOnly, error: null } };
         });
         return;
       }
-      this.store.set((s) =>
-        s.open && s.open.view.threadId === threadId
-          ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: friendlyError(err) } }
-          : s,
-      );
+      this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, state: "error", error: friendlyError(err) } } : s));
     }
   }
 
