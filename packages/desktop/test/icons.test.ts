@@ -1,6 +1,6 @@
 import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { encodePng, statusDot } from "../src/icons.js";
+import { encodePng, trayGlyph } from "../src/icons.js";
 
 function chunks(png: Buffer): Array<{ type: string; data: Buffer }> {
   const out = [];
@@ -27,12 +27,21 @@ describe("encodePng", () => {
   });
 });
 
-describe("statusDot", () => {
-  it("draws a filled circle of the given colour with a transparent background", () => {
-    const { size, rgba } = statusDot(16, [0x22, 0xcc, 0x44]);
-    expect(size).toBe(16);
-    const px = (x: number, y: number) => Array.from(rgba.subarray((y * size + x) * 4, (y * size + x) * 4 + 4));
-    expect(px(8, 8)).toEqual([0x22, 0xcc, 0x44, 255]);
-    expect(px(0, 0)[3]).toBe(0);
+describe("trayGlyph", () => {
+  const px = (bmp: { size: number; rgba: Buffer }, x: number, y: number) => Array.from(bmp.rgba.subarray((y * bmp.size + x) * 4, (y * bmp.size + x) * 4 + 4));
+
+  it("draws a phone outline with the status dot in the corner", () => {
+    const bmp = trayGlyph({ size: 32, glyph: [0, 0, 0], dot: [0x22, 0xcc, 0x44] });
+    expect(px(bmp, 15, 16)).toEqual([0, 0, 0, 0]); // hollow body
+    expect(px(bmp, 7, 16).slice(3)).toEqual([255]); // left edge of the outline
+    expect(px(bmp, 0, 0)[3]).toBe(0);
+    expect(px(bmp, 25, 25)).toEqual([0x22, 0xcc, 0x44, 255]); // dot centre
+    expect(px(bmp, 18, 26)[3]).toBe(0); // clear ring between dot and outline
+  });
+
+  it("dims the outline but not the dot when asked", () => {
+    const bmp = trayGlyph({ size: 32, glyph: [255, 255, 255], glyphAlpha: 0.4, dot: [9, 9, 9] });
+    expect(px(bmp, 7, 16)[3]).toBe(102);
+    expect(px(bmp, 25, 25)).toEqual([9, 9, 9, 255]);
   });
 });
