@@ -24,7 +24,7 @@ export function desktopCompat(accountRead: unknown, appServerVersion?: string): 
     const ver = appServerVersion ? ` (${appServerVersion})` : "";
     return {
       ok: false,
-      reason: `the daemon's codex${ver} does not report workspaceRouting in account/read; the ChatGPT desktop app needs it and would lose sign-in and dictation. Wait for a newer codex release before linking.`,
+      reason: `the daemon's codex${ver} does not report workspaceRouting in account/read; the ChatGPT desktop app needs it and would lose sign-in and dictation. It ships in codex 0.156.0 (openai/codex#45529): once \`codex app-server daemon version\` reports it, link.`,
     };
   }
   return { ok: true };

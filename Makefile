@@ -90,7 +90,7 @@ threads: ## List recent Codex threads
 info: ## Show app-server connection details
 	@$(HOST) dev info
 
-desktop: ## Show whether the ChatGPT desktop app is linked to the host's Codex daemon
+desktop: ## Show whether the ChatGPT desktop app is linked, and whether the daemon is ready for it
 	@$(HOST) dev desktop
 
 link-desktop: ## Point the ChatGPT desktop app at the host's Codex daemon (restart ChatGPT after)
