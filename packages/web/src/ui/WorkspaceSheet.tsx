@@ -6,6 +6,11 @@ import { DiffBody } from "./DiffView.js";
 import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { friendlyError } from "../state/errors.js";
 
+// Scratch chats and plain folders are not repositories; that is a fact
+// about the folder, not a failure to report in red.
+const NOT_A_REPO = "This folder is not a git repository, so there is nothing to diff.";
+const isNotARepo = (err: unknown) => err instanceof Error && /not a git repository/i.test(err.message);
+
 export type WorkspaceTab = "modified" | "files";
 type DiffMode = "uncommitted" | "branch";
 
@@ -42,7 +47,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
     session
       .gitChanges(cwd, mode)
       .then((r) => !cancelled && setChanges({ files: splitGitDiff(r.diff, cwd), branch: r.branch, upstream: r.upstream }))
-      .catch((err) => !cancelled && setError(friendlyError(err)));
+      .catch((err) => !cancelled && setError(isNotARepo(err) ? NOT_A_REPO : friendlyError(err)));
     return () => {
       cancelled = true;
     };
@@ -128,7 +133,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
 
         {tab === "modified" ? (
           <div className="workspace-body">
-            {error && <p className="error">{error}</p>}
+            {error && <p className={error === NOT_A_REPO ? "muted center" : "error"}>{error}</p>}
             {!changes && !error && <p className="muted center">Loading…</p>}
             {changes && changes.files.length === 0 && <p className="muted center">No {mode === "branch" ? "changes on this branch" : "uncommitted changes"}.</p>}
             {changes?.files.map((f) => (
@@ -275,7 +280,9 @@ function FilesTab({ session, root, onOpen }: { session: Session; root: string; o
           <span className="menu-icon">{n.isDirectory ? <FolderIcon /> : <FileIcon />}</span>
           <span className="tree-name">{n.name}</span>
         </button>
-        {n.isDirectory && expanded.has(n.path) && n.children && <ul className="tree">{renderNodes(n.children, depth + 1)}</ul>}
+        {n.isDirectory && expanded.has(n.path) && n.children && (
+          <ul className="tree">{n.children.length > 0 ? renderNodes(n.children, depth + 1) : <li className="tree-empty muted" style={{ paddingLeft: 44 + depth * 20 }}>Empty</li>}</ul>
+        )}
       </li>
     ));
 
