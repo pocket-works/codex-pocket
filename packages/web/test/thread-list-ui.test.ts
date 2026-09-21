@@ -17,6 +17,7 @@ const t = (id: string, cwd: string, updatedAt: number, projectId: string | null 
   waitingFor: null,
   unread: false,
   branch: null,
+  named: false,
 });
 
 const project = (id: string, name: string, roots: string[], position = 0): ProjectSummary => ({ id, name, roots, position });

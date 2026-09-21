@@ -154,6 +154,15 @@ const PENDING_ECHO_TIMEOUT_MS = 10_000;
 /** How long a "finished elsewhere" toast stays. */
 const TOAST_MS = 6000;
 
+// Naming threads: the desktop app names a thread the first time it shows
+// it, with its own title service; Codex itself has no such call. Threads
+// that live only on the phone would keep their first message as a title,
+// so after the first turn an ephemeral thread is asked for one instead.
+const TITLE_MIN_PROMPT_CHARS = 15;
+const TITLE_TIMEOUT_MS = 20_000;
+const TITLE_INSTRUCTIONS =
+  "You name conversations. Reply with only the title: 3 to 8 words, in the same language as the request, no quotes, no trailing punctuation.";
+
 let nextNoticeId = 1;
 
 function rateLimitWindow(w: v2.RateLimitWindow | null): RateLimitWindow | null {
@@ -246,6 +255,10 @@ export class Session {
    * is opened. Cleared when answered or when Codex reports it resolved.
    */
   private pendingRequests: JsonRpcRequest[] = [];
+  /** Threads a title has been requested for this session, so it happens once. */
+  private titled = new Set<string>();
+  /** Ephemeral titling threads: their traffic is collected here, not shown. */
+  private titleRuns = new Map<string, { text: string; done: (text: string) => void }>();
 
   constructor(rpc: RpcClient) {
     this.rpc = rpc;
@@ -702,6 +715,61 @@ export class Session {
       retire();
       throw err;
     }
+  }
+
+  // --- naming --------------------------------------------------------------
+
+  /** Asks for a title once, after a thread's first turn, when its message is long enough to deserve one. */
+  private async maybeTitle(threadId: string): Promise<void> {
+    if (this.titled.has(threadId)) return;
+    const s = this.store.get();
+    const summary = s.threads.find((t) => t.id === threadId);
+    const prompt = (s.open?.view.threadId === threadId ? firstUserText(s.open.view, 400) : null) ?? summary?.preview ?? "";
+    if (!summary || summary.named || prompt.length < TITLE_MIN_PROMPT_CHARS) return;
+    this.titled.add(threadId);
+    try {
+      const title = await this.generateTitle(prompt, summary.cwd, summary.model ?? (s.open?.view.threadId === threadId ? s.open.model : null));
+      if (!title) return;
+      // The desktop may have named it meanwhile; its name wins.
+      if (this.store.get().threads.find((t) => t.id === threadId)?.named) return;
+      await this.renameThread(threadId, title);
+    } catch {
+      // Offline, out of quota, an older Codex: the first message stays the title.
+    }
+  }
+
+  /** One short model call on an ephemeral thread; resolves to "" when nothing usable came back. */
+  private async generateTitle(prompt: string, cwd: string, model: string | null): Promise<string> {
+    const params: v2.ThreadStartParams = { cwd, ephemeral: true, approvalPolicy: "never", sandbox: "read-only", developerInstructions: TITLE_INSTRUCTIONS };
+    if (model) params.model = model;
+    const started = await this.rpc.request<v2.ThreadStartResponse>("thread/start", params);
+    const id = started.thread.id;
+    const answer = new Promise<string>((resolve) => {
+      this.titleRuns.set(id, { text: "", done: resolve });
+      setTimeout(() => this.finishTitle(id), TITLE_TIMEOUT_MS);
+    });
+    const efforts = this.store.get().models.find((m) => m.model === started.model)?.supportedReasoningEfforts;
+    const turn: v2.TurnStartParams = { threadId: id, input: [{ type: "text", text: `Give a short title for this request:\n\n${prompt}`, text_elements: [] }] };
+    if (efforts && efforts.length > 0) turn.effort = efforts[0].reasoningEffort;
+    await this.rpc.request<v2.TurnStartResponse>("turn/start", turn);
+    return cleanTitle(await answer);
+  }
+
+  private collectTitle(id: string, n: JsonRpcNotification): void {
+    const run = this.titleRuns.get(id);
+    if (!run) return;
+    if (n.method === "item/completed") {
+      const { item } = n.params as v2.ItemCompletedNotification;
+      if (item.type === "agentMessage") run.text = item.text;
+    }
+    if (n.method === "turn/completed") this.finishTitle(id);
+  }
+
+  private finishTitle(id: string): void {
+    const run = this.titleRuns.get(id);
+    if (!run) return;
+    this.titleRuns.delete(id);
+    run.done(run.text);
   }
 
   private updateView(threadId: string, fn: (view: ThreadViewState) => ThreadViewState): void {
@@ -1167,6 +1235,11 @@ export class Session {
 
   /** Public so tests can feed notifications without a socket. */
   handleNotification(n: JsonRpcNotification): void {
+    const forThread = (n.params as { threadId?: string } | undefined)?.threadId;
+    if (forThread && this.titleRuns.has(forThread)) {
+      this.collectTitle(forThread, n);
+      return;
+    }
     if (n.method === "serverRequest/resolved") {
       const { requestId } = n.params as v2.ServerRequestResolvedNotification;
       this.pendingRequests = this.pendingRequests.filter((r) => r.id !== requestId);
@@ -1235,13 +1308,13 @@ export class Session {
     // A turn finishing somewhere else while the app is open: say so, since
     // push stays quiet for a visible app and the list is not on screen.
     if (n.method === "turn/completed") {
-      const { threadId } = n.params as { threadId: string };
+      const { threadId, turn } = n.params as v2.TurnCompletedNotification;
       const s = this.store.get();
+      const summary = s.threads.find((t) => t.id === threadId);
       const visible = typeof document === "undefined" || document.visibilityState === "visible";
-      if (visible && s.open?.view.threadId !== threadId) {
-        const title = s.threads.find((t) => t.id === threadId)?.title ?? "A thread";
-        this.toast(threadId, `${title} finished`);
-      }
+      // Only threads we list: an unknown id is side traffic, not news.
+      if (visible && summary && s.open?.view.threadId !== threadId) this.toast(threadId, `${summary.title} finished`);
+      if (turn.status === "completed" && summary && !summary.named) void this.maybeTitle(threadId);
     }
     this.store.set((s) => {
       if (!s.open) return s;
@@ -1287,8 +1360,8 @@ export class Session {
   }
 }
 
-/** The first user message's text, shortened to a title's length, or null. */
-function firstUserText(view: ThreadViewState | null): string | null {
+/** The first user message's text, shortened to `max` characters, or null. */
+function firstUserText(view: ThreadViewState | null, max = 40): string | null {
   const first = view?.items.find((i) => i.type === "userMessage");
   if (!first || first.type !== "userMessage") return null;
   const text = first.content
@@ -1296,7 +1369,14 @@ function firstUserText(view: ThreadViewState | null): string | null {
     .join("")
     .replace(/\s+/g, " ")
     .trim();
-  return text ? (text.length > 40 ? `${text.slice(0, 40)}…` : text) : null;
+  return text ? (text.length > max ? `${text.slice(0, max)}…` : text) : null;
+}
+
+/** One line, no wrapping quotes or trailing punctuation, at most 60 characters; "" when unusable. */
+export function cleanTitle(raw: string): string {
+  const line = raw.split("\n").map((l) => l.trim()).find((l) => l !== "") ?? "";
+  const title = line.replace(/^["'“”‘’「」#*\s]+|["'“”‘’「」*\s.。!！?？:：]+$/g, "").trim();
+  return title.length > 60 ? `${title.slice(0, 59)}…` : title;
 }
 
 export function describe(err: unknown): string {
