@@ -95,12 +95,14 @@ export function SettingsScreen({ session }: { session: Session }) {
               )}
             </span>
           </div>
+          {pushError && <p className="error small setting-note">{pushError}</p>}
+          {(push === "on" || push === "off") && <p className="muted small setting-note">Finished turns, approvals and questions, when this app is not open on the thread.</p>}
+        </div>
+        <div className="setting-group">
           <div className="setting-row">
             <span>Dictation</span>
             <span className="setting-value muted">{!dictationSupported() ? (window.isSecureContext ? "Not offered by this browser" : "Needs HTTPS") : me == null ? "…" : me.dictation ? "Via ChatGPT (Codex login)" : "Sign in to Codex with ChatGPT"}</span>
           </div>
-          {pushError && <p className="error small setting-note">{pushError}</p>}
-          {(push === "on" || push === "off") && <p className="muted small setting-note">Finished turns, approvals and questions, when this app is not open on the thread.</p>}
         </div>
         <div className="setting-group">
           {confirm ? (
