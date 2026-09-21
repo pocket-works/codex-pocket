@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { v2 } from "@codex-pocket/protocol";
 import type { Session } from "../state/session.js";
 import type { PendingApproval } from "../state/thread-reducer.js";
+import { useDialog } from "./dialog.js";
 
 // Sentinel for the free-text choice; cannot collide with an option label.
 const OTHER = "__other__";
@@ -11,6 +12,7 @@ const OTHER = "__other__";
 export function UserInputSheet({ session, request }: { session: Session; request: PendingApproval }) {
   const { questions } = request.params as unknown as v2.ToolRequestUserInputParams;
   const [choice, setChoice] = useState<Record<string, string>>({});
+  const dialog = useDialog("Codex has a question");
   const [text, setText] = useState<Record<string, string>>({});
 
   function answerFor(q: v2.ToolRequestUserInputQuestion): string | null {
@@ -29,7 +31,7 @@ export function UserInputSheet({ session, request }: { session: Session; request
 
   return (
     <div className="sheet-backdrop">
-      <div className="sheet user-input">
+      <div ref={dialog.ref} {...dialog.props} className="sheet user-input">
         <h2>Codex has a question</h2>
         {questions.map((q) => (
           <fieldset key={q.id} className="question">

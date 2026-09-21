@@ -8,6 +8,7 @@ import { Composer } from "./Composer.js";
 import { BranchIcon, ChatIcon, CheckIcon, ChevronsIcon, FolderIcon, LaptopIcon, MonitorIcon, WorktreeIcon } from "./icons.js";
 import { navigate } from "./route.js";
 import { useSheetDrag, useSwipeBack } from "./gestures.js";
+import { useDialog } from "./dialog.js";
 import { friendlyError } from "../state/errors.js";
 
 /** Where the thread will run: a project folder, or a scratch folder like the desktop app's "Chat". */
@@ -251,6 +252,7 @@ function parentOf(path: string): string {
 // most recent project so sibling repos are one tap away.
 function FolderBrowser({ session, start, onPick, onClose }: { session: Session; start: string; onPick: (path: string) => void; onClose: () => void }) {
   const drag = useSheetDrag(onClose);
+  const dialog = useDialog("Choose a folder", onClose);
   const [path, setPath] = useState(parentOf(start));
   const [dirs, setDirs] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -270,7 +272,7 @@ function FolderBrowser({ session, start, onPick, onClose }: { session: Session; 
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className={`sheet folder-browser ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
+      <div ref={dialog.ref} {...dialog.props} className={`sheet folder-browser ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
         <div className="sheet-grip" />
         <div className="folder-path">
           <button type="button" className="icon-btn" aria-label="Up" disabled={path === "/"} onClick={() => setPath(parentOf(path))}>
