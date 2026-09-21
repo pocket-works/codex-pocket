@@ -1,7 +1,7 @@
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
 import { AdminClient, pocketHome, type Device } from "./admin.js";
 import { encodePng, trayGlyph } from "./icons.js";
 import { buildMenu, staleDevices, trayColor, trayTooltip, type MenuAction, type MenuEntry } from "./menu.js";
@@ -63,10 +63,12 @@ function spawnHost(location: HostLocation, log: WriteStream): HostChild {
   };
 }
 
-// The PWA tile in the menu bar's text colour, with the state as the dot at
-// the end of its short line; a stopped host fades the tile.
+// The PWA tile in its indigo, with the state as the dot at the end of its
+// short line; a stopped host fades the tile.
+const TILE_INDIGO: [number, number, number] = [0x4f, 0x46, 0xe5];
+
 function trayIcon(state: HostState): Electron.NativeImage {
-  const glyph: [number, number, number] = nativeTheme.shouldUseDarkColors ? [255, 255, 255] : [0, 0, 0];
+  const glyph = TILE_INDIGO;
   const img = nativeImage.createEmpty();
   for (const scale of [1, 2]) {
     const size = 16 * scale;
@@ -179,7 +181,6 @@ async function main(): Promise<void> {
   });
   // A menu bar app has no windows to keep it alive.
   app.on("window-all-closed", () => {});
-  nativeTheme.on("updated", render);
 
   // Keep "last seen" honest while the menu sits open all day.
   setInterval(() => {
