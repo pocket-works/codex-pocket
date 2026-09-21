@@ -29,9 +29,12 @@ export function serveStatic(root: string, req: IncomingMessage, res: ServerRespo
   if (!isFile(file)) file = join(rootAbs, "index.html");
   if (!isFile(file)) return false;
   const ext = extname(file);
+  // Only Vite's hashed bundles may be cached forever; icons, the manifest
+  // and the service worker keep their names, so they must revalidate.
+  const immutable = urlPath.startsWith("/assets/");
   res.writeHead(200, {
     "Content-Type": CONTENT_TYPES[ext] ?? "application/octet-stream",
-    "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+    "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
   });
   createReadStream(file).pipe(res);
   return true;

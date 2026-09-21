@@ -41,7 +41,7 @@ export function PairScreen({ error }: { error?: string }) {
   return (
     <main className="screen center pair">
       <div className="pair-card">
-        <img className="pair-logo" src="/icon.svg" alt="" width={72} height={72} />
+        <img className="pair-logo" src="/icon.svg?v=2" alt="" width={72} height={72} />
         <h1>Codex Pocket</h1>
         <p className="muted pair-sub">Pair this phone with your Mac to control Codex from anywhere.</p>
 
