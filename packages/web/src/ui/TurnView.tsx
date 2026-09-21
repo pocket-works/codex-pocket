@@ -44,7 +44,7 @@ function TurnBlockImpl({ group, session, cwd, latest, progress }: { group: TurnG
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
-          {expanded && <WorkSection items={group.work} cwd={cwd} progress={progress} />}
+          {expanded && <WorkSection items={group.work} cwd={cwd} progress={progress} live={group.inProgress} />}
           {group.final && <hr className="turn-sep" />}
         </>
       )}
@@ -103,7 +103,10 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
 // files · Ran a command"), as in the official app. Reasoning between tool
 // calls does not split the batch; it is folded into one "Thinking" row
 // ahead of it.
-function WorkSection({ items, cwd, progress }: { items: ThreadItem[]; cwd: string; progress: Record<string, string> }) {
+// `live` is whether the turn is still running: a command the turn was
+// interrupted in the middle of never gets a completion, so its spinner
+// would otherwise keep going forever.
+function WorkSection({ items, cwd, progress, live }: { items: ThreadItem[]; cwd: string; progress: Record<string, string>; live: boolean }) {
   const rows: React.ReactNode[] = [];
   let tools: ThreadItem[] = [];
   let thoughts: Extract<ThreadItem, { type: "reasoning" }>[] = [];
@@ -116,7 +119,7 @@ function WorkSection({ items, cwd, progress }: { items: ThreadItem[]; cwd: strin
     if (tools.length > 0) {
       const batch = tools;
       tools = [];
-      rows.push(<ToolBatch key={batch[0].id} items={batch} cwd={cwd} progress={progress} />);
+      rows.push(<ToolBatch key={batch[0].id} items={batch} cwd={cwd} progress={progress} live={live} />);
     }
   };
   for (const item of items) {
@@ -139,10 +142,10 @@ function WorkSection({ items, cwd, progress }: { items: ThreadItem[]; cwd: strin
 
 // Collapsed by default; while a call is still running the heading names
 // it (the official app's "Editing files" style) instead of the summary.
-function ToolBatch({ items, cwd, progress }: { items: ThreadItem[]; cwd: string; progress: Record<string, string> }) {
+function ToolBatch({ items, cwd, progress, live }: { items: ThreadItem[]; cwd: string; progress: Record<string, string>; live: boolean }) {
   const [open, setOpen] = useState(false);
-  if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} progress={progress[items[0].id]} />;
-  const running = items.find((item) => "status" in item && (item as { status: string }).status === "inProgress");
+  if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} progress={progress[items[0].id]} live={live} />;
+  const running = live ? items.find((item) => "status" in item && (item as { status: string }).status === "inProgress") : undefined;
   const failed = items.some(toolFailed);
   return (
     <div className={`tool-batch ${failed ? "failed" : ""}`}>
@@ -154,14 +157,15 @@ function ToolBatch({ items, cwd, progress }: { items: ThreadItem[]; cwd: string;
           <ChevronIcon />
         </span>
       </button>
-      {open && items.map((item) => <ToolRow key={item.id} item={item} cwd={cwd} progress={progress[item.id]} />)}
+      {open && items.map((item) => <ToolRow key={item.id} item={item} cwd={cwd} progress={progress[item.id]} live={live} />)}
     </div>
   );
 }
 
-function ToolRow({ item, cwd, progress }: { item: ThreadItem; cwd: string; progress?: string }) {
+function ToolRow({ item, cwd, progress, live }: { item: ThreadItem; cwd: string; progress?: string; live: boolean }) {
   const [open, setOpen] = useState(false);
   const status = "status" in item ? (item as { status: string }).status : null;
+  const running = live && status === "inProgress";
   const failed = toolFailed(item);
   return (
     <div className={`tool-item ${failed ? "failed" : ""}`}>
@@ -169,9 +173,9 @@ function ToolRow({ item, cwd, progress }: { item: ThreadItem; cwd: string; progr
         <TerminalGlyph />
         <span className="tool-text">
           {toolLabel(item)}
-          {status === "inProgress" && progress && <span className="muted"> · {progress}</span>}
+          {running && progress && <span className="muted"> · {progress}</span>}
         </span>
-        {status === "inProgress" && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
+        {running && <span className="spinner tool-spinner" role="status" aria-label="Running" title="Running" />}
         <span className={`chev ${open ? "down" : ""}`}>
           <ChevronIcon />
         </span>

@@ -164,9 +164,13 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
       if (meta.startedAt === null) meta.startedAt = prev?.startedAt ?? null;
       if (meta.completedAt === null) meta.completedAt = Date.now();
       if (meta.durationMs === null && meta.startedAt !== null) meta.durationMs = meta.completedAt - meta.startedAt;
+      // One turn runs per thread, so whichever id completed, nothing is
+      // running now. (A review's items, turn/started and turn/completed do
+      // not even agree on one id; matching strictly left the composer stuck
+      // on Stop after a review.)
       return {
         ...state,
-        activeTurnId: state.activeTurnId === turn.id ? null : state.activeTurnId,
+        activeTurnId: null,
         lastTurnError: turn.status === "failed" ? (turn.error?.message ?? "turn failed") : null,
         turns: { ...state.turns, [turn.id]: meta },
       };
