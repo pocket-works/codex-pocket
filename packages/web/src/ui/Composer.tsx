@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { emptyDraft, mentionQuery, sendBlocker, type Draft, type DraftImage } from "../state/compose.js";
+import { isEmptyDraft, loadDraft, saveDraft } from "../state/drafts.js";
 import { Session, type FileMatch, type Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
 import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton, useDictation } from "./ComposerTools.js";
+import { useUploadedImage } from "./uploaded-image.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -23,6 +25,7 @@ interface Popover {
 // idle with a paused queue and nothing typed.
 export function Composer({
   session,
+  draftKey,
   disabled,
   busy,
   placeholder,
@@ -31,6 +34,8 @@ export function Composer({
   onResume,
 }: {
   session: Session;
+  /** Where the unsent text is kept between visits (the thread id, or "new"). */
+  draftKey: string;
   disabled: boolean;
   busy: boolean;
   placeholder?: string;
@@ -39,7 +44,7 @@ export function Composer({
   /** Present when the queue is paused (idle thread, queued messages). */
   onResume?: () => void;
 }) {
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [draft, setDraft] = useState<Draft>(() => loadDraft(draftKey));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(0);
@@ -51,6 +56,8 @@ export function Composer({
   const boxRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
   const dictation = useDictation({ session, onText: (text) => setDraft((d) => ({ ...d, text })), onError: setError });
+
+  useEffect(() => saveDraft(draftKey, draft), [draftKey, draft]);
 
   // Grow the box with its content up to the CSS max-height, whichever way the
   // text got there (typing, paste, dictation, or clearing after send).
@@ -163,12 +170,16 @@ export function Composer({
     dictation.discard();
     setSending(true);
     setError(null);
+    // Clear the box right away so the tap visibly landed (the transcript
+    // shows the message as pending meanwhile); put it back if the send fails.
+    const sent = draft;
+    setDraft(emptyDraft);
+    setPopover(null);
     try {
-      await (onSend ? onSend(draft) : session.sendMessage(draft));
-      for (const img of draft.images) URL.revokeObjectURL(img.previewUrl);
-      setDraft(emptyDraft);
-      setPopover(null);
+      await (onSend ? onSend(sent) : session.sendMessage(sent));
+      for (const img of sent.images) URL.revokeObjectURL(img.previewUrl);
     } catch (err) {
+      setDraft((d) => (isEmptyDraft(d) ? sent : d));
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSending(false);
@@ -241,12 +252,7 @@ export function Composer({
             </span>
           )}
           {draft.images.map((img) => (
-            <span key={img.id} className="thumb">
-              <img src={img.previewUrl} alt="" />
-              <button type="button" aria-label="Remove image" onClick={() => removeImage(img)}>
-                ×
-              </button>
-            </span>
+            <Thumb key={img.id} image={img} onRemove={() => removeImage(img)} />
           ))}
         </div>
       )}
@@ -309,5 +315,19 @@ export function Composer({
         )}
       </div>
     </div>
+  );
+}
+
+// A restored draft has no local preview; fetch the upload back from the host.
+function Thumb({ image, onRemove }: { image: DraftImage; onRemove: () => void }) {
+  const uploaded = useUploadedImage(image.previewUrl ? null : image.path);
+  const src = image.previewUrl || uploaded;
+  return (
+    <span className="thumb">
+      {src ? <img src={src} alt="" /> : <span className="thumb-blank" />}
+      <button type="button" aria-label="Remove image" onClick={onRemove}>
+        ×
+      </button>
+    </span>
   );
 }

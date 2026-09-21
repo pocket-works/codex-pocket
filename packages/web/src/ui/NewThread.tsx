@@ -195,7 +195,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
         />
       )}
 
-      <Composer session={session} disabled={!ready} busy={false} placeholder={`Work on ${host}`} onSend={start} />
+      <Composer session={session} draftKey="new" disabled={!ready} busy={false} placeholder={`Work on ${host}`} onSend={start} />
     </main>
   );
 }

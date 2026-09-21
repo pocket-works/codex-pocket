@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  addPending,
   applyNotification,
   applyServerRequest,
   dismissAlert,
   initialThreadState,
   prependHistory,
   removeApproval,
+  removePending,
   type ThreadItem,
 } from "../src/state/thread-reducer.js";
 
@@ -169,5 +171,35 @@ describe("prependHistory", () => {
       { turnId: "t", item: agent("m3", "dup") },
     ]);
     expect(s.items.map((i) => i.id)).toEqual(["m1", "m2", "m3"]);
+  });
+});
+
+describe("pending messages", () => {
+  const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
+  const hi = { id: "p1", input: [{ type: "text" as const, text: "hi", text_elements: [] }] };
+
+  it("retires the oldest pending message when Codex echoes a user item", () => {
+    let s = addPending(addPending(initialThreadState(T), hi), { ...hi, id: "p2" });
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t", item: user("u1", "hi") } });
+    expect(s.pending.map((m) => m.id)).toEqual(["p2"]);
+  });
+
+  it("does not retire a pending message for an item it already had", () => {
+    let s = applyNotification(initialThreadState(T), { method: "item/started", params: { threadId: T, turnId: "t", item: user("u1", "hi") } });
+    s = addPending(s, hi);
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t", item: user("u1", "hi") } });
+    expect(s.pending).toHaveLength(1);
+  });
+
+  it("leaves pending alone for non-user items", () => {
+    let s = addPending(initialThreadState(T), hi);
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t", item: agent("m1") } });
+    expect(s.pending).toHaveLength(1);
+  });
+
+  it("removes by id and returns the same state when nothing matched", () => {
+    const s = addPending(initialThreadState(T), hi);
+    expect(removePending(s, "p1").pending).toEqual([]);
+    expect(removePending(s, "nope")).toBe(s);
   });
 });

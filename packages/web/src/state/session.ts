@@ -2,6 +2,7 @@ import type { JsonRpcNotification, JsonRpcRequest, ReasoningEffort, v2 } from "@
 import { isConnectionError, RpcClient, RpcError, type ConnectionState } from "../rpc/client.js";
 import { createStore, type Store } from "./store.js";
 import {
+  addPending,
   applyNotification,
   applyServerRequest,
   dismissAlert,
@@ -9,6 +10,7 @@ import {
   mergeTurns,
   prependHistory,
   removeApproval,
+  removePending,
   type ThreadViewState,
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
@@ -133,6 +135,8 @@ export interface SessionState {
 }
 
 const HISTORY_PAGE = 40;
+/** How long a sent message stays "pending" if Codex never echoes it. */
+const PENDING_ECHO_TIMEOUT_MS = 10_000;
 
 let nextNoticeId = 1;
 
@@ -598,6 +602,30 @@ export class Session {
     const input = buildUserInput(draft);
     if (input.length === 0) return;
 
+    // Show the message at once; Codex echoes it back as a userMessage item
+    // (which retires the pending copy) only after the round trip.
+    const id = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.updateView(threadId, (v) => addPending(v, { id, input }));
+    const retire = () => this.updateView(threadId, (v) => removePending(v, id));
+    try {
+      const echoed = await this.sendInput(open, input);
+      if (!echoed) retire();
+      // If no item ever comes (an older Codex, a steer folded silently), do
+      // not leave a ghost bubble behind.
+      else setTimeout(retire, PENDING_ECHO_TIMEOUT_MS);
+    } catch (err) {
+      retire();
+      throw err;
+    }
+  }
+
+  private updateView(threadId: string, fn: (view: ThreadViewState) => ThreadViewState): void {
+    this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, view: fn(s.open.view) } } : s));
+  }
+
+  /** Starts, steers or queues; true when Codex will echo the input as a thread item. */
+  private async sendInput(open: OpenThread, input: v2.UserInput[]): Promise<boolean> {
+    const threadId = open.view.threadId;
     // While a turn runs, either steer it (Codex folds the input into the
     // current turn) or queue it for the next one, per the user's preference.
     // Review/compact turns cannot be steered, so steering falls back to the
@@ -607,13 +635,13 @@ export class Session {
       if (this.store.get().followUp === "steer") {
         try {
           await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input, expectedTurnId: activeTurnId });
-          return;
+          return true;
         } catch (err) {
           if (!(err instanceof RpcError)) throw err;
         }
       }
       await this.enqueue(threadId, input);
-      return;
+      return false;
     }
 
     // Only send overrides the user actually chose: Codex treats a model
@@ -641,6 +669,7 @@ export class Session {
       return { ...s, open: next };
     });
     if (open.override) setLastModel(open.override);
+    return true;
   }
 
   /** Sends the last user message again after a turn failed (network, model errors). */

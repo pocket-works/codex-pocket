@@ -29,7 +29,7 @@ export function ThreadView({ session }: { session: Session }) {
   useEffect(() => {
     const el = listRef.current;
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [items.length, lastText, open?.state]);
+  }, [items.length, lastText, open?.state, open?.view.pending.length]);
 
   function onScroll() {
     const el = listRef.current;
@@ -136,7 +136,9 @@ export function ThreadView({ session }: { session: Session }) {
       {pending && pending.method !== USER_INPUT_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
       <Composer
+        key={open.view.threadId}
         session={session}
+        draftKey={open.view.threadId}
         disabled={open.state !== "ready"}
         busy={busy}
         onStop={() => void session.interrupt()}

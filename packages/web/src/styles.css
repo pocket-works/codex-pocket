@@ -346,6 +346,34 @@ code,
   background: var(--user);
 }
 
+/* Sent, not yet echoed back by Codex. */
+.msg.user.pending {
+  opacity: 0.6;
+}
+
+.msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.msg-images img {
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 10px;
+  display: block;
+}
+
+.msg-image-name {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.msg-images:first-child {
+  margin-top: 0;
+}
+
 .msg.agent {
   align-self: flex-start;
   background: var(--card);
@@ -1093,12 +1121,18 @@ code,
   height: 64px;
 }
 
-.thumb img {
+.thumb img,
+.thumb-blank {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--line);
+}
+
+.thumb-blank {
+  background: var(--card);
 }
 
 .attachment-chip button,

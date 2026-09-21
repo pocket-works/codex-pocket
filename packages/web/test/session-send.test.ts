@@ -631,3 +631,28 @@ describe("Session.openThread", () => {
     expect(session.store.get().open).toMatchObject({ state: "error", error: expect.stringContaining("disk on fire") });
   });
 });
+
+describe("Session.sendMessage pending echo", () => {
+  it("shows the message as pending until Codex echoes it, and clears it on failure", async () => {
+    const { rpc } = stubRpc(() => ({ turn: { id: "new" } }));
+    const session = readySession(rpc, null);
+    const sent = session.sendMessage({ ...emptyDraft, text: "hi" });
+    expect(session.store.get().open?.view.pending).toMatchObject([{ input: [{ type: "text", text: "hi" }] }]);
+    await sent;
+    expect(session.store.get().open?.view.pending).toHaveLength(1);
+    session.handleNotification({ jsonrpc: "2.0", method: "item/started", params: { threadId: "t1", turnId: "new", item: { type: "userMessage", id: "u1", content: [{ type: "text", text: "hi", text_elements: [] }] } } });
+    expect(session.store.get().open?.view.pending).toHaveLength(0);
+
+    const failing = readySession(stubRpc(() => new RpcError(-32000, "nope")).rpc, null);
+    await expect(failing.sendMessage({ ...emptyDraft, text: "hi" })).rejects.toThrow("nope");
+    expect(failing.store.get().open?.view.pending).toHaveLength(0);
+  });
+
+  it("retires the pending copy itself when the message went to the queue", async () => {
+    const { rpc } = stubRpc((_m, params) => ({ queuedSubmission: { id: "q1", input: (params as { input: unknown }).input, clientUserMessageId: "c" } }));
+    const session = readySession(rpc, "active");
+    session.setFollowUpMode("queue");
+    await session.sendMessage({ ...emptyDraft, text: "later" });
+    expect(session.store.get().open?.view.pending).toHaveLength(0);
+  });
+});
