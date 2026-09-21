@@ -87,6 +87,9 @@ body,
 
 /* A new build is on the host; the whole strip reloads the page. */
 .banner.update {
+  /* Stays tappable above a sheet's backdrop. */
+  position: relative;
+  z-index: 11;
   width: 100%;
   border: none;
   background: var(--accent);
@@ -2081,6 +2084,8 @@ pre.diff {
 
 .archived-row .thread-row {
   flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .subtle-btn {

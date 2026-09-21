@@ -16,6 +16,9 @@ import { diffStats } from "../state/diff.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
+  // The list's title for this thread; the folder name stands in until the
+  // list has loaded (a push notification can open a thread first).
+  const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
@@ -67,7 +70,7 @@ export function ThreadView({ session }: { session: Session }) {
           ‹
         </button>
         <div className="topbar-title">
-          <h1>{open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
+          <h1>{title ?? open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
           <div className="topbar-meta muted small">{open.cwd}</div>
         </div>
         <ThreadMenu session={session} />
