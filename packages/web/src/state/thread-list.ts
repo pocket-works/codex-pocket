@@ -32,6 +32,8 @@ export interface ThreadSummary {
   /** A turn finished since we last opened this thread ("Ready" in the official app). */
   unread: boolean;
   branch: string | null;
+  /** Codex holds a name for it (as opposed to the title being its first message). */
+  named: boolean;
 }
 
 function clean(text: string): string {
@@ -72,6 +74,7 @@ export function summarize(t: v2.Thread, unread = false): ThreadSummary {
     model: t.model,
     ...readStatus(t.status),
     unread,
+    named: clean(t.name ?? "") !== "",
     branch: t.gitInfo?.branch ?? null,
   };
 }
@@ -111,7 +114,8 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
   switch (n.method) {
     case "thread/started": {
       const { thread } = n.params as v2.ThreadStartedNotification;
-      if (list.some((t) => t.id === thread.id)) return list;
+      // Ephemeral threads (title generation, side work) never reach the list.
+      if (thread.ephemeral || list.some((t) => t.id === thread.id)) return list;
       return sorted([summarize(thread), ...list]);
     }
     case "turn/started": {
@@ -128,7 +132,7 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
     }
     case "thread/name/updated": {
       const { threadId, threadName } = n.params as v2.ThreadNameUpdatedNotification;
-      return replace(list, threadId, (t) => ({ ...t, title: title(threadName, t.preview) }));
+      return replace(list, threadId, (t) => ({ ...t, title: title(threadName, t.preview), named: clean(threadName ?? "") !== "" }));
     }
     case "thread/archived":
     case "thread/deleted": {

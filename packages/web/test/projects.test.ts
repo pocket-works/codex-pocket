@@ -16,6 +16,7 @@ const t = (id: string, cwd: string, updatedAt: number, extra: Partial<ThreadSumm
   waitingFor: null,
   unread: false,
   branch: null,
+  named: false,
   ...extra,
 });
 
