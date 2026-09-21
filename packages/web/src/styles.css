@@ -34,6 +34,8 @@
 
 * {
   box-sizing: border-box;
+  /* The app draws its own pressed states; Safari's grey flash reads as a web page. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -44,6 +46,45 @@ body,
   margin: 0;
   background: var(--bg);
   color: var(--fg);
+}
+
+html,
+body {
+  /* Only the content scrollers bounce; the shell stays put, as in a native app. */
+  overscroll-behavior: none;
+}
+
+/* Chrome (bars, rows, menus, sheets' headers) is tapped, not selected; a
+   long press or a swipe should not turn a title blue. Content — messages,
+   code, diffs, inputs — stays selectable. */
+button,
+.topbar,
+.thread-row,
+.section-title,
+.project-row,
+.list-bar,
+.composer-tools,
+.popover-card,
+.menu-item,
+.sheet-grip,
+.workspace-head,
+.segmented,
+.tool-row,
+.work-header,
+.changes-head {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* iOS pops a share sheet on a long-pressed image; ours are content, not links. */
+img {
+  -webkit-touch-callout: none;
+}
+
+/* Wider than a phone (iPad, a desktop window): one readable column, centred. */
+.app {
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 /* Track the visible area on mobile browsers whose toolbars come and go. */
@@ -572,7 +613,10 @@ code,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
+  .skeleton,
+  .thinking,
+  .work-header.live,
+  .mic-btn.active {
     animation: none;
   }
 }
@@ -798,6 +842,8 @@ code,
 
 .sheet {
   width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
   max-height: 80vh;
   overflow-y: auto;
   background: var(--bg);
