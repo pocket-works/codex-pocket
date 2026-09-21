@@ -3,6 +3,7 @@ import type { Session, ThreadSummary } from "../state/session.js";
 import { ArchiveIcon } from "./icons.js";
 import { navigate } from "./route.js";
 import { projectName, relativeTime, useMinuteTick } from "./ThreadList.js";
+import { friendlyError } from "../state/errors.js";
 
 export function ArchivedList({ session }: { session: Session }) {
   const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
@@ -14,7 +15,7 @@ export function ArchivedList({ session }: { session: Session }) {
     session
       .loadArchivedThreads()
       .then(setThreads)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => setError(friendlyError(err)));
   }, [session]);
 
   async function restore(t: ThreadSummary) {
@@ -23,7 +24,7 @@ export function ArchivedList({ session }: { session: Session }) {
       await session.unarchiveThread(t.id);
       setThreads((list) => list?.filter((x) => x.id !== t.id) ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     } finally {
       setBusy(null);
     }

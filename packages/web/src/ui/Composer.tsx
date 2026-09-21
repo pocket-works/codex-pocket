@@ -6,6 +6,7 @@ import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
 import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton, useDictation } from "./ComposerTools.js";
 import { useUploadedImage } from "./uploaded-image.js";
+import { friendlyError } from "../state/errors.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -139,7 +140,7 @@ export function Composer({
         setDraft((d) => ({ ...d, images: [...d.images, { id, path, previewUrl }] }));
       } catch (err) {
         URL.revokeObjectURL(previewUrl);
-        setError(err instanceof Error ? err.message : String(err));
+        setError(friendlyError(err));
       } finally {
         setUploading((n) => n - 1);
       }
@@ -180,7 +181,7 @@ export function Composer({
       for (const img of sent.images) URL.revokeObjectURL(img.previewUrl);
     } catch (err) {
       setDraft((d) => (isEmptyDraft(d) ? sent : d));
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     } finally {
       setSending(false);
     }
@@ -201,7 +202,7 @@ export function Composer({
       await cmd.run();
       setDraft((d) => ({ ...d, text: "" }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     }
   }
 

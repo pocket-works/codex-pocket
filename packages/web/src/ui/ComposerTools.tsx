@@ -4,6 +4,7 @@ import { permissionPreset, Session, type PermissionPreset } from "../state/sessi
 import { useStore } from "../state/store.js";
 import { ModelSheet } from "./ModelSheet.js";
 import { dictationSupported, startDictation, type Dictation } from "../state/dictation.js";
+import { friendlyError } from "../state/errors.js";
 
 // Small controls on the composer toolbar, mirroring the official app:
 // a permissions popover, a context-window ring and an effort gauge.
@@ -282,7 +283,7 @@ export function useDictation({ session, onText, onError }: { session: Session; o
       });
       setListening(true);
     } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+      onError(friendlyError(err));
     }
   }
 

@@ -4,6 +4,7 @@ import { diffStats, splitGitDiff } from "../state/diff.js";
 import { branchLabel, type FileMatch, type Session } from "../state/session.js";
 import { DiffBody } from "./DiffView.js";
 import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { friendlyError } from "../state/errors.js";
 
 export type WorkspaceTab = "modified" | "files";
 type DiffMode = "uncommitted" | "branch";
@@ -29,7 +30,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
       const text = await session.readTextFile(path);
       setFile({ path, text: text !== null && text.length > MAX_VIEW_BYTES ? `${text.slice(0, MAX_VIEW_BYTES)}\n…` : text });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     }
   }
 
@@ -41,7 +42,7 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
     session
       .gitChanges(cwd, mode)
       .then((r) => !cancelled && setChanges({ files: splitGitDiff(r.diff, cwd), branch: r.branch, upstream: r.upstream }))
-      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) => !cancelled && setError(friendlyError(err)));
     return () => {
       cancelled = true;
     };
@@ -232,7 +233,7 @@ function FilesTab({ session, root, onOpen }: { session: Session; root: string; o
     let cancelled = false;
     load(root)
       .then((n) => !cancelled && setTree(n))
-      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) => !cancelled && setError(friendlyError(err)));
     return () => {
       cancelled = true;
     };
@@ -257,7 +258,7 @@ function FilesTab({ session, root, onOpen }: { session: Session; root: string; o
           const children = await load(node.path);
           setTree((t) => (t ? patchNode(t, node.path, children) : t));
         } catch (err) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(friendlyError(err));
         }
       }
     }

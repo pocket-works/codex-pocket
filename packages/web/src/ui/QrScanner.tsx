@@ -1,5 +1,6 @@
 import jsQR from "jsqr";
 import { useEffect, useRef, useState } from "react";
+import { friendlyError } from "../state/errors.js";
 
 // Live QR reader on the rear camera. iOS has no BarcodeDetector, so frames
 // are decoded with jsQR; `onResult` fires once with the first decoded text.
@@ -45,7 +46,7 @@ export function QrScanner({ onResult, onClose }: { onResult: (text: string) => v
       .then(() => {
         frame = requestAnimationFrame(scan);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err) => setError(friendlyError(err)));
 
     return () => {
       done = true;

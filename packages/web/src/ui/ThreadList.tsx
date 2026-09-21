@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getCollapsedSections, getListView, setListView, setSectionCollapsed, type ListSection, type ListView } from "../state/list-prefs.js";
 import { getPins } from "../state/pins.js";
-import { describe, type Session, type ThreadStatus, type ThreadSummary } from "../state/session.js";
+import type { Session, ThreadStatus, ThreadSummary } from "../state/session.js";
 import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
+import { friendlyError } from "../state/errors.js";
 import { ArchiveIcon, BranchIcon, CheckIcon, ChevronIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
@@ -55,7 +56,7 @@ export function ThreadList({ session }: { session: Session }) {
     void session.loadProjects();
   }, [connection, session]);
 
-  const archive = (id: string) => void session.archiveThread(id).catch((err) => session.notify(describe(err)));
+  const archive = (id: string) => void session.archiveThread(id).catch((err) => session.notify(friendlyError(err)));
 
   function changeView(v: ListView) {
     setListView(v);

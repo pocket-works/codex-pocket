@@ -1,6 +1,7 @@
 import type { JsonRpcNotification, JsonRpcRequest, ReasoningEffort, v2 } from "@codex-pocket/protocol";
 import { isConnectionError, RpcClient, RpcError, type ConnectionState } from "../rpc/client.js";
 import { createStore, type Store } from "./store.js";
+import { friendlyError } from "./errors.js";
 import {
   addPending,
   applyNotification,
@@ -303,7 +304,7 @@ export class Session {
     } catch (err) {
       // A dropped socket is not a list error: the banner says we are
       // reconnecting, and the list reloads as soon as the socket is back.
-      this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: isConnectionError(err) ? null : describe(err) }));
+      this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: isConnectionError(err) ? null : friendlyError(err) }));
     }
   }
 
@@ -455,7 +456,7 @@ export class Session {
       if (isConnectionError(err)) return;
       this.store.set((s) =>
         s.open && s.open.view.threadId === threadId
-          ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: describe(err) } }
+          ? { ...s, open: { ...s.open, state: isLockedError(err) ? "locked" : "error", error: friendlyError(err) } }
           : s,
       );
     }

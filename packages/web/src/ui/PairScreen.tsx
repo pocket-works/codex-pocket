@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import { pairingCodeFromScan, redeemPairingCode, setToken } from "../state/auth.js";
+import { friendlyError } from "../state/errors.js";
 
 // jsQR is only needed here, so it stays out of the main bundle.
 const QrScanner = lazy(() => import("./QrScanner.js").then((m) => ({ default: m.QrScanner })));
@@ -24,7 +25,7 @@ export function PairScreen({ error }: { error?: string }) {
       location.replace("/#/");
       location.reload();
     } catch (err) {
-      setFailure(err instanceof Error ? err.message : String(err));
+      setFailure(friendlyError(err));
       setBusy(false);
     }
   }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { QueuedMessage } from "../state/queue.js";
 import type { Session } from "../state/session.js";
+import { friendlyError } from "../state/errors.js";
 
 // Follow-ups waiting on the app-server's queue, under the transcript. Each
 // row can be sent now (steered into the running turn) or deleted. Codex only
@@ -16,7 +17,7 @@ export function QueuedList({ session, queue, busy }: { session: Session; queue: 
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(friendlyError(err));
     } finally {
       setPending(null);
     }
