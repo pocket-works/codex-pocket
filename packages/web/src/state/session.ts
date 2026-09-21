@@ -828,9 +828,9 @@ export class Session {
     return res.thread.id;
   }
 
-  // A thread we just started/forked is live already; resuming it would fail
+  // A thread we just started is live already; resuming it would fail
   // because Codex has not written its rollout yet, so open it directly.
-  private adoptStarted(res: v2.ThreadStartResponse | v2.ThreadForkResponse, effort: ReasoningEffort | null = null): void {
+  private adoptStarted(res: v2.ThreadStartResponse, effort: ReasoningEffort | null = null): void {
     const threadId = res.thread.id;
     this.store.set((s) => ({
       ...s,
@@ -882,9 +882,22 @@ export class Session {
   }
 
   /** Copies the thread's history into a new one and opens it. */
-  async forkThread(threadId: string): Promise<string> {
-    const res = await this.rpc.request<v2.ThreadForkResponse>("thread/fork", { threadId });
-    this.adoptStarted(res);
+  /**
+   * Copies the thread into a new one, through `lastTurnId` inclusive when
+   * given ("fork from here"). Unlike a freshly started thread, a fork has a
+   * rollout on disk from the moment it exists, so it is opened the normal
+   * way and the copied history shows up rather than an empty transcript.
+   */
+  async forkThread(threadId: string, lastTurnId?: string): Promise<string> {
+    const params: v2.ThreadForkParams = { threadId, excludeTurns: true };
+    if (lastTurnId) params.lastTurnId = lastTurnId;
+    const res = await this.rpc.request<v2.ThreadForkResponse>("thread/fork", params);
+    // A fork has no name or preview of its own (Codex keeps the copied
+    // history in memory, not in its rollout), so it would read "(untitled)"
+    // everywhere until its first turn. Name it after the source.
+    const source = this.store.get().threads.find((t) => t.id === threadId)?.title;
+    if (source) void this.renameThread(res.thread.id, `Fork of ${source}`).catch(() => {});
+    await this.openThread(res.thread.id, { force: true });
     return res.thread.id;
   }
 
