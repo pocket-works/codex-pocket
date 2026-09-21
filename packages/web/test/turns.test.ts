@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
-import { formatDuration, groupTurns, sameGroup, stripShellWrapper, summarizeTools, tailLines, threadChangeTotals, toolLabel, turnDurationMs } from "../src/state/turns.js";
+import { formatDuration, groupTurns, sameGroup, stripShellWrapper, summarizeTools, tailLines, threadChangeTotals, toolLabel, transcriptMarkdown, turnDurationMs } from "../src/state/turns.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -171,5 +171,14 @@ describe("review turns, whose ids disagree", () => {
     s = applyNotification(s, { method: "turn/completed", params: { threadId: T, turn: { id: "A", status: "completed" } } });
     s = { ...s, activeTurnId: "C" };
     expect(groupTurns(s)[0].inProgress).toBe(false);
+  });
+});
+
+describe("transcriptMarkdown", () => {
+  it("writes each turn's message and answer under headings", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t1", item: user("u1", "What time is it?") } });
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t1", item: agent("m1", "It is noon.", "final_answer") } });
+    expect(transcriptMarkdown(s, "Clock")).toBe("# Clock\n\n### You\n\nWhat time is it?\n\n### Codex\n\nIt is noon.\n");
   });
 });
