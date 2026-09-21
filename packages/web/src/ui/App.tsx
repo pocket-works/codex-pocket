@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { NewThread } from "./NewThread.js";
@@ -21,8 +21,19 @@ export function App({ session }: { session: Session }) {
     else void session.closeThread();
   }, [route.name === "thread" ? route.id : route.name, session]);
 
+  // On the LAN the socket is back in under a second. If it is still not open
+  // after this long, the Mac is unreachable — with Tailscale off on the phone
+  // the connect hangs rather than fails — so say so instead of spinning.
+  const stuck = useStuck(connection !== "open", STUCK_AFTER_MS);
+
   const banner =
-    connection !== "open" ? "Connecting to your Mac…" : !upstream ? "Mac reached, waiting for Codex app-server…" : null;
+    connection !== "open"
+      ? stuck
+        ? "Can't reach your Mac. Away from home? Check that Tailscale is on."
+        : "Connecting to your Mac…"
+      : !upstream
+        ? "Mac reached, waiting for Codex app-server…"
+        : null;
 
   return (
     <div className="app">
@@ -42,4 +53,20 @@ export function App({ session }: { session: Session }) {
       {route.name === "thread" && <ThreadView session={session} />}
     </div>
   );
+}
+
+const STUCK_AFTER_MS = 8000;
+
+/** True once `active` has held for `ms`; resets as soon as it drops. */
+function useStuck(active: boolean, ms: number): boolean {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setStuck(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setStuck(true), ms);
+    return () => window.clearTimeout(timer);
+  }, [active, ms]);
+  return stuck;
 }
