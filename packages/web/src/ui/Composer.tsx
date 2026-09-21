@@ -5,6 +5,9 @@ import { Session, type FileMatch, type Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
 import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton, useDictation } from "./ComposerTools.js";
+import { ModelSheet } from "./ModelSheet.js";
+import { isPinned, togglePin } from "../state/pins.js";
+import { navigate } from "./route.js";
 import { useUploadedImage } from "./uploaded-image.js";
 import { friendlyError } from "../state/errors.js";
 
@@ -56,6 +59,7 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
+  const [modelSheet, setModelSheet] = useState(false);
   const dictation = useDictation({ session, onText: (text) => setDraft((d) => ({ ...d, text })), onError: setError });
 
   useEffect(() => saveDraft(draftKey, draft), [draftKey, draft]);
@@ -188,10 +192,52 @@ export function Composer({
   }
 
   const visibleSkills = popover?.kind === "skills" ? skills.filter((s) => s.name.toLowerCase().includes(popover.query.toLowerCase())) : [];
-  // Built-in slash commands, listed with the skills like the official app.
-  const COMMANDS: { name: string; description: string; run: () => Promise<void> }[] = [
-    { name: "compact", description: "Compact this chat's context", run: () => session.compactThread() },
-    { name: "review", description: "Review uncommitted changes", run: () => session.startReview() },
+  // Built-in slash commands, listed with the skills like the official app
+  // (the subset that makes sense on a phone).
+  const threadId = useStore(session.store, (s) => s.open?.view.threadId ?? null);
+  const threadTitle = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
+  const cwd = useStore(session.store, (s) => s.open?.cwd ?? "");
+  const pinned = threadId !== null && isPinned(threadId);
+  const COMMANDS: { name: string; description: string; run: () => Promise<void>; turn?: boolean }[] = [
+    { name: "compact", description: "Compact this chat's context", run: () => session.compactThread(), turn: true },
+    { name: "review", description: "Review uncommitted changes", run: () => session.startReview(), turn: true },
+    { name: "status", description: "Show chat ID, context usage and rate limits", run: async () => session.info(session.statusLine()) },
+    { name: "model", description: "Choose the model and reasoning effort", run: async () => setModelSheet(true) },
+    { name: "new", description: "Start a blank chat in the same workspace", run: async () => navigate({ name: "new", cwd }) },
+    {
+      name: "fork",
+      description: "Fork this chat",
+      run: async () => {
+        if (threadId) navigate({ name: "thread", id: await session.forkThread(threadId) });
+      },
+    },
+    {
+      name: "rename",
+      description: "Rename the current chat",
+      run: async () => {
+        const name = threadId && window.prompt("Thread name", threadTitle ?? "");
+        if (threadId && name) await session.renameThread(threadId, name);
+      },
+    },
+    {
+      name: pinned ? "unpin" : "pin",
+      description: pinned ? "Remove this chat from the top of the list" : "Keep this chat at the top of the list",
+      run: async () => {
+        if (!threadId) return;
+        togglePin(threadId);
+        session.touchThreads();
+      },
+    },
+    {
+      name: "archive",
+      description: "Archive the current chat",
+      run: async () => {
+        if (threadId && window.confirm("Archive this thread?")) {
+          await session.archiveThread(threadId);
+          navigate({ name: "list" });
+        }
+      },
+    },
   ];
   const visibleCommands = popover?.kind === "skills" && !onSend ? COMMANDS.filter((c) => c.name.startsWith(popover.query.toLowerCase())) : [];
 
@@ -208,6 +254,7 @@ export function Composer({
 
   return (
     <div className="composer">
+      {modelSheet && <ModelSheet session={session} onClose={() => setModelSheet(false)} />}
       {error && <p className="error">{error}</p>}
       {blocker && hasDraft && <p className="muted small composer-hint">{blocker}</p>}
       {popover?.kind === "files" && files.length > 0 && (
@@ -228,7 +275,7 @@ export function Composer({
             <li key={c.name}>
               <button type="button" onClick={() => void runCommand(c)}>
                 <span className="option-label">/{c.name}</span>
-                <span className="muted small">{busy ? `${c.description} (disabled while a turn runs)` : c.description}</span>
+                <span className="muted small">{busy && c.turn ? `${c.description} (disabled while a turn runs)` : c.description}</span>
               </button>
             </li>
           ))}

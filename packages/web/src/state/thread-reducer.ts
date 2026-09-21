@@ -75,7 +75,7 @@ export function removePending(state: ThreadViewState, id: string): ThreadViewSta
 
 let nextAlertId = 1;
 
-function addAlert(state: ThreadViewState, kind: Alert["kind"], message: string): ThreadViewState {
+export function addAlert(state: ThreadViewState, kind: Alert["kind"], message: string): ThreadViewState {
   return { ...state, alerts: [...state.alerts, { id: nextAlertId++, kind, message }] };
 }
 
