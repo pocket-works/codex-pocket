@@ -15,6 +15,9 @@ const PRESETS: { value: PermissionPreset; title: string; hint: string; icon: str
   { value: "full", title: "Full access", hint: "Full computer access (elevated risk)", icon: "⚠️" },
 ];
 
+const FULL_ACCESS_WARNING =
+  "Turn on Full access?\n\nCodex will be able to run commands, use the internet, and create and edit files anywhere on this Mac without asking. This comes with risks like loss or exposure of sensitive data and prompt injection.";
+
 const APPROVALS: { value: "untrusted" | "on-request" | "never"; label: string }[] = [
   { value: "untrusted", label: "Ask" },
   { value: "on-request", label: "On request" },
@@ -62,6 +65,9 @@ export function PermissionsButton({ session, disabled }: { session: Session; dis
               aria-checked={active === p.value}
               aria-label={p.title}
               onClick={() => {
+                // Full access is one tap away from anything else; a phone
+                // tap is easy to misplace, so confirm like the official app.
+                if (p.value === "full" && active !== "full" && !window.confirm(FULL_ACCESS_WARNING)) return;
                 session.setPermissionPreset(p.value);
                 setShow(false);
               }}
