@@ -2463,6 +2463,30 @@ pre.diff {
   margin-bottom: 0;
 }
 
+/* Fenced code with its copy button in the corner. */
+.code-block {
+  position: relative;
+}
+
+.code-block .code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-height: 0;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: calc(12rem / 17);
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.code-block .code-copy.done {
+  color: var(--ok);
+}
+
 .final-text pre {
   overflow-x: auto;
   background: var(--card);
