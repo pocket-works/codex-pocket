@@ -47,6 +47,7 @@ describe("LanServer", () => {
       proxy,
       uploadsDir,
       adminToken: ADMIN,
+      publicUrl: "http://example.test",
       pairingUrl: (code) => `http://example.test/#pair=${code}`,
       push: { vapidPublicKey: "PUBKEY", notifier: new PushNotifier({ store, send: async () => {}, threadTitle: async () => null }) },
       // Dictation with a scripted upstream: echoes every audio chunk back as a final transcript.
@@ -105,6 +106,14 @@ describe("LanServer", () => {
   it("admin endpoints require the admin token", async () => {
     const res = await fetch(`${base}/api/admin/pairing-code`, { method: "POST" });
     expect(res.status).toBe(401);
+  });
+
+  it("reports host status to the admin", async () => {
+    await proxy.start();
+    await pair("Pixel");
+    const res = await fetch(`${base}/api/admin/status`, { headers: { Authorization: `Bearer ${ADMIN}` } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ publicUrl: "http://example.test", codexConnected: true, deviceCount: 1 });
   });
 
   it("pairs a phone and lets it read /api/me", async () => {

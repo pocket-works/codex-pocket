@@ -5,7 +5,7 @@ import { DeviceStore } from "./auth/device-store.js";
 import { bridgeUrl, startDaemonBridge } from "./codex/daemon-bridge.js";
 import { defaultSocketPath } from "./codex/locate.js";
 import { codexConnector } from "./codex/target.js";
-import { LEGACY_SHARED_APP_SERVER_LABEL, uninstallUserLaunchAgent } from "./launchd.js";
+import { retireLegacyLaunchAgents } from "./launchd.js";
 import { adminToken, devicesFile, findCertFiles, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
 import { PushNotifier } from "./push/notifier.js";
 import { loadOrCreateVapidKeys } from "./push/vapid.js";
@@ -78,6 +78,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     deviceStore,
     proxy,
     adminToken: adminToken(),
+    publicUrl,
     pairingUrl: (code) => pairingUrl(publicUrl, code),
     push: { vapidPublicKey: vapid.publicKey, notifier },
     dictation: new DictationService({ log, proxy: settings.outboundProxy }),
@@ -85,10 +86,11 @@ export async function serve(opts: ServeOptions): Promise<void> {
   });
 
   const addr = await server.listen();
+  // Older versions kept themselves alive under launchd and would fight us
+  // for the ports, so retire those agents before opening the bridge.
+  for (const label of retireLegacyLaunchAgents()) log(`removed retired ${label} LaunchAgent`);
   // The desktop app dials ws://127.0.0.1:<port> (`link-desktop`); relay it
-  // onto the daemon's unix socket. An older self-managed app-server would
-  // hold that port, so its LaunchAgent is retired first.
-  if (uninstallUserLaunchAgent(LEGACY_SHARED_APP_SERVER_LABEL)) log(`removed retired ${LEGACY_SHARED_APP_SERVER_LABEL} LaunchAgent`);
+  // onto the daemon's unix socket.
   const bridge = await startDaemonBridge({ port: codex.port, socketPath: defaultSocketPath(), log });
   log(`desktop bridge ${bridgeUrl(bridge.port)} -> ${defaultSocketPath()}`);
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
