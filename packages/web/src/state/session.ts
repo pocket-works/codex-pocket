@@ -5,6 +5,7 @@ import { friendlyError } from "./errors.js";
 import {
   addAlert,
   addPending,
+  APPROVAL_METHODS,
   applyNotification,
   applyServerRequest,
   dismissAlert,
@@ -232,6 +233,12 @@ export class Session {
   /** Host-level features (dictation) speak to the socket directly. */
   readonly rpc: RpcClient;
   private openGeneration = 0;
+  /**
+   * Approval-style requests for every thread, not just the open one: one
+   * that arrives for a thread in the background is shown when that thread
+   * is opened. Cleared when answered or when Codex reports it resolved.
+   */
+  private pendingRequests: JsonRpcRequest[] = [];
 
   constructor(rpc: RpcClient) {
     this.rpc = rpc;
@@ -475,6 +482,8 @@ export class Session {
         if (!s.open || s.open.view.threadId !== threadId) return s;
         // History replaces what we had: after a reconnect it is the truth.
         const fresh = mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns);
+        // Approvals already collected for this thread stay; ones that came
+        // in while another thread was on screen are added below.
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals };
         return {
           ...s,
@@ -492,6 +501,7 @@ export class Session {
           },
         };
       });
+      this.replayPendingRequests(threadId);
       void this.loadQueue(threadId);
     } catch (err) {
       if (generation !== this.openGeneration) return;
@@ -1086,7 +1096,13 @@ export class Session {
 
   answerApproval(id: JsonRpcRequest["id"], result: unknown): void {
     this.rpc.respond(id, result);
+    this.pendingRequests = this.pendingRequests.filter((r) => r.id !== id);
     this.store.set((s) => (s.open ? { ...s, open: { ...s.open, view: removeApproval(s.open.view, id) } } : s));
+  }
+
+  /** Answer an MCP elicitation (`mcpServer/elicitation/request`). */
+  answerElicitation(id: JsonRpcRequest["id"], response: v2.McpServerElicitationRequestResponse): void {
+    this.answerApproval(id, response);
   }
 
   /** Answer an `item/tool/requestUserInput`: one list of answers per question id. */
@@ -1108,6 +1124,10 @@ export class Session {
 
   /** Public so tests can feed notifications without a socket. */
   handleNotification(n: JsonRpcNotification): void {
+    if (n.method === "serverRequest/resolved") {
+      const { requestId } = n.params as v2.ServerRequestResolvedNotification;
+      this.pendingRequests = this.pendingRequests.filter((r) => r.id !== requestId);
+    }
     if (n.method === "pocket/upstream/status") {
       const connected = !!(n.params as { connected?: boolean } | undefined)?.connected;
       this.store.set((s) => ({ ...s, upstreamConnected: connected }));
@@ -1187,11 +1207,34 @@ export class Session {
   }
 
   private onServerRequest(req: JsonRpcRequest): void {
+    if (!APPROVAL_METHODS.has(req.method)) {
+      this.answerHousekeeping(req);
+      return;
+    }
+    if (!this.pendingRequests.some((r) => r.id === req.id)) this.pendingRequests.push(req);
     this.store.set((s) => {
       if (!s.open) return s;
       const view = applyServerRequest(s.open.view, req);
       return view === s.open.view ? s : { ...s, open: { ...s.open, view } };
     });
+  }
+
+  // Requests that need no person: answer what we can, and decline the rest
+  // at once so a turn never hangs on a client that cannot serve it (the
+  // desktop app handles client-side tools; a phone has none).
+  private answerHousekeeping(req: JsonRpcRequest): void {
+    if (req.method === "currentTime/read") {
+      this.rpc.respond(req.id, { currentTimeAt: Math.floor(Date.now() / 1000) });
+      return;
+    }
+    this.rpc.respondError(req.id, -32601, `${req.method} is not available from Codex Pocket`);
+  }
+
+  /** Show the background requests that belong to the thread just opened. */
+  private replayPendingRequests(threadId: string): void {
+    const mine = this.pendingRequests.filter((r) => (r.params as { threadId?: string } | undefined)?.threadId === threadId);
+    if (mine.length === 0) return;
+    this.updateView(threadId, (v) => mine.reduce((view, req) => applyServerRequest(view, req), v));
   }
 }
 

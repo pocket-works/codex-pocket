@@ -36,6 +36,9 @@ async function boot(): Promise<void> {
   }
   const session = new Session(new RpcClient({ url: wsUrl(), token }));
   session.start();
+  // For poking at the app from the browser console (it holds nothing the
+  // page does not already have).
+  (window as unknown as { codexPocket: { session: Session } }).codexPocket = { session };
   root.render(
     <StrictMode>
       <App session={session} />

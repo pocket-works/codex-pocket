@@ -94,6 +94,11 @@ export class RpcClient {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ jsonrpc: "2.0", id, result }));
   }
 
+  /** Answer a server request with an error, e.g. one this client cannot serve. */
+  respondError(id: RequestId, code: number, message: string): void {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }));
+  }
+
   onNotification(l: NotificationListener): () => void {
     this.notificationListeners.add(l);
     return () => this.notificationListeners.delete(l);
