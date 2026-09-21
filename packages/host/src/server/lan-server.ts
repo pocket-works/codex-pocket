@@ -30,6 +30,8 @@ export interface LanServerOptions {
   proxy: CodexProxy;
   /** Shared secret for the loopback-only admin endpoints. */
   adminToken: string;
+  /** Origin phones use to reach us; reported to the admin status endpoint. */
+  publicUrl?: string;
   /** Builds the URL a phone should open for a given pairing code. */
   pairingUrl: (code: string) => string;
   /** Web Push: public key handed to phones, and where their subscriptions/state go. Absent = push disabled. */
@@ -246,6 +248,13 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     }
     if (path === "/api/admin/devices" && method === "GET") {
       return sendJson(res, 200, { devices: await opts.deviceStore.list() });
+    }
+    if (path === "/api/admin/status" && method === "GET") {
+      return sendJson(res, 200, {
+        publicUrl: opts.publicUrl ?? null,
+        codexConnected: opts.proxy.isUpstreamConnected,
+        deviceCount: (await opts.deviceStore.list()).length,
+      });
     }
     const revoke = path.match(/^\/api\/admin\/devices\/([^/]+)$/);
     if (revoke && method === "DELETE") {

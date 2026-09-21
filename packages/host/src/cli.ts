@@ -4,7 +4,7 @@ import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { bridgeUrl } from "./codex/daemon-bridge.js";
-import { currentDesktopEnv, DESKTOP_ENV_VAR, installLaunchAgent, LEGACY_SHARED_APP_SERVER_LABEL, linkDesktop, uninstallLaunchAgent, uninstallUserLaunchAgent, unlinkDesktop } from "./launchd.js";
+import { currentDesktopEnv, DESKTOP_ENV_VAR, linkDesktop, unlinkDesktop } from "./launchd.js";
 import { desktopCompat } from "./codex/desktop-compat.js";
 import { codexConnector } from "./codex/target.js";
 import { codexSettings } from "./config/settings.js";
@@ -32,8 +32,6 @@ Commands:
   revoke <id>       Remove a paired phone
   threads           List recent threads from the Codex desktop app-server
   info              Show app-server connection details
-  install           Install the host LaunchAgent so serve runs at login
-  uninstall         Remove the host LaunchAgent
   link-desktop      Make the ChatGPT desktop app share the host's Codex daemon (restart ChatGPT after)
     --force           Link even if the daemon's codex lacks what the desktop app needs
   unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
@@ -127,17 +125,6 @@ async function main(argv: string[]): Promise<number> {
       if (!id) throw new Error("usage: codex-pocket revoke <id>");
       await adminRequest("DELETE", `/api/admin/devices/${encodeURIComponent(id)}`);
       console.log(`revoked ${id}`);
-      return 0;
-    }
-    case "install": {
-      const file = installLaunchAgent();
-      console.log(`installed ${file}\nlogs: ~/.codex-pocket/host.log`);
-      return 0;
-    }
-    case "uninstall": {
-      const removedHost = uninstallLaunchAgent();
-      const removedLegacy = uninstallUserLaunchAgent(LEGACY_SHARED_APP_SERVER_LABEL);
-      console.log(removedHost || removedLegacy ? "launchd agents removed" : "no launchd agents installed");
       return 0;
     }
     case "link-desktop": {

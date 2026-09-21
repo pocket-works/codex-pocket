@@ -1,86 +1,27 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { pocketHome } from "./config/paths.js";
+import { dirname, join } from "node:path";
 
-export const LAUNCHD_LABEL = "com.codex-pocket.host";
 export const DESKTOP_ENV_LABEL = "com.codex-pocket.desktop-env";
 export const DESKTOP_ENV_VAR = "CODEX_APP_SERVER_WS_URL";
-// Retired: older versions ran their own app-server under this label.
-export const LEGACY_SHARED_APP_SERVER_LABEL = "com.codex-pocket.shared-app-server";
-
-export interface PlistOptions {
-  label: string;
-  node: string;
-  script: string;
-  logFile: string;
-  home: string;
-}
+// Retired: older versions kept the host (and before that, their own
+// app-server) alive under launchd. The desktop app owns the host now, so
+// `serve` boots these out if it finds them.
+export const LEGACY_LAUNCHD_LABELS = ["com.codex-pocket.host", "com.codex-pocket.shared-app-server"];
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// launchd agents start with an empty environment, so HOME and PATH are set
-// explicitly; `codex` (used to locate the app-server) must be on that PATH.
-export function launchAgentPlist(o: PlistOptions): string {
-  const path = [join(o.home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${esc(o.label)}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${esc(o.node)}</string>
-    <string>${esc(o.script)}</string>
-    <string>serve</string>
-  </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>HOME</key>
-    <string>${esc(o.home)}</string>
-    <key>PATH</key>
-    <string>${esc(path)}</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>${esc(o.logFile)}</string>
-  <key>StandardErrorPath</key>
-  <string>${esc(o.logFile)}</string>
-</dict>
-</plist>
-`;
-}
-
-function plistPath(label = LAUNCHD_LABEL): string {
+function plistPath(label: string): string {
   return join(homedir(), "Library", "LaunchAgents", `${label}.plist`);
 }
 
-export function writeUserLaunchAgent(label: string, xml: string): string {
+function writeUserLaunchAgent(label: string, xml: string): string {
   const file = plistPath(label);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, xml, { mode: 0o600 });
-  return file;
-}
-
-export function installUserLaunchAgent(label: string, xml: string): string {
-  const file = plistPath(label);
-  if (existsSync(file)) {
-    try {
-      launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${label}`);
-    } catch {
-      // Not loaded: replace the definition below.
-    }
-  }
-  writeUserLaunchAgent(label, xml);
-  launchctl("bootstrap", `gui/${process.getuid?.() ?? 501}`, file);
   return file;
 }
 
@@ -88,12 +29,17 @@ export function uninstallUserLaunchAgent(label: string): boolean {
   const file = plistPath(label);
   if (!existsSync(file)) return false;
   try {
-    launchctl("bootout", `gui/${process.getuid?.() ?? 501}/${label}`);
+    execFileSync("launchctl", ["bootout", `gui/${process.getuid?.() ?? 501}/${label}`], { stdio: "inherit" });
   } catch {
     // Already unloaded.
   }
   unlinkSync(file);
   return true;
+}
+
+/** Removes every LaunchAgent older versions installed; returns the labels that were present. */
+export function retireLegacyLaunchAgents(): string[] {
+  return LEGACY_LAUNCHD_LABELS.filter((label) => uninstallUserLaunchAgent(label));
 }
 
 // The ChatGPT desktop app reads CODEX_APP_SERVER_WS_URL and, when set,
@@ -145,33 +91,4 @@ export function unlinkDesktop(): boolean {
   if (!existsSync(file)) return false;
   unlinkSync(file);
   return true;
-}
-
-function builtCli(): string {
-  // src/launchd.ts -> dist/launchd.js at runtime; the CLI sits next to it.
-  const here = dirname(fileURLToPath(import.meta.url));
-  const script = resolve(here, "cli.js");
-  if (!existsSync(script) || here.endsWith("/src")) {
-    throw new Error("launchd needs the built CLI: run `pnpm build` first, then `node packages/host/dist/cli.js install`");
-  }
-  return script;
-}
-
-function launchctl(...args: string[]): void {
-  execFileSync("launchctl", args, { stdio: "inherit" });
-}
-
-export function installLaunchAgent(): string {
-  const xml = launchAgentPlist({
-    label: LAUNCHD_LABEL,
-    node: process.execPath,
-    script: builtCli(),
-    logFile: join(pocketHome(), "host.log"),
-    home: homedir(),
-  });
-  return installUserLaunchAgent(LAUNCHD_LABEL, xml);
-}
-
-export function uninstallLaunchAgent(): boolean {
-  return uninstallUserLaunchAgent(LAUNCHD_LABEL);
 }
