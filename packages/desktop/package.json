@@ -1,0 +1,64 @@
+{
+  "name": "@codex-pocket/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS menu bar app that owns the codex-pocket host: shows its status, pairs phones, and stops it when you quit.",
+  "license": "MIT",
+  "type": "module",
+  "main": "build/main.js",
+  "scripts": {
+    "dev": "node scripts/bundle.ts && electron .",
+    "bundle": "node scripts/bundle.ts",
+    "build": "node scripts/bundle.ts",
+    "app": "node scripts/bundle.ts && electron-builder --mac --dir",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@codex-pocket/host": "workspace:*",
+    "@types/node": "^22.18.0",
+    "@types/qrcode": "^1.5.6",
+    "electron": "^38.1.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "qrcode": "^1.5.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "com.codex-pocket.desktop",
+    "productName": "Codex Pocket",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "build/main.js",
+      "package.json",
+      "!node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "build/host",
+        "to": "host",
+        "filter": [
+          "cli.js"
+        ]
+      },
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
+    ],
+    "npmRebuild": false,
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    }
+  }
+}
