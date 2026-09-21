@@ -79,6 +79,15 @@ export function addAlert(state: ThreadViewState, kind: Alert["kind"], message: s
   return { ...state, alerts: [...state.alerts, { id: nextAlertId++, kind, message }] };
 }
 
+// config.toml's global `service_tier` on a model without that tier makes
+// Codex say so on every thread/resume ("Configured service tier `priority`
+// is not advertised as supported for model `x` and will be omitted from
+// requests"). Nothing to act on: the next turn already asks for the
+// standard tier (see Session.sendMessage), so the line would only nag.
+function isTierNag(message: string): boolean {
+  return /^Configured service tier .* will be omitted from requests/.test(message);
+}
+
 export function dismissAlert(state: ThreadViewState, id: number): ThreadViewState {
   return { ...state, alerts: state.alerts.filter((a) => a.id !== id) };
 }
@@ -151,7 +160,7 @@ export function applyNotification(state: ThreadViewState, n: JsonRpcNotification
     }
     case "warning": {
       const { message } = p as unknown as v2.WarningNotification;
-      return addAlert(state, "warning", message);
+      return isTierNag(message) ? state : addAlert(state, "warning", message);
     }
     case "model/rerouted": {
       const { fromModel, toModel, reason } = p as unknown as v2.ModelReroutedNotification;
