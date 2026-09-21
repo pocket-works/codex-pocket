@@ -6,6 +6,7 @@ import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
 import { handleCodeCopy, renderMarkdown } from "./markdown.js";
+import { friendlyError } from "../state/errors.js";
 import { navigate } from "./route.js";
 import { useUploadedImage } from "./uploaded-image.js";
 import type { v2 } from "@codex-pocket/protocol";
@@ -327,6 +328,8 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
     try {
       const newId = await session.forkThread(threadId);
       navigate({ name: "thread", id: newId });
+    } catch (err) {
+      session.notify(friendlyError(err));
     } finally {
       setForking(false);
     }
