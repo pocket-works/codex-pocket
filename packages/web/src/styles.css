@@ -1863,6 +1863,22 @@ pre.diff {
   color: var(--fg);
 }
 
+/* Screenshots in the transcript and in the file viewer: as wide as the
+   column, never taller than the screen. */
+.tool-image {
+  display: block;
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+.file-image {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
 /* Bottom bar: search pill + Chat button */
 .list-bar {
   position: absolute;

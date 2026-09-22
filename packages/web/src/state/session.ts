@@ -18,6 +18,7 @@ import {
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
 import { summarizeProjects, type ProjectSummary } from "./projects.js";
+import { imageMimeType } from "../ui/uploaded-image.js";
 import { buildUserInput, type Draft } from "./compose.js";
 import { getLastModel, setLastModel } from "./model-prefs.js";
 import {
@@ -1193,6 +1194,17 @@ export class Session {
     const probe = bytes.subarray(0, 4096);
     if (probe.includes(0)) return null;
     return new TextDecoder().decode(bytes);
+  }
+
+  /**
+   * An image file as a data URL, so screenshots Codex leaves on the Mac can
+   * be looked at from the phone. `null` when the path is not an image.
+   */
+  async readImageFile(path: string): Promise<string | null> {
+    const type = imageMimeType(path);
+    if (!type) return null;
+    const res = await this.rpc.request<v2.FsReadFileResponse>("fs/readFile", { path });
+    return `data:${type};base64,${res.dataBase64}`;
   }
 
   /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */
