@@ -230,6 +230,25 @@ export function summarizeTools(items: ThreadItem[]): string {
   return parts.join(" · ") || `Called ${plural(items.length, "a tool", "tools")}`;
 }
 
+/**
+ * MCP hands images back as content items (`{type:"image", data, mimeType}`),
+ * so a screenshot tool's result is a wall of base64 unless it is pulled out
+ * and shown as a picture. `rest` is what is left to print as JSON.
+ */
+export function splitMcpContent(result: v2.McpToolCallResult | null): { images: string[]; rest: v2.McpToolCallResult | null } {
+  if (!result) return { images: [], rest: null };
+  const images: string[] = [];
+  const content = result.content.filter((c) => {
+    const o = c as { type?: unknown; data?: unknown; mimeType?: unknown } | null;
+    if (!o || typeof o !== "object" || o.type !== "image" || typeof o.data !== "string") return true;
+    images.push(`data:${typeof o.mimeType === "string" ? o.mimeType : "image/png"};base64,${o.data}`);
+    return false;
+  });
+  if (images.length === 0) return { images, rest: result };
+  const empty = content.length === 0 && result.structuredContent === null;
+  return { images, rest: empty ? null : { ...result, content } };
+}
+
 export function isToolItem(item: ThreadItem): boolean {
   return item.type === "commandExecution" || item.type === "mcpToolCall" || item.type === "dynamicToolCall" || item.type === "webSearch" || item.type === "imageView";
 }

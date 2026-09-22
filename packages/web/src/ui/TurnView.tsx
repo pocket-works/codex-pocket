@@ -1,14 +1,14 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
-import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, stripDirectives, summarizeTools, tailLines, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
+import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, splitMcpContent, stripDirectives, summarizeTools, tailLines, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
 import { ChevronIcon } from "./icons.js";
 import { handleCodeCopy, renderMarkdown } from "./markdown.js";
 import { friendlyError } from "../state/errors.js";
 import { navigate } from "./route.js";
-import { useUploadedImage } from "./uploaded-image.js";
+import { useLocalImage, useUploadedImage } from "./uploaded-image.js";
 import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
@@ -44,7 +44,7 @@ function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { gr
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
-          {expanded && <WorkSection items={group.work} cwd={cwd} progress={progress} live={group.inProgress} />}
+          {expanded && <WorkSection items={group.work} session={session} cwd={cwd} progress={progress} live={group.inProgress} />}
           {group.final && <hr className="turn-sep" />}
         </>
       )}
@@ -120,7 +120,7 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
 // `live` is whether the turn is still running: a command the turn was
 // interrupted in the middle of never gets a completion, so its spinner
 // would otherwise keep going forever.
-function WorkSection({ items, cwd, progress, live }: { items: ThreadItem[]; cwd: string; progress: Record<string, string>; live: boolean }) {
+function WorkSection({ items, session, cwd, progress, live }: { items: ThreadItem[]; session: Session; cwd: string; progress: Record<string, string>; live: boolean }) {
   const rows: React.ReactNode[] = [];
   let tools: ThreadItem[] = [];
   let thoughts: Extract<ThreadItem, { type: "reasoning" }>[] = [];
@@ -133,7 +133,7 @@ function WorkSection({ items, cwd, progress, live }: { items: ThreadItem[]; cwd:
     if (tools.length > 0) {
       const batch = tools;
       tools = [];
-      rows.push(<ToolBatch key={batch[0].id} items={batch} cwd={cwd} progress={progress} live={live} />);
+      rows.push(<ToolBatch key={batch[0].id} items={batch} session={session} cwd={cwd} progress={progress} live={live} />);
     }
   };
   for (const item of items) {
@@ -148,6 +148,9 @@ function WorkSection({ items, cwd, progress, live }: { items: ThreadItem[]; cwd:
     flush();
     if (item.type === "agentMessage" || item.type === "plan") {
       rows.push(<Markdown key={item.id} className="work-note" text={item.text} />);
+    } else if (item.type === "imageGeneration" && item.savedPath) {
+      // Codex saves what it generated; the picture says more than its metadata.
+      rows.push(<LocalImage key={item.id} session={session} path={item.savedPath} />);
     } else if (item.type === "contextCompaction") rows.push(<div key={item.id} className="work-muted">Context compacted</div>);
   }
   flush();
@@ -156,9 +159,9 @@ function WorkSection({ items, cwd, progress, live }: { items: ThreadItem[]; cwd:
 
 // Collapsed by default; while a call is still running the heading names
 // it (the official app's "Editing files" style) instead of the summary.
-function ToolBatch({ items, cwd, progress, live }: { items: ThreadItem[]; cwd: string; progress: Record<string, string>; live: boolean }) {
+function ToolBatch({ items, session, cwd, progress, live }: { items: ThreadItem[]; session: Session; cwd: string; progress: Record<string, string>; live: boolean }) {
   const [open, setOpen] = useState(false);
-  if (items.length === 1) return <ToolRow item={items[0]} cwd={cwd} progress={progress[items[0].id]} live={live} />;
+  if (items.length === 1) return <ToolRow item={items[0]} session={session} cwd={cwd} progress={progress[items[0].id]} live={live} />;
   const running = live ? items.find((item) => "status" in item && (item as { status: string }).status === "inProgress") : undefined;
   const failed = items.some(toolFailed);
   return (
@@ -171,12 +174,12 @@ function ToolBatch({ items, cwd, progress, live }: { items: ThreadItem[]; cwd: s
           <ChevronIcon />
         </span>
       </button>
-      {open && items.map((item) => <ToolRow key={item.id} item={item} cwd={cwd} progress={progress[item.id]} live={live} />)}
+      {open && items.map((item) => <ToolRow key={item.id} item={item} session={session} cwd={cwd} progress={progress[item.id]} live={live} />)}
     </div>
   );
 }
 
-function ToolRow({ item, cwd, progress, live }: { item: ThreadItem; cwd: string; progress?: string; live: boolean }) {
+function ToolRow({ item, session, cwd, progress, live }: { item: ThreadItem; session: Session; cwd: string; progress?: string; live: boolean }) {
   const [open, setOpen] = useState(false);
   const status = "status" in item ? (item as { status: string }).status : null;
   const running = live && status === "inProgress";
@@ -194,12 +197,12 @@ function ToolRow({ item, cwd, progress, live }: { item: ThreadItem; cwd: string;
           <ChevronIcon />
         </span>
       </button>
-      {open && <ToolDetail item={item} cwd={cwd} />}
+      {open && <ToolDetail item={item} session={session} cwd={cwd} />}
     </div>
   );
 }
 
-function ToolDetail({ item, cwd }: { item: ThreadItem; cwd: string }) {
+function ToolDetail({ item, session, cwd }: { item: ThreadItem; session: Session; cwd: string }) {
   switch (item.type) {
     case "commandExecution":
       return (
@@ -217,28 +220,53 @@ function ToolDetail({ item, cwd }: { item: ThreadItem; cwd: string }) {
           ))}
         </div>
       );
-    case "mcpToolCall":
+    case "mcpToolCall": {
+      const { images, rest } = splitMcpContent(item.result);
       return (
         <div className="tool-detail">
           <pre className="mono">{JSON.stringify(item.arguments, null, 2)}</pre>
-          {item.result && <pre className="mono">{JSON.stringify(item.result, null, 2)}</pre>}
+          {images.map((src, i) => (
+            <img key={i} className="tool-image" src={src} alt="" />
+          ))}
+          {rest && <pre className="mono">{JSON.stringify(rest, null, 2)}</pre>}
           {item.error && <p className="error small">{JSON.stringify(item.error)}</p>}
         </div>
       );
+    }
     case "dynamicToolCall":
       return (
         <div className="tool-detail">
           <pre className="mono">{JSON.stringify(item.arguments, null, 2)}</pre>
           {item.contentItems?.map((c, i) =>
-            c.type === "inputText" ? <pre key={i} className="mono">{c.text}</pre> : <pre key={i} className="mono">{JSON.stringify(c, null, 2)}</pre>,
+            c.type === "inputText" ? (
+              <pre key={i} className="mono">{c.text}</pre>
+            ) : c.type === "inputImage" ? (
+              <img key={i} className="tool-image" src={c.imageUrl} alt="" />
+            ) : (
+              <pre key={i} className="mono">{JSON.stringify(c, null, 2)}</pre>
+            ),
           )}
         </div>
       );
     case "webSearch":
       return <div className="tool-detail">{item.results ? <pre className="mono">{JSON.stringify(item.results, null, 2)}</pre> : <p className="muted small">No results captured.</p>}</div>;
+    case "imageView":
+      return (
+        <div className="tool-detail">
+          <LocalImage session={session} path={item.path} />
+        </div>
+      );
     default:
       return null;
   }
+}
+
+// A screenshot Codex took or looked at: it is a file on the Mac, so it is
+// read back through Codex rather than served by the host.
+function LocalImage({ session, path }: { session: Session; path: string }) {
+  const url = useLocalImage(session, path);
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  return url ? <img className="tool-image" src={url} alt={name} /> : <p className="muted small">{name}</p>;
 }
 
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.

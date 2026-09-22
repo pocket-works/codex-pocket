@@ -7,6 +7,7 @@ import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./i
 import { friendlyError } from "../state/errors.js";
 import { useSheetDrag } from "./gestures.js";
 import { useDialog } from "./dialog.js";
+import { imageMimeType } from "./uploaded-image.js";
 
 // Scratch chats and plain folders are not repositories; that is a fact
 // about the folder, not a failure to report in red.
@@ -29,13 +30,19 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
   const [modeMenu, setModeMenu] = useState(false);
   const [changes, setChanges] = useState<{ files: v2.FileUpdateChange[]; branch: string; upstream: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [file, setFile] = useState<{ path: string; text: string | null } | null>(null);
+  const [file, setFile] = useState<{ path: string; text: string | null; image?: string | null } | null>(null);
   const drag = useSheetDrag(onClose);
   const dialog = useDialog(tab === "modified" ? "Changes" : "Files", onClose);
 
   async function openFile(path: string) {
     setError(null);
     try {
+      // Screenshots and other pictures are worth looking at, not worth
+      // reporting as "Binary file".
+      if (imageMimeType(path)) {
+        setFile({ path, text: null, image: await session.readImageFile(path) });
+        return;
+      }
       const text = await session.readTextFile(path);
       setFile({ path, text: text !== null && text.length > MAX_VIEW_BYTES ? `${text.slice(0, MAX_VIEW_BYTES)}\n…` : text });
     } catch (err) {
@@ -333,7 +340,7 @@ function patchNode(nodes: Node[], path: string, children: Node[]): Node[] {
 // Official-style file view: back / name / close on top, then numbered,
 // wrapped lines. Markdown headings get a touch of colour; everything else
 // stays plain (no highlighter on the phone).
-function FileViewer({ file, root, onBack, onClose }: { file: { path: string; text: string | null }; root: string; onBack: () => void; onClose: () => void }) {
+function FileViewer({ file, root, onBack, onClose }: { file: { path: string; text: string | null; image?: string | null }; root: string; onBack: () => void; onClose: () => void }) {
   const name = file.path.split("/").pop() ?? file.path;
   const rel = file.path.startsWith(root + "/") ? file.path.slice(root.length + 1) : file.path;
   const isMarkdown = /\.(md|markdown)$/i.test(name);
@@ -354,7 +361,9 @@ function FileViewer({ file, root, onBack, onClose }: { file: { path: string; tex
         </span>
       </header>
       <div className="workspace-body viewer-body">
-        {file.text === null ? (
+        {file.image ? (
+          <img className="file-image" src={file.image} alt={name} />
+        ) : file.text === null ? (
           <p className="muted center">Binary file.</p>
         ) : (
           <pre className="code-view">
