@@ -162,7 +162,7 @@ export function ThreadView({ session }: { session: Session }) {
         draftKey={open.view.threadId}
         disabled={open.state !== "ready"}
         busy={busy}
-        onStop={() => void session.interrupt()}
+        onStop={() => void session.interrupt().catch((err) => session.notify(friendlyError(err)))}
         onResume={open.queue.length > 0 ? () => void session.resumeQueue() : undefined}
       />
     </main>

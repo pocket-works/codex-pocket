@@ -580,7 +580,7 @@ describe("client state for push", () => {
 });
 
 describe("Session.openThread", () => {
-  const resumed = { thread: { id: "t2" }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
+  const resumed = { thread: { id: "t2", status: { type: "idle" } }, model: "m", cwd: "/proj", approvalPolicy: "on-request", approvalsReviewer: "user", sandbox: { type: "workspaceWrite" }, reasoningEffort: null, serviceTier: null };
 
   it("falls back to thread/read while the first turn is not persisted yet", async () => {
     const { rpc } = stubRpc((method) => {
@@ -613,6 +613,33 @@ describe("Session.openThread", () => {
     const session = new Session(rpc);
     await session.openThread("t2");
     expect(session.store.get().open).toMatchObject({ state: "ready", cwd: "/proj" });
+  });
+
+  // Reloading the page or waking the phone mid-turn re-opens the thread, and
+  // `turn/started` is long gone by then: without this the composer offers
+  // Send instead of Stop while a command is still running.
+  it("stays busy on the turn that is still running", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return { ...resumed, thread: { id: "t2", status: { type: "active", activeFlags: [] } } };
+      if (method === "thread/turns/list") {
+        return { data: [{ id: "turn-2", status: "inProgress", startedAt: 200 }, { id: "turn-1", status: "completed", startedAt: 100 }], nextCursor: null };
+      }
+      return { data: [], nextCursor: null };
+    });
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    expect(session.store.get().open?.view.activeTurnId).toBe("turn-2");
+  });
+
+  it("opens idle when the thread is not running a turn", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return resumed;
+      if (method === "thread/turns/list") return { data: [{ id: "turn-1", status: "inProgress", startedAt: 100 }], nextCursor: null };
+      return { data: [], nextCursor: null };
+    });
+    const session = new Session(rpc);
+    await session.openThread("t2");
+    expect(session.store.get().open?.view.activeTurnId).toBeNull();
   });
 
   it("still surfaces other history errors", async () => {
