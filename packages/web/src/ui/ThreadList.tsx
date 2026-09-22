@@ -147,7 +147,7 @@ export function ThreadList({ session }: { session: Session }) {
           <>
             {chatsExtra.length > 0 && (
               <>
-                <SectionHeading label="Chats" count={chatsExtra.length} collapsed={collapsed.chats} onToggle={() => toggleSection("chats")} />
+                <SectionHeading label="Chats" collapsed={collapsed.chats} onToggle={() => toggleSection("chats")} />
                 {!collapsed.chats && (
                   <ul className="thread-list">
                     {chatsExtra.map((t) => (
@@ -172,7 +172,6 @@ export function ThreadList({ session }: { session: Session }) {
                           <FolderIcon />
                         </span>
                         <span className="project-name">{g.project.name}</span>
-                        <span className="muted small">{g.threads.length}</span>
                       </button>
                       <button
                         className="icon-btn"
@@ -237,12 +236,10 @@ function ListSkeleton() {
 // sidebar.
 function SectionHeading({
   label,
-  count,
   collapsed,
   onToggle,
 }: {
   label: string;
-  count: number;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -253,7 +250,6 @@ function SectionHeading({
         <span className={`section-caret ${collapsed ? "collapsed" : ""}`} aria-hidden>
           <ChevronIcon />
         </span>
-        <span className="muted small">{count}</span>
       </button>
     </h2>
   );
