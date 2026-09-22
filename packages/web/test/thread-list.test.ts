@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { v2 } from "@codex-pocket/protocol";
-import { applyThreadListNotification, mergeThreadList, summarize } from "../src/state/thread-list.js";
+import { applyThreadListNotification, mergeThreadList, summarize, withFirstMessage } from "../src/state/thread-list.js";
 
 function thread(id: string, updatedAt: number, extra: Partial<v2.Thread> = {}): v2.Thread {
   return {
@@ -129,5 +129,34 @@ describe("applyThreadListNotification", () => {
   it("returns the same array when nothing changed", () => {
     expect(applyThreadListNotification(base, { method: "thread/name/updated", params: { threadId: "zzz", threadName: "x" } }, 0)).toBe(base);
     expect(applyThreadListNotification(base, { method: "turn/started", params: { threadId: "a" } }, 0)).toBe(base);
+  });
+});
+
+describe("a nameless thread's first message", () => {
+  const fresh = () => [summarize(thread("new", 1, { preview: "", name: null }))];
+  const text = (t: string) => [{ type: "text" as const, text: t, text_elements: [] }];
+
+  it("titles the thread instead of leaving it untitled", () => {
+    expect(fresh()[0].title).toBe("(untitled)");
+    const list = withFirstMessage(fresh(), "new", text("  extract the\n audio  "));
+    expect(list[0]).toMatchObject({ title: "extract the audio", preview: "extract the audio" });
+  });
+
+  it("arrives through the item echo too, and only the first message counts", () => {
+    const echo = (t: string) => ({
+      jsonrpc: "2.0" as const,
+      method: "item/started",
+      params: { threadId: "new", turnId: "turn-1", item: { type: "userMessage", id: "u1", content: text(t) } },
+    });
+    let list = applyThreadListNotification(fresh(), echo("first"), 0);
+    expect(list[0].title).toBe("first");
+    list = applyThreadListNotification(list, echo("second"), 0);
+    expect(list[0].title).toBe("first");
+  });
+
+  it("leaves a named thread's title alone, and ignores a message with no text", () => {
+    const named = [summarize(thread("n", 1, { preview: "", name: "Named by Codex" }))];
+    expect(withFirstMessage(named, "n", text("hello"))[0].title).toBe("Named by Codex");
+    expect(withFirstMessage(fresh(), "new", [])[0].title).toBe("(untitled)");
   });
 });

@@ -103,6 +103,19 @@ function replace(list: ThreadSummary[], id: string, fn: (t: ThreadSummary) => Th
   return copy;
 }
 
+/**
+ * Titles a nameless thread after its first message, the way the official
+ * sidebar does. A thread started from here arrives with an empty preview and
+ * would only get one from the next `thread/list`, so it read "(untitled)"
+ * for as long as you were looking at it — and stayed that way when the
+ * message was too short to be worth naming.
+ */
+export function withFirstMessage(list: ThreadSummary[], threadId: string, content: v2.UserInput[]): ThreadSummary[] {
+  const text = clean(content.map((c) => (c.type === "text" ? c.text : "")).join(""));
+  if (!text) return list;
+  return replace(list, threadId, (t) => (t.preview !== "" ? t : { ...t, preview: text, title: t.named ? t.title : title(null, text) }));
+}
+
 /** Clears the "Ready" marker once the user is actually looking at the thread. */
 export function markRead(list: ThreadSummary[], id: string): ThreadSummary[] {
   return replace(list, id, (t) => (t.unread ? { ...t, unread: false } : t));
@@ -129,6 +142,13 @@ export function applyThreadListNotification(list: ThreadSummary[], n: JsonRpcNot
       const { threadId, turn } = n.params as v2.TurnCompletedNotification;
       if (turn.status !== "completed") return list;
       return replace(list, threadId, (t) => (t.unread ? t : { ...t, unread: true }));
+    }
+    case "item/started":
+    case "item/completed": {
+      // The first message of a thread the desktop started reaches us as an
+      // echo rather than through `sendMessage`.
+      const { threadId, item } = n.params as v2.ItemStartedNotification;
+      return item.type === "userMessage" ? withFirstMessage(list, threadId, item.content) : list;
     }
     case "thread/name/updated": {
       const { threadId, threadName } = n.params as v2.ThreadNameUpdatedNotification;
