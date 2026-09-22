@@ -331,7 +331,13 @@ export function Composer({
       <div
         className={`composer-box ${expanded ? "" : "collapsed"}`}
         ref={boxRef}
-        onPointerDown={() => setFocused(true)}
+        // Tapping the collapsed pill opens the tool row, but tapping the
+        // buttons sitting on it (attach, dictate) must not: the row replaces
+        // them mid-gesture, so the button unmounts under the finger and its
+        // click never lands — the first press only ever expanded the box.
+        onPointerDown={(e) => {
+          if (!(e.target instanceof Element) || !e.target.closest("button")) setFocused(true);
+        }}
       >
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
         {!expanded && (
