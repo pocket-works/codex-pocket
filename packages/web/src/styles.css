@@ -1788,10 +1788,6 @@ pre.diff {
   text-align: left;
 }
 
-.section-toggle .small {
-  font-weight: 500;
-}
-
 /* Chevron after the label, as in the official "Chats ›": right when folded,
    down when open. */
 .section-caret {
