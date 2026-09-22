@@ -14,6 +14,7 @@ import {
   prependHistory,
   removeApproval,
   removePending,
+  runningTurnId,
   type ThreadViewState,
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
@@ -504,8 +505,10 @@ export class Session {
         // History replaces what we had: after a reconnect it is the truth.
         const fresh = mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns);
         // Approvals already collected for this thread stay; ones that came
-        // in while another thread was on screen are added below.
-        const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals };
+        // in while another thread was on screen are added below. A turn that
+        // is still running keeps the thread busy: the reload or reconnect
+        // that brought us here missed its `turn/started`.
+        const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals, activeTurnId: runningTurnId(resumed.thread.status, history.turns) };
         return {
           ...s,
           threads: markRead(s.threads, threadId),

@@ -8,6 +8,7 @@ import {
   prependHistory,
   removeApproval,
   removePending,
+  runningTurnId,
   type ThreadItem,
 } from "../src/state/thread-reducer.js";
 
@@ -207,5 +208,20 @@ describe("pending messages", () => {
     const s = addPending(initialThreadState(T), hi);
     expect(removePending(s, "p1").pending).toEqual([]);
     expect(removePending(s, "nope")).toBe(s);
+  });
+});
+
+describe("runningTurnId", () => {
+  const turn = (id: string, status: string, startedAt: number) => ({ id, status, startedAt }) as unknown as Parameters<typeof runningTurnId>[1][number];
+
+  it("picks the newest in-progress turn of an active thread", () => {
+    const turns = [turn("t2", "inProgress", 200), turn("t1", "inProgress", 100)];
+    expect(runningTurnId({ type: "active", activeFlags: [] }, turns)).toBe("t2");
+  });
+
+  it("is null when the thread is not active, or has no turn to stop", () => {
+    expect(runningTurnId({ type: "idle" }, [turn("t1", "inProgress", 100)])).toBeNull();
+    expect(runningTurnId({ type: "active", activeFlags: [] }, [turn("t1", "completed", 100)])).toBeNull();
+    expect(runningTurnId(undefined, [])).toBeNull();
   });
 });

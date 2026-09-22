@@ -284,6 +284,20 @@ export function prependHistory(state: ThreadViewState, entries: v2.ThreadItemEnt
   return { ...state, items: [...older, ...state.items], itemTurns };
 }
 
+/**
+ * The turn a thread is running when we open it, from its own status and the
+ * turns we just listed. `turn/started` only reaches clients that were
+ * subscribed when it fired, so after a reload or a reconnect nothing else
+ * tells us a turn is still going — and Stop, steering and the queue all hang
+ * off `activeTurnId`, which would otherwise read as idle mid-turn.
+ */
+export function runningTurnId(status: v2.ThreadStatus | undefined, turns: v2.Turn[]): string | null {
+  if (status?.type !== "active") return null;
+  let live: v2.Turn | null = null;
+  for (const t of turns) if (t.status === "inProgress" && (live === null || (t.startedAt ?? 0) >= (live.startedAt ?? 0))) live = t;
+  return live?.id ?? null;
+}
+
 /** Record timing/status for turns from `thread/turns/list`. */
 export function mergeTurns(state: ThreadViewState, turns: v2.Turn[]): ThreadViewState {
   if (turns.length === 0) return state;
