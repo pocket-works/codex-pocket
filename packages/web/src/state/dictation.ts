@@ -24,6 +24,8 @@ export interface Dictation {
 }
 
 export interface DictationHandlers {
+  /** Fires once the microphone is open and audio is on its way to the host. */
+  onStart: () => void;
   /** Whole transcript so far, revised as the backend refines it. */
   onText: (text: string) => void;
   /** Fires once, when the session has fully stopped. */
@@ -98,6 +100,7 @@ export function startDictation(rpc: RpcClient, handlers: DictationHandlers): Dic
     }
     sessionId = id;
     for (const chunk of pendingAudio.splice(0)) rpc.notify(AUDIO, { sessionId, audio: chunk });
+    handlers.onStart();
   };
 
   run().catch((err: unknown) => finish(describeError(err)));
