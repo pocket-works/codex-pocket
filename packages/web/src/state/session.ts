@@ -17,7 +17,7 @@ import {
   runningTurnId,
   type ThreadViewState,
 } from "./thread-reducer.js";
-import { applyThreadListNotification, markRead, mergeThreadList, type ThreadSummary } from "./thread-list.js";
+import { applyThreadListNotification, markRead, mergeThreadList, withFirstMessage, type ThreadSummary } from "./thread-list.js";
 import { summarizeProjects, type ProjectSummary } from "./projects.js";
 import { imageMimeType } from "../ui/uploaded-image.js";
 import { buildUserInput, type Draft } from "./compose.js";
@@ -707,6 +707,12 @@ export class Session {
     // (which retires the pending copy) only after the round trip.
     const id = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     this.updateView(threadId, (v) => addPending(v, { id, input }));
+    // A brand-new thread has no name and no preview yet; show its first
+    // message as the title straight away rather than "(untitled)".
+    this.store.set((s) => {
+      const threads = withFirstMessage(s.threads, threadId, input);
+      return threads === s.threads ? s : { ...s, threads };
+    });
     const retire = () => this.updateView(threadId, (v) => removePending(v, id));
     try {
       const echoed = await this.sendInput(open, input);
