@@ -255,15 +255,16 @@ function fmtK(n: number): string {
 // places, so the session must outlive either one). While listening, the
 // running transcript is appended to whatever was in the box when it started.
 export interface DictationControl {
-  listening: boolean;
+  /** "starting" covers opening the microphone and the session handshake. */
+  phase: "idle" | "starting" | "listening";
   /** Start listening, or stop if already listening. */
   toggle(text: string): void;
   /** Stop and drop any transcript still in flight (the message was sent). */
   discard(): void;
 }
 
-export function useDictation({ session, onText, onError }: { session: Session; onText: (text: string) => void; onError: (msg: string) => void }): DictationControl {
-  const [listening, setListening] = useState(false);
+export function useDictation({ session, onText, onError }: { session: Session; onText: (text: string) => void; onError: (msg: string | null) => void }): DictationControl {
+  const [phase, setPhase] = useState<DictationControl["phase"]>("idle");
   const active = useRef<Dictation | null>(null);
   const base = useRef("");
   const discarded = useRef(false);
@@ -277,18 +278,21 @@ export function useDictation({ session, onText, onError }: { session: Session; o
     }
     base.current = text ? (/\s$/.test(text) ? text : `${text} `) : "";
     discarded.current = false;
+    // Whatever went wrong last time is history the moment you try again.
+    onError(null);
     try {
       active.current = startDictation(session.rpc, {
+        onStart: () => setPhase("listening"),
         onText: (t) => {
           if (!discarded.current) onText(base.current + t);
         },
         onEnd: (error) => {
           active.current = null;
-          setListening(false);
+          setPhase("idle");
           if (error) onError(`Dictation stopped: ${error}`);
         },
       });
-      setListening(true);
+      setPhase("starting");
     } catch (err) {
       onError(friendlyError(err));
     }
@@ -302,12 +306,12 @@ export function useDictation({ session, onText, onError }: { session: Session; o
     active.current.stop();
   }
 
-  return { listening, toggle, discard };
+  return { phase, toggle, discard };
 }
 
 export function DictationButton({ dictation, disabled, text }: { dictation: DictationControl; disabled: boolean; text: string }) {
   if (!dictationSupported()) return null;
-  const { listening } = dictation;
+  const listening = dictation.phase !== "idle";
   return (
     <button className={`icon-btn mic-btn ${listening ? "active" : ""}`} aria-label={listening ? "Stop dictation" : "Dictate"} aria-pressed={listening} disabled={disabled} onClick={() => dictation.toggle(text)}>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

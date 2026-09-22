@@ -94,7 +94,7 @@ export function Composer({
   const sendLabel = busy ? (followUp === "queue" ? "Queue" : "Steer") : "Send";
   // One-line pill until the box is tapped (official app); the tool row
   // appears with focus and stays while there is something to send or stop.
-  const expanded = focused || hasDraft || busy || showResume || uploading > 0;
+  const expanded = focused || hasDraft || busy || showResume || uploading > 0 || dictation.phase !== "idle";
 
   function onBlur() {
     // Taps on the tool row blur the textarea first; keep the row until focus
@@ -350,7 +350,19 @@ export function Composer({
           value={draft.text}
           rows={1}
           autoComplete="off"
-          placeholder={disabled ? "Thread not ready" : busy ? (followUp === "queue" ? "Queue for the next turn…" : "Add to the running turn…") : (placeholder ?? `Work on ${project}`)}
+          placeholder={
+            disabled
+              ? "Thread not ready"
+              : dictation.phase !== "idle"
+                ? dictation.phase === "starting"
+                  ? "Starting the microphone…"
+                  : "Listening…"
+                : busy
+                  ? followUp === "queue"
+                    ? "Queue for the next turn…"
+                    : "Add to the running turn…"
+                  : (placeholder ?? `Work on ${project}`)
+          }
           disabled={disabled}
           onFocus={() => setFocused(true)}
           onBlur={onBlur}
