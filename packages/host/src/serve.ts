@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
+import { watchAppToolsPipe } from "./codex/app-tools-pipe.js";
 import { bridgeUrl, startDaemonBridge } from "./codex/daemon-bridge.js";
 import { defaultSocketPath } from "./codex/locate.js";
 import { codexConnector } from "./codex/target.js";
@@ -93,6 +94,9 @@ export async function serve(opts: ServeOptions): Promise<void> {
   // onto the daemon's unix socket.
   const bridge = await startDaemonBridge({ port: codex.port, socketPath: defaultSocketPath(), log });
   log(`desktop bridge ${bridgeUrl(bridge.port)} -> ${defaultSocketPath()}`);
+  // A linked desktop app spawns no app-server to hand its tools pipe to;
+  // keep the daemon's fixed path pointed at it instead.
+  const appTools = watchAppToolsPipe({ log });
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
   const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
   log(`listening on ${publicUrl}${note}`);
@@ -115,6 +119,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const shutdown = () => {
     log("shutting down");
     proxy.stop();
+    appTools.stop();
     Promise.all([server.close(), bridge.close()]).finally(() => process.exit(0));
   };
   process.on("SIGINT", shutdown);

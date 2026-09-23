@@ -6,6 +6,8 @@ import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/
 import { bridgeUrl } from "./codex/daemon-bridge.js";
 import { currentDesktopEnv, DESKTOP_ENV_VAR, linkDesktop, unlinkDesktop } from "./launchd.js";
 import { desktopCompat } from "./codex/desktop-compat.js";
+import { appToolsLinkPath, createPipeLocator } from "./codex/app-tools-pipe.js";
+import { daemonEnvMissing, restartDaemon } from "./codex/locate.js";
 import { codexConnector } from "./codex/target.js";
 import { codexSettings } from "./config/settings.js";
 import { renderQrTerminal } from "./pairing/qr.js";
@@ -139,8 +141,15 @@ async function main(argv: string[]): Promise<number> {
       }
       const url = bridgeUrl(codexSettings().port);
       const file = linkDesktop(url);
-      console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})
-Quit and reopen the ChatGPT app for it to take effect.`);
+      console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})`);
+      // The desktop app's tools reach the daemon only through a variable the
+      // daemon gets at start, so a daemon started before this host needs one
+      // restart.
+      if (daemonEnvMissing()?.length) {
+        console.log("Restarting the Codex daemon so it can reach the desktop app's tools (running turns are interrupted)...");
+        await restartDaemon();
+      }
+      console.log("Quit and reopen the ChatGPT app for it to take effect.");
       return 0;
     }
     case "unlink-desktop":
@@ -157,6 +166,7 @@ Quit and reopen the ChatGPT app for it to take effect.`);
       const compat = await probeDesktopCompat();
       if (compat.ok) console.log(current ? "daemon: ready for the desktop app" : "daemon: ready for the desktop app (run `codex-pocket link-desktop`)");
       else console.log(`daemon: not ready, ${compat.reason}`);
+      console.log(appToolsStatus());
       return 0;
     }
     case "info":
@@ -185,6 +195,16 @@ function formatCode(code: string): string {
 
 function fmt(ms: number): string {
   return new Date(ms).toLocaleString("sv-SE").slice(0, 16);
+}
+
+// Whether a linked desktop app's tools (create_thread, automations, ...) can
+// work: the daemon knows the fixed pipe path, and it leads to a running app.
+function appToolsStatus(): string {
+  const missing = daemonEnvMissing();
+  if (missing == null) return "app tools: daemon not running";
+  if (missing.length) return "app tools: the daemon predates this host; run `codex-pocket link-desktop` to restart it";
+  const pipe = createPipeLocator()();
+  return pipe ? `app tools: ${appToolsLinkPath()} -> ${pipe}` : "app tools: no running ChatGPT app has opened its tools pipe";
 }
 
 // Asks the daemon what link-desktop needs to know: signed in, and account/read
