@@ -128,7 +128,7 @@ function WorkSection({ items, session, cwd, progress, live }: { items: ThreadIte
     if (thoughts.length > 0) {
       const batch = thoughts;
       thoughts = [];
-      rows.push(<Reasoning key={batch[0].id} items={batch} />);
+      rows.push(<Reasoning key={batch[0].id} items={batch} session={session} />);
     }
     if (tools.length > 0) {
       const batch = tools;
@@ -147,7 +147,7 @@ function WorkSection({ items, session, cwd, progress, live }: { items: ThreadIte
     }
     flush();
     if (item.type === "agentMessage" || item.type === "plan") {
-      rows.push(<Markdown key={item.id} className="work-note" text={item.text} />);
+      rows.push(<Markdown key={item.id} className="work-note" text={item.text} session={session} />);
     } else if (item.type === "imageGeneration" && item.savedPath) {
       // Codex saves what it generated; the picture says more than its metadata.
       rows.push(<LocalImage key={item.id} session={session} path={item.savedPath} />);
@@ -270,9 +270,34 @@ function LocalImage({ session, path }: { session: Session; path: string }) {
 }
 
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.
-function Markdown({ text, className, strip }: { text: string; className: string; strip?: boolean }) {
+function Markdown({ text, className, strip, session }: { text: string; className: string; strip?: boolean; session: Session }) {
   const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
-  return <div className={className} onClick={(e) => void handleCodeCopy(e)} dangerouslySetInnerHTML={{ __html: html }} />;
+  function onClick(e: React.MouseEvent<HTMLDivElement>) {
+    const button = (e.target as Element).closest<HTMLButtonElement>(".file-citation");
+    const path = button?.dataset.pdfPath;
+    if (!button || !path || button.disabled) {
+      void handleCodeCopy(e);
+      return;
+    }
+    button.disabled = true;
+    const preview = window.open("", "_blank");
+    if (preview) preview.opener = null;
+    void session.readPdfFile(path).then((pdf) => {
+      const url = URL.createObjectURL(pdf);
+      if (preview) preview.location.href = url;
+      else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = path.slice(path.lastIndexOf("/") + 1);
+        link.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+    }).catch((err) => {
+      preview?.close();
+      session.notify(friendlyError(err));
+    }).finally(() => { button.disabled = false; });
+  }
+  return <div className={className} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // A test run or an install can print tens of thousands of lines; laying all
@@ -294,7 +319,7 @@ function CommandOutput({ text }: { text: string }) {
   );
 }
 
-function Reasoning({ items }: { items: Extract<ThreadItem, { type: "reasoning" }>[] }) {
+function Reasoning({ items, session }: { items: Extract<ThreadItem, { type: "reasoning" }>[]; session: Session }) {
   const [open, setOpen] = useState(false);
   const texts = items.map((i) => [...i.summary, ...i.content].filter(Boolean).join("\n\n")).filter(Boolean);
   if (texts.length === 0) return null;
@@ -308,7 +333,7 @@ function Reasoning({ items }: { items: Extract<ThreadItem, { type: "reasoning" }
           <ChevronIcon />
         </span>
       </button>
-      {open && <Markdown className="tool-detail prose muted" text={texts.join("\n\n---\n\n")} />}
+      {open && <Markdown className="tool-detail prose muted" text={texts.join("\n\n---\n\n")} session={session} />}
     </div>
   );
 }
@@ -385,7 +410,7 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
 
   return (
     <div className="final">
-      <Markdown className="final-text" text={text} strip />
+      <Markdown className="final-text" text={text} strip session={session} />
       {group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">

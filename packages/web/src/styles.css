@@ -2562,6 +2562,38 @@ button.chat-btn {
   margin-bottom: 0;
 }
 
+.file-citation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.file-citation-icon {
+  flex: none;
+  padding: 1px 3px;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  color: var(--muted);
+  font-size: calc(10rem / 17);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.file-citation > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+.file-citation:disabled { opacity: 0.5; }
+
 /* Fenced code with its copy button in the corner. */
 .code-block {
   position: relative;
