@@ -1,7 +1,9 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { pdfCitation } from "./file-citation.js";
 
 marked.setOptions({ gfm: true, breaks: true });
+marked.use({ extensions: [pdfCitation] });
 
 // A link in an answer opens outside: inside a Home Screen app it would
 // otherwise navigate the app itself away to that page.

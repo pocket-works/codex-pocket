@@ -1216,6 +1216,13 @@ export class Session {
     return `data:${type};base64,${res.dataBase64}`;
   }
 
+  /** Read a PDF through the app-server without exposing a filesystem HTTP route. */
+  async readPdfFile(path: string): Promise<Blob> {
+    const res = await this.rpc.request<v2.FsReadFileResponse>("fs/readFile", { path });
+    const bytes = Uint8Array.from(atob(res.dataBase64), (c) => c.charCodeAt(0));
+    return new Blob([bytes], { type: "application/pdf" });
+  }
+
   /** Child directories of `path`, for picking a project folder. Dotfiles hidden. */
   async listDirectory(path: string): Promise<string[]> {
     const res = await this.rpc.request<v2.FsReadDirectoryResponse>("fs/readDirectory", { path });
