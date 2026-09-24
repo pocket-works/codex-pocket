@@ -24,7 +24,7 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 
 ## 运行：菜单栏应用
 
-host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host，后台不会留下任何进程。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。
+host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host，后台不会留下任何进程。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。勾选 **Keep this Mac awake** 后，host 运行期间 Mac 不会因闲置而睡眠，手机随时能发起任务、跑着的任务也不会被打断（屏幕照常熄灭；电池供电时合盖仍会睡眠）。这个选项保存在 `~/.codex-pocket/desktop.json`。
 
 ```bash
 pnpm install

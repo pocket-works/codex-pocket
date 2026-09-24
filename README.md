@@ -24,7 +24,7 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 
 ## Running it: the menu bar app
 
-The host runs inside **Codex Pocket**, a small macOS menu bar app in `packages/desktop`. Opening the app starts the host and quitting it stops the host; nothing stays behind in the background. The dot in the menu bar shows the state (grey stopped, yellow starting, green running, red error) and the menu shows the address, whether the Codex daemon is connected, the paired phones (with revoke), and **Pair a phone…**, which shows the QR code and the typed code.
+The host runs inside **Codex Pocket**, a small macOS menu bar app in `packages/desktop`. Opening the app starts the host and quitting it stops the host; nothing stays behind in the background. The dot in the menu bar shows the state (grey stopped, yellow starting, green running, red error) and the menu shows the address, whether the Codex daemon is connected, the paired phones (with revoke), and **Pair a phone…**, which shows the QR code and the typed code. **Keep this Mac awake** holds off idle sleep while the host runs, so a phone can start a turn and a running turn is not cut short (the display still sleeps; closing the lid on battery still sleeps the Mac). The choice is kept in `~/.codex-pocket/desktop.json`.
 
 ```bash
 pnpm install
