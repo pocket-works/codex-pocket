@@ -714,12 +714,19 @@ export class Session {
       return threads === s.threads ? s : { ...s, threads };
     });
     const retire = () => this.updateView(threadId, (v) => removePending(v, id));
+    // If no item ever comes (an older Codex, a steer folded silently), do
+    // not leave a ghost bubble behind. A steered message is only echoed
+    // once the running tool call ends, so wait out the turn first.
+    const retireLater = () =>
+      setTimeout(() => {
+        const view = this.store.get().open?.view;
+        if (view?.threadId === threadId && view.activeTurnId) retireLater();
+        else retire();
+      }, PENDING_ECHO_TIMEOUT_MS);
     try {
       const echoed = await this.sendInput(open, input);
       if (!echoed) retire();
-      // If no item ever comes (an older Codex, a steer folded silently), do
-      // not leave a ghost bubble behind.
-      else setTimeout(retire, PENDING_ECHO_TIMEOUT_MS);
+      else retireLater();
     } catch (err) {
       retire();
       throw err;

@@ -20,7 +20,9 @@ export function Transcript({ session, view, cwd }: { session: Session; view: Thr
   return (
     <>
       {groups.map((g, i) => (
-        <TurnBlock key={g.turnId} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={i === groups.length - 1 && view.activeTurnId === null && g.meta !== null} progress={view.toolProgress} />
+        // Editing reverts the whole turn, so a steered message (a later part
+        // of its turn) is not offered as the one to edit.
+        <TurnBlock key={g.key} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={i === groups.length - 1 && view.activeTurnId === null && g.meta !== null && g.key === g.turnId} progress={view.toolProgress} />
       ))}
       {view.pending.map((m) => (
         <UserBubble key={m.id} content={m.input} pending />
@@ -101,7 +103,7 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, [group.inProgress]);
-  const ms = turnDurationMs(group.meta, now);
+  const ms = group.continued ? null : turnDurationMs(group.meta, now);
   const label = group.inProgress ? `Working${ms !== null ? ` · ${formatDuration(ms)}` : "…"}` : ms !== null ? `Worked for ${formatDuration(ms)}` : "Work";
   return (
     <button className={`work-header ${group.inProgress ? "live" : ""}`} onClick={onToggle} aria-expanded={expanded}>

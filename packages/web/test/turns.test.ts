@@ -38,6 +38,35 @@ describe("groupTurns", () => {
     expect(g.meta?.startedAt).not.toBeNull();
   });
 
+  it("shows a message steered into a running turn where it landed, not at the top of the turn", () => {
+    let s = initialThreadState(T);
+    s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "t1", startedAt: 1000, completedAt: null, durationMs: null, status: "inProgress" } } });
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t1", item: user("u1", "run the tests") } });
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t1", item: agent("a1", "Running them.", "commentary") } });
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t1", item: cmd("c1", "pnpm test") } });
+    s = applyNotification(s, { method: "item/completed", params: { threadId: T, turnId: "t1", item: user("u2", "only the web package") } });
+    s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t1", item: cmd("c2", "pnpm --filter web test") } });
+    const groups = groupTurns(s);
+    expect(groups.map((g) => g.userMessages.map((i) => i.id))).toEqual([["u1"], ["u2"]]);
+    expect(groups.map((g) => g.work.map((i) => i.id))).toEqual([["a1", "c1"], ["c2"]]);
+    expect(new Set(groups.map((g) => g.key)).size).toBe(2);
+    // Only the part still running is live, and only it carries the turn's time.
+    expect(groups.map((g) => g.inProgress)).toEqual([false, true]);
+    expect(groups.map((g) => g.continued)).toEqual([true, false]);
+  });
+
+  it("keeps messages that open a turn together", () => {
+    let s = initialThreadState(T);
+    s = prependHistory(s, [
+      { turnId: "t1", item: user("u1", "one") },
+      { turnId: "t1", item: user("u2", "two") },
+      { turnId: "t1", item: agent("a1", "Both done.") },
+    ]);
+    const groups = groupTurns(s);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].userMessages.map((i) => i.id)).toEqual(["u1", "u2"]);
+  });
+
   it("records turn duration from turn/completed and turns/list", () => {
     let s = initialThreadState(T);
     s = applyNotification(s, { method: "turn/started", params: { threadId: T, turn: { id: "t1", startedAt: 1000, completedAt: null, durationMs: null, status: "inProgress" } } });
