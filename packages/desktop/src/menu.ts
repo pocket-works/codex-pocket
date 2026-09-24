@@ -5,11 +5,13 @@ import type { Rgb } from "./icons.js";
 // The tray menu as plain data, so what the user sees for each state can be
 // tested without Electron. main.ts turns it into a real Menu.
 
-export type MenuAction = "start" | "stop" | "restart" | "pair" | "log" | "quit" | "revoke-stale" | { revoke: string };
+export type MenuAction = "start" | "stop" | "restart" | "pair" | "keep-awake" | "log" | "quit" | "revoke-stale" | { revoke: string };
 
 export interface MenuItem {
   label: string;
   enabled?: boolean;
+  /** Set on checkbox items only. */
+  checked?: boolean;
   action?: MenuAction;
   submenu?: MenuItem[];
 }
@@ -58,7 +60,7 @@ export function trayTooltip(state: HostState): string {
   }
 }
 
-export function buildMenu(state: HostState, devices: Device[], now = Date.now()): MenuEntry[] {
+export function buildMenu(state: HostState, devices: Device[], now = Date.now(), keepAwake = false): MenuEntry[] {
   const running = state.kind === "running";
   const head: MenuEntry[] = [];
   switch (state.kind) {
@@ -97,6 +99,7 @@ export function buildMenu(state: HostState, devices: Device[], now = Date.now())
     "separator",
     running || state.kind === "starting" ? { label: "Stop host", action: "stop" } : { label: "Start host", action: "start" },
     { label: "Restart host", action: "restart", enabled: running || state.kind === "error" },
+    { label: "Keep this Mac awake", action: "keep-awake", checked: keepAwake },
     { label: "Open log", action: "log" },
     "separator",
     { label: "Quit Codex Pocket", action: "quit" },

@@ -57,6 +57,12 @@ describe("buildMenu", () => {
     expect(byAction(m, "start")).toBeDefined();
   });
 
+  it("offers keeping the Mac awake as a checkbox reflecting the preference", () => {
+    const toggle = (keepAwake: boolean) => items(buildMenu({ kind: "stopped" }, [], NOW, keepAwake)).find((i) => i.action === "keep-awake");
+    expect(toggle(false)).toMatchObject({ label: "Keep this Mac awake", checked: false });
+    expect(toggle(true)?.checked).toBe(true);
+  });
+
   it("always ends with Quit", () => {
     expect(items(buildMenu({ kind: "starting" }, [])).at(-1)?.action).toBe("quit");
   });

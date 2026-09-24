@@ -1,9 +1,10 @@
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, Menu, nativeImage, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, powerSaveBlocker, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
 import { AdminClient, pocketHome, type Device } from "./admin.js";
 import { encodePng, trayGlyph } from "./icons.js";
+import { KeepAwake, readPrefs, wantsAwake, writePrefs } from "./keep-awake.js";
 import { buildMenu, staleDevices, trayColor, trayTooltip, type MenuAction, type MenuEntry } from "./menu.js";
 import { pairPageFor } from "./pair-page.js";
 import { HostSupervisor, type HostChild, type HostState } from "./supervisor.js";
@@ -82,6 +83,7 @@ function toTemplate(entries: MenuEntry[], run: (action: MenuAction) => void): Me
   return entries.map((e) => {
     if (e === "separator") return { type: "separator" };
     const item: MenuItemConstructorOptions = { label: e.label, enabled: e.enabled ?? true };
+    if (e.checked !== undefined) Object.assign(item, { type: "checkbox", checked: e.checked });
     if (e.submenu) item.submenu = toTemplate(e.submenu, run);
     if (e.action) {
       const action = e.action;
@@ -100,6 +102,8 @@ async function main(): Promise<void> {
   const location = hostLocation();
 
   let devices: Device[] = [];
+  const prefs = readPrefs(pocketHome());
+  const awake = new KeepAwake({ start: () => powerSaveBlocker.start("prevent-app-suspension"), stop: (id) => powerSaveBlocker.stop(id) });
   let pairWindow: BrowserWindow | null = null;
   const tray = new Tray(trayIcon({ kind: "stopped" }));
 
@@ -107,7 +111,8 @@ async function main(): Promise<void> {
     const state = supervisor.state;
     tray.setImage(trayIcon(state));
     tray.setToolTip(trayTooltip(state));
-    tray.setContextMenu(Menu.buildFromTemplate(toTemplate(buildMenu(state, devices), (a) => void runAction(a))));
+    awake.set(wantsAwake(prefs.keepAwake, state));
+    tray.setContextMenu(Menu.buildFromTemplate(toTemplate(buildMenu(state, devices, Date.now(), prefs.keepAwake), (a) => void runAction(a))));
   };
 
   const supervisor = new HostSupervisor({
@@ -144,6 +149,11 @@ async function main(): Promise<void> {
       else if (action === "stop") await supervisor.stop();
       else if (action === "restart") await supervisor.restart();
       else if (action === "pair") await showPairWindow();
+      else if (action === "keep-awake") {
+        prefs.keepAwake = !prefs.keepAwake;
+        writePrefs(pocketHome(), prefs);
+        render();
+      }
       else if (action === "log") await shell.openPath(logFile());
       else if (action === "quit") app.quit();
       else if (action === "revoke-stale") {
