@@ -10,6 +10,13 @@ export type FileChange = Extract<ThreadItem, { type: "fileChange" }>;
 
 export interface TurnGroup {
   turnId: string;
+  /** Unique per group; a turn split by a steered message spans several. */
+  key: string;
+  /**
+   * A message steered into this turn starts a later part of it; this part's
+   * timing then belongs to the last one.
+   */
+  continued: boolean;
   meta: TurnMeta | null;
   inProgress: boolean;
   userMessages: ThreadItem[];
@@ -30,9 +37,15 @@ export function groupTurns(view: ThreadViewState): TurnGroup[] {
     // Items without a known turn are shown in their own group rather than dropped.
     const turnId = view.itemTurns[item.id] ?? `orphan-${item.type === "userMessage" ? ++orphan : orphan}`;
     let g = byId.get(turnId);
-    if (!g) {
+    // A message steered into a running turn lands after the work so far;
+    // it opens a new part of the turn so it shows where it was read.
+    const steered = g !== undefined && item.type === "userMessage" && (g.work.length > 0 || g.fileChanges.length > 0);
+    if (!g || steered) {
       const meta = view.turns[turnId] ?? null;
-      g = { turnId, meta, inProgress: view.activeTurnId === turnId || meta?.status === "inProgress", userMessages: [], work: [], fileChanges: [], final: null };
+      const inProgress = view.activeTurnId === turnId || meta?.status === "inProgress";
+      if (g) Object.assign(g, { continued: true, inProgress: false });
+      const key = g ? `${turnId}#${item.id}` : turnId;
+      g = { turnId, key, continued: false, meta, inProgress, userMessages: [], work: [], fileChanges: [], final: null };
       byId.set(turnId, g);
       groups.push(g);
     }
@@ -60,7 +73,8 @@ function isFinished(meta: TurnMeta | null): boolean {
  */
 export function sameGroup(a: TurnGroup, b: TurnGroup): boolean {
   return (
-    a.turnId === b.turnId &&
+    a.key === b.key &&
+    a.continued === b.continued &&
     a.meta === b.meta &&
     a.inProgress === b.inProgress &&
     a.final === b.final &&

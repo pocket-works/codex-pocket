@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { v2 } from "@codex-pocket/protocol";
 import type { RpcClient } from "../src/rpc/client.js";
 import { RpcError } from "../src/rpc/client.js";
@@ -108,6 +108,26 @@ describe("Session.sendMessage", () => {
     session.setFollowUpMode("queue");
     await session.sendMessage({ ...emptyDraft, text: "hi" });
     expect(calls.map((c) => c.method)).toEqual(["turn/start"]);
+  });
+});
+
+describe("pending bubbles", () => {
+  afterEach(() => void vi.useRealTimers());
+
+  // Codex echoes a steered message only once the running tool call ends,
+  // which can take far longer than the fallback timeout.
+  it("keeps a steered message on screen until the running turn is over", async () => {
+    vi.useFakeTimers();
+    const { rpc } = stubRpc(() => ({ turnId: "active" }));
+    const session = readySession(rpc, "active");
+    session.setFollowUpMode("steer");
+    await session.sendMessage({ ...emptyDraft, text: "also this" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(session.store.get().open?.view.pending).toHaveLength(1);
+
+    session.store.set((s) => ({ ...s, open: s.open && { ...s.open, view: { ...s.open.view, activeTurnId: null } } }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(session.store.get().open?.view.pending).toEqual([]);
   });
 });
 
