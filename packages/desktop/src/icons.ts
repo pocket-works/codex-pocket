@@ -11,12 +11,12 @@ export interface Bitmap {
 }
 
 export interface TrayGlyphOptions {
-  /** Pixel size; the glyph is designed on a 16pt grid and scaled. */
+  /** Pixel size; the glyph is designed on an 18pt grid and scaled. */
   size: number;
-  /** Colour of the tile: black on a light menu bar, white on a dark one. */
+  /** Colour of the strokes: black on a light menu bar, white on a dark one. */
   glyph: Rgb;
   glyphAlpha?: number;
-  /** Colour of the status dot in the bottom-right corner. */
+  /** Colour of the status dot at the end of the short line. */
   dot: Rgb;
 }
 
@@ -36,37 +36,44 @@ function segment(px: number, py: number, x0: number, x1: number, y: number): num
 }
 
 /**
- * The PWA icon in one colour: a filled rounded square with three lines cut
- * out of it. The dot at the end of the short line is the status colour.
+ * The PWA icon drawn the way the menu bar wants it: an outlined rounded
+ * square holding three lines, in one colour that follows the bar rather
+ * than a filled tile in the app's indigo, which read as a coloured sticker
+ * next to the system's own icons. The dot ending the short line is the only
+ * colour, and it carries the host's state.
  */
 export function trayGlyph(o: TrayGlyphOptions): Bitmap {
   const { size } = o;
-  const k = size / 16;
+  const k = size / 18;
   const glyphAlpha = o.glyphAlpha ?? 1;
   const rgba = Buffer.alloc(size * size * 4);
-  // Geometry on the 16pt grid, following the 64-unit PWA artwork.
-  const tile = { cx: 8 * k, cy: 8 * k, half: 7 * k, r: 2.5 * k };
-  const lineHalf = 0.75 * k;
+  // Geometry on the 18pt grid.
+  // Everything sits on half-unit centres: at 1x a unit is a pixel, and a
+  // stroke centred on a pixel boundary comes out as two grey rows instead
+  // of one crisp line.
+  const tile = { cx: 9 * k, cy: 9 * k, half: 7.5 * k, r: 3.3 * k, stroke: 0.55 * k };
+  const lineHalf = 0.5 * k;
   const lines: Array<[number, number, number]> = [
-    [4.5 * k, 11.5 * k, 5.5 * k],
-    [4.5 * k, 11.5 * k, 8 * k],
-    [4.5 * k, 8 * k, 10.5 * k],
+    [5.5 * k, 12.5 * k, 5.5 * k],
+    [5.5 * k, 12.5 * k, 8.5 * k],
+    [5.5 * k, 9.5 * k, 11.5 * k],
   ];
-  const dot = { cx: 10.4 * k, cy: 10.5 * k, r: 1.3 * k, gap: 0.5 * k };
+  const dot = { cx: 11.5 * k, cy: 11.5 * k, r: 1.6 * k, gap: 0.6 * k };
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const px = x + 0.5;
       const py = y + 0.5;
       const dDot = Math.hypot(px - dot.cx, py - dot.cy) - dot.r;
-      const dTile = roundedRect(px, py, tile.cx, tile.cy, tile.half, tile.half, tile.r);
-      const cut = Math.max(...lines.map(([x0, x1, ly]) => coverage(segment(px, py, x0, x1, ly) - lineHalf)));
-      // A thin clear ring keeps the dot from bleeding into the tile.
-      const tileCov = coverage(dTile) * (1 - cut) * (1 - coverage(dDot - dot.gap)) * glyphAlpha;
+      // The frame is the outline of the tile, not its fill.
+      const dFrame = Math.abs(roundedRect(px, py, tile.cx, tile.cy, tile.half, tile.half, tile.r)) - tile.stroke;
+      const dLines = Math.min(...lines.map(([x0, x1, ly]) => segment(px, py, x0, x1, ly) - lineHalf));
+      // A clear ring around the dot keeps it from touching the strokes.
+      const glyphCov = Math.max(coverage(dFrame), coverage(dLines)) * (1 - coverage(dDot - dot.gap)) * glyphAlpha;
       const dotCov = coverage(dDot);
       const i = (y * size + x) * 4;
-      const a = dotCov + tileCov * (1 - dotCov);
+      const a = dotCov + glyphCov * (1 - dotCov);
       if (a <= 0) continue;
-      for (let c = 0; c < 3; c++) rgba[i + c] = Math.round((o.dot[c] * dotCov + o.glyph[c] * tileCov * (1 - dotCov)) / a);
+      for (let c = 0; c < 3; c++) rgba[i + c] = Math.round((o.dot[c] * dotCov + o.glyph[c] * glyphCov * (1 - dotCov)) / a);
       rgba[i + 3] = Math.round(a * 255);
     }
   }
