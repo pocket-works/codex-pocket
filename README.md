@@ -56,6 +56,8 @@ pnpm dev:host revoke <id>
 
 A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `make status`, …); run `make help` for the list. `pnpm --filter @codex-pocket/desktop dev` runs the menu bar app from the workspace (it bundles the host from source first); after changing host code, run it again or pick **Restart host** in the menu after `pnpm --filter @codex-pocket/desktop bundle`.
 
+The rules a change is expected to follow — what each package may and may not do, where tests live, how commits are worded — are in [AGENTS.md](./AGENTS.md).
+
 State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone), `host.log`.
 
 ## Deploying: HTTPS via Tailscale
