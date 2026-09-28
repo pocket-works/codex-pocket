@@ -14,6 +14,13 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
 
+## Requirements
+
+- **A Mac with Apple silicon.** `make app` builds an arm64 bundle, and the icon is rendered with macOS's own `qlmanage`, `sips` and `iconutil`.
+- **Codex already signed in on that Mac** — the ChatGPT desktop app or the `codex` CLI, whichever you use. The host never signs in to OpenAI itself: it connects to the app-server Codex runs and inherits that session.
+- **Node 22 and pnpm**, to build it. The packaged menu bar app carries its own Node, so nothing is needed at runtime.
+- **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
+
 ## Security model
 
 The host is a **transparent proxy**: a paired phone gets everything the Codex app-server can do, including running commands and reading or writing files on the Mac. The only two boundaries are network reachability and the pairing code, so:

@@ -14,6 +14,13 @@
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
 - Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
 
+## 环境要求
+
+- **Apple 芯片的 Mac**：`make app` 打的是 arm64 包，图标也用 macOS 自带的 `qlmanage`、`sips`、`iconutil` 渲染。
+- **这台 Mac 上的 Codex 已登录**：ChatGPT 桌面 app 或 `codex` CLI，你平时用哪个都行。host 自己不向 OpenAI 登录，它连的是 Codex 跑起来的 app-server，沿用那边的登录态。
+- **Node 22 和 pnpm**：只在构建时需要。打包好的菜单栏应用自带 Node，运行时不依赖系统 Node。
+- **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
+
 ## 安全模型
 
 host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 Mac 上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
