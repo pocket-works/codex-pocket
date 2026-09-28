@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Electron's binary is only needed to run the menu bar app; type-checking
+      # and testing it need nothing but the package's own types.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      # Everything but the menu bar app builds here. Packaging that one renders
+      # its icon with qlmanage, sips and iconutil, which exist only on macOS, so
+      # it would need a macos-latest job — worth adding once the repo is public
+      # and macOS minutes stop costing ten times a Linux one.
+      - run: pnpm --filter @codex-pocket/host build
+      - run: pnpm --filter @codex-pocket/web build
