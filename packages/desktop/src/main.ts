@@ -1,7 +1,7 @@
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, Menu, nativeImage, powerSaveBlocker, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, powerSaveBlocker, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
 import { AdminClient, pocketHome, type Device } from "./admin.js";
 import { encodePng, trayGlyph } from "./icons.js";
 import { KeepAwake, readPrefs, wantsAwake, writePrefs } from "./keep-awake.js";
@@ -64,15 +64,22 @@ function spawnHost(location: HostLocation, log: WriteStream): HostChild {
   };
 }
 
-// The PWA tile in its indigo, with the state as the dot at the end of its
-// short line; a stopped host fades the tile.
-const TILE_INDIGO: [number, number, number] = [0x4f, 0x46, 0xe5];
+// The menu bar draws in one ink — black on a light bar, white on a dark
+// one — and an app that ignores that reads as a sticker stuck among the
+// system's own icons. A template image would follow the bar for free but
+// strips every colour, including the status dot's, which is the one thing
+// here worth colouring; so the ink is chosen by hand and the tray is
+// redrawn when the theme changes. A stopped host fades the glyph.
+const INK_ON_LIGHT: [number, number, number] = [0x1c, 0x1c, 0x1e];
+const INK_ON_DARK: [number, number, number] = [0xff, 0xff, 0xff];
+/** Point size of the glyph; the menu bar gives it about 24pt to sit in. */
+const TRAY_SIZE_PT = 18;
 
 function trayIcon(state: HostState): Electron.NativeImage {
-  const glyph = TILE_INDIGO;
+  const glyph = nativeTheme.shouldUseDarkColors ? INK_ON_DARK : INK_ON_LIGHT;
   const img = nativeImage.createEmpty();
   for (const scale of [1, 2]) {
-    const size = 16 * scale;
+    const size = TRAY_SIZE_PT * scale;
     const { rgba } = trayGlyph({ size, glyph, glyphAlpha: state.kind === "stopped" ? 0.45 : 1, dot: trayColor(state) });
     img.addRepresentation({ scaleFactor: scale, width: size, height: size, buffer: encodePng(size, size, rgba) });
   }
@@ -114,6 +121,9 @@ async function main(): Promise<void> {
     awake.set(wantsAwake(prefs.keepAwake, state));
     tray.setContextMenu(Menu.buildFromTemplate(toTemplate(buildMenu(state, devices, Date.now(), prefs.keepAwake), (a) => void runAction(a))));
   };
+
+  // Light/dark switched (by hand or at sunset): the glyph's ink follows.
+  nativeTheme.on("updated", () => tray.setImage(trayIcon(supervisor.state)));
 
   const supervisor = new HostSupervisor({
     spawn: () => spawnHost(location, log),

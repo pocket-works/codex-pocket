@@ -30,18 +30,20 @@ describe("encodePng", () => {
 describe("trayGlyph", () => {
   const px = (bmp: { size: number; rgba: Buffer }, x: number, y: number) => Array.from(bmp.rgba.subarray((y * bmp.size + x) * 4, (y * bmp.size + x) * 4 + 4));
 
-  it("draws the tile with the lines cut out and the status dot ending the short line", () => {
-    const bmp = trayGlyph({ size: 32, glyph: [0, 0, 0], dot: [0x22, 0xcc, 0x44] });
-    expect(px(bmp, 4, 16)).toEqual([0, 0, 0, 255]); // tile
-    expect(px(bmp, 12, 11)).toEqual([0, 0, 0, 0]); // inside the top line
+  // 36px is the @2x representation of the 18pt glyph, so one grid unit is 2px.
+  it("outlines the tile, fills the three lines, and ends the short one with the status dot", () => {
+    const bmp = trayGlyph({ size: 36, glyph: [0, 0, 0], dot: [0x22, 0xcc, 0x44] });
+    expect(px(bmp, 2, 18)).toEqual([0, 0, 0, 255]); // left edge of the frame
+    expect(px(bmp, 18, 6)).toEqual([0, 0, 0, 0]); // inside the frame, above the first line
+    expect(px(bmp, 18, 11)).toEqual([0, 0, 0, 255]); // the top line
     expect(px(bmp, 0, 0)[3]).toBe(0); // outside the rounded corner
-    expect(px(bmp, 20, 21)).toEqual([0x22, 0xcc, 0x44, 255]); // dot centre
-    expect(px(bmp, 20, 24)[3]).toBeLessThan(128); // clear ring under the dot
+    expect(px(bmp, 23, 22)).toEqual([0x22, 0xcc, 0x44, 255]); // dot centre
+    expect(px(bmp, 19, 23)[3]).toBeLessThan(128); // clear ring where the short line meets the dot
   });
 
-  it("dims the tile but not the dot when asked", () => {
-    const bmp = trayGlyph({ size: 32, glyph: [255, 255, 255], glyphAlpha: 0.4, dot: [9, 9, 9] });
-    expect(px(bmp, 4, 16)[3]).toBe(102);
-    expect(px(bmp, 20, 21)).toEqual([9, 9, 9, 255]);
+  it("dims the glyph but not the dot when asked", () => {
+    const bmp = trayGlyph({ size: 36, glyph: [255, 255, 255], glyphAlpha: 0.4, dot: [9, 9, 9] });
+    expect(px(bmp, 2, 18)[3]).toBe(102);
+    expect(px(bmp, 23, 22)).toEqual([9, 9, 9, 255]);
   });
 });
