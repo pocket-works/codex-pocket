@@ -38,6 +38,16 @@ export function ThreadView({ session }: { session: Session }) {
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [items.length, lastText, open?.state, open?.view.pending.length]);
 
+  // Older pages arrive on a scroll, so a transcript that does not overflow
+  // the screen — a couple of short turns — would have no way to ask for the
+  // rest of the thread. Pull pages until there is something to scroll.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !open || open.state === "loading" || !open.olderCursor || open.loadingOlder) return;
+    if (el.scrollHeight - el.clientHeight >= 80) return;
+    void session.loadOlder();
+  }, [session, open?.state, open?.olderCursor, open?.loadingOlder, items.length]);
+
   function onScroll() {
     const el = listRef.current;
     if (!el) return;
