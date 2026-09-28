@@ -151,6 +151,15 @@ export interface SessionState {
 }
 
 const HISTORY_PAGE = 40;
+/**
+ * Codex pages items, not turns, and a tool-heavy turn runs well past one
+ * page, so the newest page can hold nothing but its tool calls — the thread
+ * then opens on a wall of commands with the question that started them
+ * nowhere on screen. Keep pulling pages until that message is in hand; on
+ * real threads one page almost always already holds it, and this caps what
+ * a pathological turn may cost.
+ */
+const HISTORY_MAX_PAGES = 4;
 /** How long a sent message stays "pending" if Codex never echoes it. */
 const PENDING_ECHO_TIMEOUT_MS = 10_000;
 /** How long a "finished elsewhere" toast stays. */
@@ -561,7 +570,19 @@ export class Session {
         this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", { threadId, limit: HISTORY_PAGE, sortDirection: "desc" }),
         this.loadTurnMeta(threadId),
       ]);
-      return { entries: page.data.slice().reverse(), turns, olderCursor: page.nextCursor };
+      let entries = page.data.slice().reverse();
+      let cursor = page.nextCursor;
+      for (let more = 1; more < HISTORY_MAX_PAGES && cursor !== null && !newestTurnComplete(entries); more++) {
+        const older: v2.ThreadItemsListResponse = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
+          threadId,
+          cursor,
+          limit: HISTORY_PAGE,
+          sortDirection: "desc",
+        });
+        entries = [...older.data.slice().reverse(), ...entries];
+        cursor = older.nextCursor;
+      }
+      return { entries, turns, olderCursor: cursor };
     } catch (err) {
       if (!/not supported/i.test(describe(err))) throw err;
     }
@@ -1392,6 +1413,12 @@ export class Session {
     if (mine.length === 0) return;
     this.updateView(threadId, (v) => mine.reduce((view, req) => applyServerRequest(view, req), v));
   }
+}
+
+/** Whether these entries hold the message that started the newest turn among them. */
+function newestTurnComplete(entries: v2.ThreadItemEntry[]): boolean {
+  const newest = entries[entries.length - 1];
+  return newest !== undefined && entries.some((e) => e.item.type === "userMessage" && e.turnId === newest.turnId);
 }
 
 /** The first user message's text, shortened to `max` characters, or null. */
