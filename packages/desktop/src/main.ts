@@ -84,7 +84,7 @@ function trayIcon(state: HostState): Electron.NativeImage {
   for (const scale of [1, 2]) {
     const size = TRAY_SIZE_PT * scale;
     const { rgba } = trayGlyph({ size, glyph, glyphAlpha: state.kind === "stopped" ? 0.45 : 1, dot: trayColor(state) });
-    img.addRepresentation({ scaleFactor: scale, width: size, height: size, buffer: encodePng(size, size, rgba) });
+    img.addRepresentation({ scaleFactor: scale, dataURL: `data:image/png;base64,${encodePng(size, size, rgba).toString("base64")}` });
   }
   return img;
 }
