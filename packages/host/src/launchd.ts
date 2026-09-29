@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { pocketHome } from "./config/paths.js";
@@ -69,6 +69,15 @@ export function desktopBridgeAgentInstalled(): boolean {
   return existsSync(plistPath(DESKTOP_BRIDGE_LABEL));
 }
 
+export function readDesktopBridgeAgent(): string | null {
+  try {
+    return readFileSync(plistPath(DESKTOP_BRIDGE_LABEL), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    return null;
+  }
+}
+
 export function desktopBridgePlist(args: string[], env: Record<string, string> = {}): string {
   const home = pocketHome();
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -90,21 +99,39 @@ export function desktopBridgePlist(args: string[], env: Record<string, string> =
 `;
 }
 
+export function desktopBridgeAgentMatches(args: string[], env: Record<string, string> = {}): boolean {
+  return readDesktopBridgeAgent() === desktopBridgePlist(args, env);
+}
+
+export function restoreDesktopBridge(plist: string): void {
+  const file = writeUserLaunchAgent(DESKTOP_BRIDGE_LABEL, plist);
+  execFileSync("launchctl", ["bootstrap", `gui/${process.getuid?.() ?? 501}`, file]);
+}
+
 export function installDesktopBridge(args: string[], env: Record<string, string> = {}): string {
   const file = plistPath(DESKTOP_BRIDGE_LABEL);
+  const previous = readDesktopBridgeAgent();
   mkdirSync(pocketHome(), { recursive: true, mode: 0o700 });
-  if (existsSync(file)) {
+  if (previous !== null) {
     try {
       execFileSync("launchctl", ["bootout", `gui/${process.getuid?.() ?? 501}/${DESKTOP_BRIDGE_LABEL}`]);
     } catch {
       // A plist may exist without a loaded job.
     }
   }
+  rmSync(desktopBridgeReadyPath(), { force: true });
   const path = writeUserLaunchAgent(DESKTOP_BRIDGE_LABEL, desktopBridgePlist(args, env));
   try {
     execFileSync("launchctl", ["bootstrap", `gui/${process.getuid?.() ?? 501}`, path]);
   } catch (err) {
     unlinkSync(path);
+    if (previous !== null) {
+      try {
+        restoreDesktopBridge(previous);
+      } catch (restoreError) {
+        throw new AggregateError([err, restoreError], "desktop bridge installation failed and the previous agent could not be restored");
+      }
+    }
     throw err;
   }
   return path;
