@@ -96,7 +96,7 @@ info: ## Show app-server connection details
 desktop: ## Show whether the ChatGPT desktop app is linked, and whether the daemon is ready for it
 	@$(HOST) dev desktop
 
-link-desktop: ## Point the ChatGPT desktop app at the host's Codex daemon (restart ChatGPT after)
+link-desktop: ## Start the independent desktop bridge and share Codex threads (restart ChatGPT after)
 	@$(HOST) dev link-desktop
 
 unlink-desktop: ## Revert the desktop app to its private app-server (restart ChatGPT after)

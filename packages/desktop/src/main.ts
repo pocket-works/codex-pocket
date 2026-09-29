@@ -9,8 +9,8 @@ import { buildMenu, staleDevices, trayColor, trayTooltip, type MenuAction, type 
 import { pairPageFor } from "./pair-page.js";
 import { HostSupervisor, type HostChild, type HostState } from "./supervisor.js";
 
-// Menu bar app that owns the host: launching it starts `serve`, quitting it
-// stops `serve`. Nothing is left running in the background afterwards; the
+// Menu bar app that owns the phone host: launching it starts `serve`, quitting
+// it stops `serve`. A linked desktop bridge has its own LaunchAgent; the
 // Codex daemon itself belongs to Codex and is only observed here.
 
 const KILL_GRACE_MS = 5000;
