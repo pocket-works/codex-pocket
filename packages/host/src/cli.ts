@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { fileURLToPath } from "node:url";
 import { adminRequest } from "./admin-client.js";
 import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { bridgeUrl } from "./codex/daemon-bridge.js";
-import { currentDesktopEnv, DESKTOP_ENV_VAR, linkDesktop, unlinkDesktop } from "./launchd.js";
+import { clearDesktopEnv, currentDesktopEnv, DESKTOP_ENV_VAR, desktopBridgeAgentMatches, installDesktopBridge, readDesktopBridgeAgent, removeDesktopBridge, restoreDesktopBridge, restoreSharedAppServer, retireDesktopEnvAgent, retireSharedAppServer, setDesktopEnv, unlinkDesktop } from "./launchd.js";
+import { desktopBridgeIsReady, runDesktopBridge, waitForDesktopBridge } from "./codex/desktop-bridge-service.js";
 import { desktopCompat } from "./codex/desktop-compat.js";
 import { appToolsLinkPath, createPipeLocator } from "./codex/app-tools-pipe.js";
 import { daemonEnvMissing, restartDaemon } from "./codex/locate.js";
@@ -34,7 +36,7 @@ Commands:
   revoke <id>       Remove a paired phone
   threads           List recent threads from the Codex desktop app-server
   info              Show app-server connection details
-  link-desktop      Make the ChatGPT desktop app share the host's Codex daemon (restart ChatGPT after)
+  link-desktop      Make the ChatGPT desktop app share the Codex daemon (restart ChatGPT after)
     --force           Link even if the daemon's codex lacks what the desktop app needs
   unlink-desktop    Revert the desktop app to its private app-server (restart ChatGPT after)
   desktop           Show whether the desktop app is linked and whether the daemon is ready for it
@@ -91,6 +93,12 @@ async function main(argv: string[]): Promise<number> {
       });
       return 0;
     }
+    case "desktop-bridge": {
+      const port = Number(str(flags, "port"));
+      if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error("invalid --port");
+      await runDesktopBridge(port, (message) => console.log(`[desktop-bridge] ${message}`));
+      return 0;
+    }
     case "config": {
       const settings = readSettings();
       const [, action, key, value] = flags.positional;
@@ -139,16 +147,53 @@ async function main(argv: string[]): Promise<number> {
           return 1;
         }
       }
-      const url = bridgeUrl(codexSettings().port);
-      const file = linkDesktop(url);
-      console.log(`${DESKTOP_ENV_VAR}=${url} (persisted in ${file})`);
-      // The desktop app's tools reach the daemon only through a variable the
-      // daemon gets at start, so a daemon started before this host needs one
-      // restart.
+      const port = codexSettings().port;
+      const url = bridgeUrl(port);
+      // A daemon started without the desktop app's tools environment needs
+      // one restart before the desktop app moves onto it.
       if (daemonEnvMissing()?.length) {
         console.log("Restarting the Codex daemon so it can reach the desktop app's tools (running turns are interrupted)...");
         await restartDaemon();
       }
+      const previousEnv = currentDesktopEnv();
+      let installed = false;
+      let legacyPlist: string | null = null;
+      let previousBridgePlist: string | null = null;
+      try {
+        const args = [process.env.SHELL || "/bin/zsh", "-lic", 'exec env ELECTRON_RUN_AS_NODE=1 "$@"', "pocket-runtime", process.execPath, ...process.execArgv, fileURLToPath(import.meta.url), "desktop-bridge", "--port", String(port)];
+        const env = Object.fromEntries(["CODEX_POCKET_HOME", "CODEX_HOME", "CODEX_BIN"].flatMap((key) => process.env[key] ? [[key, process.env[key]!]] : []));
+        if (!desktopBridgeIsReady(port) || !desktopBridgeAgentMatches(args, env)) {
+          legacyPlist = retireSharedAppServer();
+          if (legacyPlist) console.log("Removed the retired shared app-server service.");
+          previousBridgePlist = readDesktopBridgeAgent();
+          installDesktopBridge(args, env);
+          installed = true;
+          await waitForDesktopBridge(port);
+        }
+        const bridgeClient = await CodexClient.connect({ url });
+        bridgeClient.close();
+        retireDesktopEnvAgent();
+      } catch (err) {
+        if (installed || legacyPlist) {
+          const oldSharedPlist = legacyPlist;
+          const oldBridgePlist = previousBridgePlist;
+          const rollback = [
+            ...(installed ? [() => removeDesktopBridge()] : []),
+            ...(installed && oldBridgePlist ? [() => restoreDesktopBridge(oldBridgePlist)] : []),
+            ...(oldSharedPlist ? [() => restoreSharedAppServer(oldSharedPlist)] : []),
+            () => previousEnv ? setDesktopEnv(previousEnv) : clearDesktopEnv(),
+          ];
+          for (const restore of rollback) {
+            try {
+              restore();
+            } catch (rollbackError) {
+              console.error(`desktop link rollback failed: ${rollbackError instanceof Error ? rollbackError.message : rollbackError}`);
+            }
+          }
+        }
+        throw err;
+      }
+      console.log(`${DESKTOP_ENV_VAR}=${url} (desktop bridge runs independently of Codex Pocket)`);
       console.log("Quit and reopen the ChatGPT app for it to take effect.");
       return 0;
     }
@@ -160,7 +205,8 @@ async function main(argv: string[]): Promise<number> {
       const current = currentDesktopEnv();
       const expected = bridgeUrl(codexSettings().port);
       const same = current?.replace(/\/$/, "") === expected.replace(/\/$/, "");
-      console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (host expects ${expected})`}` : "desktop app not linked");
+      console.log(current ? `${DESKTOP_ENV_VAR}=${current}${same ? "" : `  (bridge expects ${expected})`}` : "desktop app not linked");
+      console.log(`desktop bridge: ${desktopBridgeIsReady(codexSettings().port) ? "running" : "not running"}`);
       // The same probe link-desktop runs, so this answers "can I link yet?"
       // after a codex update without trying.
       const compat = await probeDesktopCompat();
