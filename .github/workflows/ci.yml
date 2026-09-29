@@ -20,11 +20,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check
       - run: pnpm typecheck
       - run: pnpm test
-      # Everything but the menu bar app builds here. Packaging that one renders
-      # its icon with qlmanage, sips and iconutil, which exist only on macOS, so
-      # it would need a macos-latest job — worth adding once the repo is public
-      # and macOS minutes stop costing ten times a Linux one.
+      # The menu bar app is packaged by the manual and tag-triggered macOS workflows.
       - run: pnpm --filter @codex-pocket/host build
       - run: pnpm --filter @codex-pocket/web build

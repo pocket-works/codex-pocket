@@ -21,6 +21,22 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - **Node 22 and pnpm**, to build it. The packaged menu bar app carries its own Node, so nothing is needed at runtime.
 - **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
 
+## Quick start
+
+On the Mac, with Codex already signed in:
+
+```bash
+pnpm install --frozen-lockfile
+make app
+make open-app
+```
+
+Open **Pair a phone...** from the Codex Pocket menu bar icon, then scan its QR code with a phone on the same LAN. You can also open the displayed address on the phone and enter the pairing code. For access away from home, set up [Tailscale HTTPS](#deploying-https-via-tailscale). The app is unsigned; on first launch, right-click it and choose **Open** if macOS blocks it.
+
+![Codex Pocket pairing screen on a phone](./docs/screenshots/pairing.jpg)
+
+This is an Apple silicon build. Desktop app sharing through `link-desktop` additionally requires a Codex daemon whose `account/read` response includes `workspaceRouting` (Codex CLI 0.156.0 or newer); `codex-pocket desktop` checks that capability. Dictation depends on an undocumented ChatGPT endpoint and may stop working when that endpoint changes.
+
 ## Security model
 
 The host is a **transparent proxy**: a paired phone gets everything the Codex app-server can do, including running commands and reading or writing files on the Mac. The only two boundaries are network reachability and the pairing code, so:
@@ -33,13 +49,7 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 
 The host runs inside **Codex Pocket**, a small macOS menu bar app in `packages/desktop`. Opening the app starts the host and quitting it stops the host; nothing stays behind in the background. The dot in the menu bar shows the state (grey stopped, yellow starting, green running, red error) and the menu shows the address, whether the Codex daemon is connected, the paired phones (with revoke), and **Pair a phone…**, which shows the QR code and the typed code. **Keep this Mac awake** holds off idle sleep while the host runs, so a phone can start a turn and a running turn is not cut short (the display still sleeps; closing the lid on battery still sleeps the Mac). The choice is kept in `~/.codex-pocket/desktop.json`.
 
-```bash
-pnpm install
-make app            # builds packages/desktop/release/mac-arm64/Codex Pocket.app
-make open-app       # or drag the .app to /Applications and open it from there
-```
-
-The app bundles the host and the PWA, so it does not need a system Node. It is unsigned; on first launch use right-click → Open. The Codex app-server itself is the official daemon (`codex app-server daemon start`) and belongs to Codex, so the app only reports its connection state and never stops it.
+`make app` builds `packages/desktop/release/mac-arm64/Codex Pocket.app`; you can also drag it to `/Applications`. The app bundles the host and the PWA, so it does not need a system Node. The Codex app-server itself is the official daemon (`codex app-server daemon start`) and belongs to Codex, so the app only reports its connection state and never stops it.
 
 ## Development
 
@@ -56,7 +66,8 @@ pnpm dev:host revoke <id>
 
 A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `make status`, …); run `make help` for the list. `pnpm --filter @codex-pocket/desktop dev` runs the menu bar app from the workspace (it bundles the host from source first); after changing host code, run it again or pick **Restart host** in the menu after `pnpm --filter @codex-pocket/desktop bundle`.
 
-The rules a change is expected to follow — what each package may and may not do, where tests live, how commits are worded — are in [AGENTS.md](./AGENTS.md).
+To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md); package boundaries and code conventions are in [AGENTS.md](./AGENTS.md).
+For maintainers, the manual macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
 
 State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone), `host.log`.
 
@@ -109,6 +120,10 @@ After upgrading Codex, regenerate the protocol types:
 ```bash
 pnpm --filter @codex-pocket/protocol generate
 ```
+
+## Releases
+
+Versioned macOS builds are available from [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI and packaging checks. See the [release process](./docs/releasing.md) for the required checks and publishing steps.
 
 ## License
 

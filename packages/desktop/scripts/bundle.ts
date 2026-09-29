@@ -51,3 +51,4 @@ for (const [name, px] of [["16x16", 16], ["16x16@2x", 32], ["32x32", 32], ["32x3
   execFileSync("sips", ["-z", String(px), String(px), master, "--out", resolve(iconset, `icon_${name}.png`)], { stdio: "ignore" });
 }
 execFileSync("iconutil", ["-c", "icns", iconset, "-o", resolve(here, "build", "icon.icns")]);
+execFileSync(process.execPath, [resolve(here, "scripts", "collect-licenses.ts")], { stdio: "inherit" });
