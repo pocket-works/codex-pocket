@@ -1,0 +1,30 @@
+name: Package macOS app
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check
+      - run: make app
+      - name: Archive app and checksum
+        run: |
+          test -s "packages/desktop/release/mac-arm64/Codex Pocket.app/Contents/Resources/legal/THIRD-PARTY-NOTICES.txt"
+          ditto -c -k --keepParent "packages/desktop/release/mac-arm64/Codex Pocket.app" codex-pocket-macos-arm64.zip
+          shasum -a 256 codex-pocket-macos-arm64.zip > codex-pocket-macos-arm64.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-pocket-macos-arm64-${{ github.sha }}
+          path: |
+            codex-pocket-macos-arm64.zip
+            codex-pocket-macos-arm64.zip.sha256
+          if-no-files-found: error

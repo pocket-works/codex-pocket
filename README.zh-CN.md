@@ -21,6 +21,22 @@
 - **Node 22 和 pnpm**：只在构建时需要。打包好的菜单栏应用自带 Node，运行时不依赖系统 Node。
 - **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
 
+## 快速开始
+
+先在 Mac 上登录 Codex，然后运行：
+
+```bash
+pnpm install --frozen-lockfile
+make app
+make open-app
+```
+
+在菜单栏点击 Codex Pocket 的 **Pair a phone...**，用接入同一局域网的手机扫描二维码；也可以在手机上打开菜单里显示的地址并输入配对码。需要在外网访问时，配置下文的 [Tailscale HTTPS](#部署tailscale-https)。应用未签名；首次打开若被 macOS 阻止，请右键应用并选 **打开**。
+
+![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
+
+当前构建面向 Apple 芯片 Mac。通过 `link-desktop` 与桌面 App 共享线程还要求 Codex daemon 的 `account/read` 响应带有 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）；`codex-pocket desktop` 会检查这项能力。听写依赖未文档化的 ChatGPT 接口，接口变更后可能失效。
+
 ## 安全模型
 
 host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 Mac 上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
@@ -33,13 +49,7 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 
 host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host，后台不会留下任何进程。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。勾选 **Keep this Mac awake** 后，host 运行期间 Mac 不会因闲置而睡眠，手机随时能发起任务、跑着的任务也不会被打断（屏幕照常熄灭；电池供电时合盖仍会睡眠）。这个选项保存在 `~/.codex-pocket/desktop.json`。
 
-```bash
-pnpm install
-make app            # 生成 packages/desktop/release/mac-arm64/Codex Pocket.app
-make open-app       # 或者把 .app 拖到 /Applications 再打开
-```
-
-应用内置了 host 和 PWA，不依赖系统 Node。未签名，第一次打开请右键 → 打开。Codex app-server 本身是官方 daemon（`codex app-server daemon start`），归 Codex 管，应用只显示它的连接状态，不会去停它。
+`make app` 会生成 `packages/desktop/release/mac-arm64/Codex Pocket.app`，也可以把它拖到 `/Applications`。应用内置了 host 和 PWA，不依赖系统 Node。Codex app-server 本身是官方 daemon（`codex app-server daemon start`），归 Codex 管，应用只显示它的连接状态，不会去停它。
 
 ## 开发
 
@@ -56,7 +66,8 @@ pnpm dev:host revoke <id>
 
 常用操作都包在 `Makefile` 里（`make app`、`make start`、`make pair`、`make status`…），`make help` 查看列表。`pnpm --filter @codex-pocket/desktop dev` 从工作区直接跑菜单栏应用（会先把 host 从源码打包）；改了 host 代码后重新跑一次，或者 `pnpm --filter @codex-pocket/desktop bundle` 之后在菜单里点 **Restart host**。
 
-改动要遵守的约定——每个包能做什么、不能做什么，测试放在哪里，提交信息怎么写——都在 [AGENTS.md](./AGENTS.md)。
+参与贡献请先看 [CONTRIBUTING.md](./CONTRIBUTING.md)；各包职责与代码约定见 [AGENTS.md](./AGENTS.md)。
+维护者的 macOS 手动打包与发版检查见 [docs/releasing.md](./docs/releasing.md)。
 
 状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`。
 
@@ -109,6 +120,10 @@ codex-pocket desktop        # 查看链接状态，以及 daemon 是否已经可
 ```bash
 pnpm --filter @codex-pocket/protocol generate
 ```
+
+## 版本发布
+
+带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 后，CI 与打包检查通过才会创建 macOS Release 草稿；具体检查与发布步骤见[发版流程](./docs/releasing.md)。
 
 ## 许可
 

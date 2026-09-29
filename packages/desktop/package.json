@@ -10,7 +10,7 @@
     "dev": "node scripts/bundle.ts && electron .",
     "bundle": "node scripts/bundle.ts",
     "build": "node scripts/bundle.ts",
-    "app": "node scripts/bundle.ts && electron-builder --mac --dir",
+    "app": "node scripts/bundle.ts && electron-builder --mac --arm64 --dir",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -47,6 +47,10 @@
       {
         "from": "../web/dist",
         "to": "web"
+      },
+      {
+        "from": "build/legal",
+        "to": "legal"
       }
     ],
     "npmRebuild": false,

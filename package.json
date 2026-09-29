@@ -1,5 +1,6 @@
 {
   "name": "codex-pocket",
+  "type": "module",
   "private": true,
   "version": "0.1.0",
   "description": "Phone-sized PWA that connects straight to the Codex desktop app-server on your Mac, over Tailscale or the LAN.",
@@ -23,6 +24,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
+    "release:check": "node scripts/check-release.ts",
     "dev:host": "pnpm --filter @codex-pocket/host dev"
   },
   "devDependencies": {
