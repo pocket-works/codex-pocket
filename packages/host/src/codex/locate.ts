@@ -52,7 +52,7 @@ export function codexCliRunner(codexBin = process.env.CODEX_BIN ?? "codex", shel
 // `codex app-server daemon start` is idempotent: it starts the local daemon
 // if needed and always reports its socket path as JSON. Codex owns the
 // process from then on (pid file, self-update); the desktop app reaches it
-// through the host's TCP bridge.
+// through the independent desktop bridge.
 export async function ensureDaemon(run: DaemonRunner = codexCliRunner()): Promise<DaemonInfo> {
   const stdout = await run(["app-server", "daemon", "start"]);
   const line = stdout

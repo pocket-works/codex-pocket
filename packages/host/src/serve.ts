@@ -2,16 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
-import { watchAppToolsPipe } from "./codex/app-tools-pipe.js";
-import { bridgeUrl, startDaemonBridge } from "./codex/daemon-bridge.js";
-import { defaultSocketPath } from "./codex/locate.js";
 import { codexConnector } from "./codex/target.js";
 import { retireLegacyLaunchAgents } from "./launchd.js";
 import { adminToken, devicesFile, findCertFiles, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
 import { PushNotifier } from "./push/notifier.js";
 import { loadOrCreateVapidKeys } from "./push/vapid.js";
 import webpush from "web-push";
-import { codexSettings, parsePublicUrl, readSettings } from "./config/settings.js";
+import { parsePublicUrl, readSettings } from "./config/settings.js";
 import { primaryLanAddress } from "./net/lan-ip.js";
 import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
 import { DictationService } from "./dictation/dictation-service.js";
@@ -54,7 +51,6 @@ export async function serve(opts: ServeOptions): Promise<void> {
   if (!lanIp && !fixedUrl) throw new Error("no LAN IPv4 address found; set publicUrl (codex-pocket config set publicUrl <origin>)");
 
   const deviceStore = new DeviceStore(devicesFile());
-  const codex = codexSettings();
   const vapid = loadOrCreateVapidKeys(vapidFile());
   const notifier = new PushNotifier({
     store: deviceStore,
@@ -87,16 +83,8 @@ export async function serve(opts: ServeOptions): Promise<void> {
   });
 
   const addr = await server.listen();
-  // Older versions kept themselves alive under launchd and would fight us
-  // for the ports, so retire those agents before opening the bridge.
+  // An older host LaunchAgent may still own the phone port on restart.
   for (const label of retireLegacyLaunchAgents()) log(`removed retired ${label} LaunchAgent`);
-  // The desktop app dials ws://127.0.0.1:<port> (`link-desktop`); relay it
-  // onto the daemon's unix socket.
-  const bridge = await startDaemonBridge({ port: codex.port, socketPath: defaultSocketPath(), log });
-  log(`desktop bridge ${bridgeUrl(bridge.port)} -> ${defaultSocketPath()}`);
-  // A linked desktop app spawns no app-server to hand its tools pipe to;
-  // keep the daemon's fixed path pointed at it instead.
-  const appTools = watchAppToolsPipe({ log });
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
   const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
   log(`listening on ${publicUrl}${note}`);
@@ -119,8 +107,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
   const shutdown = () => {
     log("shutting down");
     proxy.stop();
-    appTools.stop();
-    Promise.all([server.close(), bridge.close()]).finally(() => process.exit(0));
+    server.close().finally(() => process.exit(0));
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

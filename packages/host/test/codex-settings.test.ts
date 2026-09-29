@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CODEX_SETTINGS, parseCodexSettings, parsePublicUrl, setSetting, unsetSetting } from "../src/config/settings.js";
-import { desktopEnvPlist, DESKTOP_ENV_LABEL } from "../src/launchd.js";
+import { desktopBridgePlist, DESKTOP_BRIDGE_LABEL } from "../src/launchd.js";
 
 describe("parseCodexSettings", () => {
   it("defaults to the desktop bridge port", () => {
@@ -53,13 +53,14 @@ describe("config set/unset", () => {
   });
 });
 
-describe("desktopEnvPlist", () => {
-  it("sets CODEX_APP_SERVER_WS_URL through launchctl at login", () => {
-    const xml = desktopEnvPlist("ws://127.0.0.1:7355/");
-    expect(xml).toContain(`<string>${DESKTOP_ENV_LABEL}</string>`);
-    expect(xml).toContain("<string>setenv</string>");
-    expect(xml).toContain("<string>CODEX_APP_SERVER_WS_URL</string>");
-    expect(xml).toContain("<string>ws://127.0.0.1:7355/</string>");
-    expect(xml).toContain("<key>RunAtLoad</key>");
+describe("desktopBridgePlist", () => {
+  it("keeps the desktop bridge alive across Pocket quits and user logins", () => {
+    const xml = desktopBridgePlist(["/bin/zsh", "-lic", 'exec node "$@"', "node", "/path with spaces/cli.js", "desktop-bridge", "--port", "7355"], { CODEX_POCKET_HOME: "/other home" });
+    expect(xml).toContain(`<string>${DESKTOP_BRIDGE_LABEL}</string>`);
+    expect(xml).toContain("<key>RunAtLoad</key><true/>");
+    expect(xml).toContain("<key>KeepAlive</key><true/>");
+    expect(xml).toContain("<string>/path with spaces/cli.js</string>");
+    expect(xml).toContain("<string>7355</string>");
+    expect(xml).toContain("<key>CODEX_POCKET_HOME</key><string>/other home</string>");
   });
 });
