@@ -31,7 +31,7 @@ make app
 make open-app
 ```
 
-在菜单栏点击 Codex Pocket 的 **Pair a phone...**，用接入同一局域网的手机扫描二维码；也可以在手机上打开菜单里显示的地址并输入配对码。需要在外网访问时，配置下文的 [Tailscale HTTPS](#部署tailscale-https)。应用未签名；首次打开若被 macOS 阻止，请右键应用并选 **打开**。
+在菜单栏点击 Codex Pocket 的 **Pair a phone...**，用接入同一局域网的手机扫描二维码；也可以在手机上打开菜单里显示的地址并输入配对码。需要在外网访问时，配置下文的 [Tailscale HTTPS](#部署tailscale-https)。本地构建仍未签名；v0.1.0 的 zip 也未签名。签名并公证的正式版本将通过 DMG 分发。
 
 ![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
 
@@ -123,7 +123,7 @@ pnpm --filter @codex-pocket/protocol generate
 
 ## 版本发布
 
-带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 后，CI 与打包检查通过才会创建 macOS Release 草稿；具体检查与发布步骤见[发版流程](./docs/releasing.md)。
+带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 并通过 CI 后会创建 Release 草稿；维护者在本机完成 DMG 的签名、公证和验证，再上传并发布。具体步骤见[发版流程](./docs/releasing.md)。
 
 ## 许可
 

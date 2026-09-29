@@ -33,6 +33,6 @@ if (args.length === 0) {
   const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
   const notes = lines.slice(start + 1, end).join("\n").trim();
   if (!notes) throw new Error(`CHANGELOG.md has no notes for ${version}`);
-  writeFileSync(args[3], `${notes}\n\nThis macOS build is unsigned and targets Apple silicon. On first launch, right-click the app and choose **Open**.\n`);
+  writeFileSync(args[3], `${notes}\n\nThis macOS build targets Apple silicon. Open the DMG and drag Codex Pocket to Applications.\n`);
   console.log(`Release ${tag} validated; notes written to ${args[3]}`);
 }
