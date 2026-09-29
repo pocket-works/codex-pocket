@@ -23,8 +23,8 @@ import { pocketHome } from "../config/paths.js";
 // CODEX_APP_TOOLS_PIPE_PATH to the app-server it spawns, and the plugin's MCP
 // config forwards the variable from the app-server's environment. Linked to
 // the daemon, the desktop spawns nothing, so the daemon is started with a
-// fixed path instead and the host keeps a symlink there pointed at the running
-// app's socket.
+// fixed path instead and the desktop bridge keeps a symlink there pointed at
+// the running app's socket.
 //
 // The socket admits a peer only when it, its parent and its grandparent are
 // all signed by OpenAI (a relay from the host would be refused). Under the

@@ -5,7 +5,7 @@ import type { Device } from "./auth/device-store.js";
 import { CodexClient } from "./codex/codex-client.js";
 import { readSettings, setSetting, unsetSetting, writeSettings } from "./config/settings.js";
 import { bridgeUrl } from "./codex/daemon-bridge.js";
-import { clearDesktopEnv, currentDesktopEnv, DESKTOP_ENV_VAR, installDesktopBridge, removeDesktopBridge, restoreSharedAppServer, retireDesktopEnvAgent, retireSharedAppServer, setDesktopEnv, unlinkDesktop } from "./launchd.js";
+import { clearDesktopEnv, currentDesktopEnv, DESKTOP_ENV_VAR, desktopBridgeAgentMatches, installDesktopBridge, readDesktopBridgeAgent, removeDesktopBridge, restoreDesktopBridge, restoreSharedAppServer, retireDesktopEnvAgent, retireSharedAppServer, setDesktopEnv, unlinkDesktop } from "./launchd.js";
 import { desktopBridgeIsReady, runDesktopBridge, waitForDesktopBridge } from "./codex/desktop-bridge-service.js";
 import { desktopCompat } from "./codex/desktop-compat.js";
 import { appToolsLinkPath, createPipeLocator } from "./codex/app-tools-pipe.js";
@@ -158,12 +158,14 @@ async function main(argv: string[]): Promise<number> {
       const previousEnv = currentDesktopEnv();
       let installed = false;
       let legacyPlist: string | null = null;
+      let previousBridgePlist: string | null = null;
       try {
-        if (!desktopBridgeIsReady(port)) {
+        const args = [process.env.SHELL || "/bin/zsh", "-lic", 'exec node "$@"', "node", ...process.execArgv, fileURLToPath(import.meta.url), "desktop-bridge", "--port", String(port)];
+        const env = Object.fromEntries(["CODEX_POCKET_HOME", "CODEX_HOME", "CODEX_BIN"].flatMap((key) => process.env[key] ? [[key, process.env[key]!]] : []));
+        if (!desktopBridgeIsReady(port) || !desktopBridgeAgentMatches(args, env)) {
           legacyPlist = retireSharedAppServer();
           if (legacyPlist) console.log("Removed the retired shared app-server service.");
-          const args = [process.env.SHELL || "/bin/zsh", "-lic", 'exec node "$@"', "node", ...process.execArgv, fileURLToPath(import.meta.url), "desktop-bridge", "--port", String(port)];
-          const env = Object.fromEntries(["CODEX_POCKET_HOME", "CODEX_HOME", "CODEX_BIN"].flatMap((key) => process.env[key] ? [[key, process.env[key]!]] : []));
+          previousBridgePlist = readDesktopBridgeAgent();
           installDesktopBridge(args, env);
           installed = true;
           await waitForDesktopBridge(port);
@@ -174,8 +176,10 @@ async function main(argv: string[]): Promise<number> {
       } catch (err) {
         if (installed || legacyPlist) {
           const oldSharedPlist = legacyPlist;
+          const oldBridgePlist = previousBridgePlist;
           const rollback = [
             ...(installed ? [() => removeDesktopBridge()] : []),
+            ...(installed && oldBridgePlist ? [() => restoreDesktopBridge(oldBridgePlist)] : []),
             ...(oldSharedPlist ? [() => restoreSharedAppServer(oldSharedPlist)] : []),
             () => previousEnv ? setDesktopEnv(previousEnv) : clearDesktopEnv(),
           ];
