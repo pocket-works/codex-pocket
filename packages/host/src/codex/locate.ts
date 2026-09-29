@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -41,7 +41,15 @@ export function daemonEnv(): Record<string, string> {
   return appToolsDaemonEnv();
 }
 
-export function codexCliRunner(codexBin = process.env.CODEX_BIN ?? "codex", shell?: string): DaemonRunner {
+export function bundledCodexBin(apps = ["/Applications/ChatGPT.app", join(homedir(), "Applications", "ChatGPT.app")]): string | null {
+  for (const app of apps) {
+    const bin = join(app, "Contents", "Resources", "codex-cli", "bin", "codex");
+    if (existsSync(bin)) return bin;
+  }
+  return null;
+}
+
+export function codexCliRunner(codexBin = process.env.CODEX_BIN ?? bundledCodexBin() ?? "codex", shell?: string): DaemonRunner {
   return async (args) => {
     const cmd = loginShellCommand(codexBin, args, shell);
     const { stdout } = await execFileAsync(cmd.file, cmd.args, { timeout: 30_000, env: { ...process.env, ...daemonEnv() } });

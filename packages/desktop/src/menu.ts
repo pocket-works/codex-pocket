@@ -5,7 +5,7 @@ import type { Rgb } from "./icons.js";
 // The tray menu as plain data, so what the user sees for each state can be
 // tested without Electron. main.ts turns it into a real Menu.
 
-export type MenuAction = "start" | "stop" | "restart" | "pair" | "keep-awake" | "log" | "quit" | "revoke-stale" | { revoke: string };
+export type MenuAction = "start" | "stop" | "restart" | "pair" | "keep-awake" | "log" | "quit" | "revoke-stale" | "link-desktop" | "unlink-desktop" | { revoke: string };
 
 export interface MenuItem {
   label: string;
@@ -60,7 +60,7 @@ export function trayTooltip(state: HostState): string {
   }
 }
 
-export function buildMenu(state: HostState, devices: Device[], now = Date.now(), keepAwake = false): MenuEntry[] {
+export function buildMenu(state: HostState, devices: Device[], now = Date.now(), keepAwake = false, desktopLinked = false, desktopBusy = false): MenuEntry[] {
   const running = state.kind === "running";
   const head: MenuEntry[] = [];
   switch (state.kind) {
@@ -96,6 +96,11 @@ export function buildMenu(state: HostState, devices: Device[], now = Date.now(),
     "separator",
     { label: "Pair a phone…", action: "pair", enabled: running },
     { label: devices.length === 1 ? "1 paired phone" : `${devices.length} paired phones`, submenu: deviceItems, enabled: running },
+    "separator",
+    { label: desktopLinked ? "Desktop sharing: linked" : "Desktop sharing: not linked", submenu: [
+      { label: desktopLinked ? "Relink desktop…" : "Link desktop…", action: "link-desktop", enabled: !desktopBusy },
+      { label: "Unlink desktop…", action: "unlink-desktop", enabled: desktopLinked && !desktopBusy },
+    ] },
     "separator",
     running || state.kind === "starting" ? { label: "Stop host", action: "stop" } : { label: "Start host", action: "start" },
     { label: "Restart host", action: "restart", enabled: running || state.kind === "error" },

@@ -160,7 +160,7 @@ async function main(argv: string[]): Promise<number> {
       let legacyPlist: string | null = null;
       let previousBridgePlist: string | null = null;
       try {
-        const args = [process.env.SHELL || "/bin/zsh", "-lic", 'exec node "$@"', "node", ...process.execArgv, fileURLToPath(import.meta.url), "desktop-bridge", "--port", String(port)];
+        const args = [process.env.SHELL || "/bin/zsh", "-lic", 'exec env ELECTRON_RUN_AS_NODE=1 "$@"', "pocket-runtime", process.execPath, ...process.execArgv, fileURLToPath(import.meta.url), "desktop-bridge", "--port", String(port)];
         const env = Object.fromEntries(["CODEX_POCKET_HOME", "CODEX_HOME", "CODEX_BIN"].flatMap((key) => process.env[key] ? [[key, process.env[key]!]] : []));
         if (!desktopBridgeIsReady(port) || !desktopBridgeAgentMatches(args, env)) {
           legacyPlist = retireSharedAppServer();
