@@ -29,7 +29,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate release tag and notes
         run: |
-          test "$(git cat-file -t "$GITHUB_REF_NAME")" = tag
+          peeled="$(git ls-remote origin "refs/tags/${GITHUB_REF_NAME}^{}" | cut -f1)"
+          test -n "$peeled"
+          test "$peeled" = "$(git rev-parse HEAD)"
           git merge-base --is-ancestor HEAD origin/main
           node scripts/check-release.ts --tag "$GITHUB_REF_NAME" --notes-file /tmp/codex-pocket-release-notes.md
       - run: pnpm typecheck
