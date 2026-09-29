@@ -1,9 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   codexCliRunner,
+  bundledCodexBin,
   daemonEnv,
   daemonEnvMissing,
   defaultSocketPath,
@@ -56,6 +57,17 @@ describe("loginShellCommand", () => {
   it("passes arguments through untouched", async () => {
     const run = codexCliRunner("/bin/echo", "/bin/sh");
     expect((await run(["app-server", "daemon", "start"])).trim()).toBe("app-server daemon start");
+  });
+});
+
+describe("bundledCodexBin", () => {
+  it("finds the CLI shipped with ChatGPT when no separate Codex install is needed", () => {
+    const app = join(mkdtempSync(join(tmpdir(), "pocket-codex-")), "ChatGPT.app");
+    const bin = join(app, "Contents", "Resources", "codex-cli", "bin", "codex");
+    mkdirSync(join(app, "Contents", "Resources", "codex-cli", "bin"), { recursive: true });
+    writeFileSync(bin, "");
+    expect(bundledCodexBin(["/missing/ChatGPT.app", app])).toBe(bin);
+    expect(bundledCodexBin(["/missing/ChatGPT.app"])).toBeNull();
   });
 });
 

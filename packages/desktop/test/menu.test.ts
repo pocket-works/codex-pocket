@@ -63,6 +63,16 @@ describe("buildMenu", () => {
     expect(toggle(true)?.checked).toBe(true);
   });
 
+  it("offers desktop linking on first install and relinking after setup", () => {
+    const sharing = (linked: boolean, busy = false) => items(buildMenu({ kind: "stopped" }, [], NOW, false, linked, busy)).find((i) => i.label.startsWith("Desktop sharing:"));
+    expect(sharing(false)?.submenu).toEqual([
+      { label: "Link desktop…", action: "link-desktop", enabled: true },
+      { label: "Unlink desktop…", action: "unlink-desktop", enabled: false },
+    ]);
+    expect(sharing(true)?.submenu?.[0]).toMatchObject({ label: "Relink desktop…", enabled: true });
+    expect(sharing(true, true)?.submenu?.every((item) => item.enabled === false)).toBe(true);
+  });
+
   it("always ends with Quit", () => {
     expect(items(buildMenu({ kind: "starting" }, [])).at(-1)?.action).toBe("quit");
   });
