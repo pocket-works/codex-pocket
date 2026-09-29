@@ -39,42 +39,8 @@ jobs:
       - run: pnpm --filter @codex-pocket/host build
       - run: pnpm --filter @codex-pocket/web build
 
-  package:
-    needs: check
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: make app
-      - name: Archive and verify app
-        shell: bash
-        run: |
-          archive="codex-pocket-${GITHUB_REF_NAME}-macos-arm64.zip"
-          file "packages/desktop/release/mac-arm64/Codex Pocket.app/Contents/MacOS/Codex Pocket" | grep -q arm64
-          legal="packages/desktop/release/mac-arm64/Codex Pocket.app/Contents/Resources/legal"
-          test -s "$legal/LICENSE"
-          test -s "$legal/THIRD-PARTY-NOTICES.txt"
-          test -s "$legal/LICENSES.chromium.html"
-          ditto -c -k --keepParent "packages/desktop/release/mac-arm64/Codex Pocket.app" "$archive"
-          shasum -a 256 "$archive" > "$archive.sha256"
-          shasum -a 256 -c "$archive.sha256"
-          unzip -tq "$archive"
-          unzip -Z1 "$archive" | grep -q 'Contents/Resources/legal/THIRD-PARTY-NOTICES.txt'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos-arm64-release
-          path: |
-            codex-pocket-*-macos-arm64.zip
-            codex-pocket-*-macos-arm64.zip.sha256
-          if-no-files-found: error
-
   publish-draft:
-    needs: package
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -85,19 +51,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
-        with:
-          name: macos-arm64-release
       - name: Create draft release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           node scripts/check-release.ts --tag "$GITHUB_REF_NAME" --notes-file release-notes.md
-          archive="codex-pocket-${GITHUB_REF_NAME}-macos-arm64.zip"
-          sha256sum -c "$archive.sha256"
           flags=()
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" "$archive" "$archive.sha256" \
+          gh release create "$GITHUB_REF_NAME" \
             --draft --verify-tag --title "Codex Pocket $GITHUB_REF_NAME" \
             --notes-file release-notes.md "${flags[@]}"

@@ -31,7 +31,7 @@ make app
 make open-app
 ```
 
-Open **Pair a phone...** from the Codex Pocket menu bar icon, then scan its QR code with a phone on the same LAN. You can also open the displayed address on the phone and enter the pairing code. For access away from home, set up [Tailscale HTTPS](#deploying-https-via-tailscale). The app is unsigned; on first launch, right-click it and choose **Open** if macOS blocks it.
+Open **Pair a phone...** from the Codex Pocket menu bar icon, then scan its QR code with a phone on the same LAN. You can also open the displayed address on the phone and enter the pairing code. For access away from home, set up [Tailscale HTTPS](#deploying-https-via-tailscale). Locally built apps remain unsigned; the v0.1.0 zip is also unsigned. Signed and notarized releases will be distributed as DMGs.
 
 ![Codex Pocket pairing screen on a phone](./docs/screenshots/pairing.jpg)
 
@@ -123,7 +123,7 @@ pnpm --filter @codex-pocket/protocol generate
 
 ## Releases
 
-Versioned macOS builds are available from [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI and packaging checks. See the [release process](./docs/releasing.md) for the required checks and publishing steps.
+Versioned macOS builds are available from [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI. Signed, notarized DMGs are built and verified on the maintainer's Mac before upload and publication. See the [release process](./docs/releasing.md).
 
 ## License
 

@@ -1,4 +1,4 @@
-name: Package macOS app
+name: Build unsigned macOS app
 
 on:
   workflow_dispatch:
@@ -19,12 +19,12 @@ jobs:
       - name: Archive app and checksum
         run: |
           test -s "packages/desktop/release/mac-arm64/Codex Pocket.app/Contents/Resources/legal/THIRD-PARTY-NOTICES.txt"
-          ditto -c -k --keepParent "packages/desktop/release/mac-arm64/Codex Pocket.app" codex-pocket-macos-arm64.zip
-          shasum -a 256 codex-pocket-macos-arm64.zip > codex-pocket-macos-arm64.zip.sha256
+          ditto -c -k --keepParent "packages/desktop/release/mac-arm64/Codex Pocket.app" unsigned-codex-pocket-macos-arm64.zip
+          shasum -a 256 unsigned-codex-pocket-macos-arm64.zip > unsigned-codex-pocket-macos-arm64.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: codex-pocket-macos-arm64-${{ github.sha }}
+          name: unsigned-codex-pocket-macos-arm64-${{ github.sha }}
           path: |
-            codex-pocket-macos-arm64.zip
-            codex-pocket-macos-arm64.zip.sha256
+            unsigned-codex-pocket-macos-arm64.zip
+            unsigned-codex-pocket-macos-arm64.zip.sha256
           if-no-files-found: error

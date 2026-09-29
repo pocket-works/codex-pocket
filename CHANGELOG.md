@@ -4,6 +4,16 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-29
+
+### Added
+
+- Developer ID signed and Apple notarized DMG for Apple silicon Macs, with stapled tickets for offline verification.
+
+### Changed
+
+- Replace the unsigned release zip with a DMG that supports drag-to-Applications installation. The release workflow now creates a draft without uploading an unsigned app.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added

@@ -17,7 +17,7 @@ LOG       := $(POCKET)/host.log
 # pid of whatever is listening on $(PORT)
 LISTENER   = $$(lsof -nP -t -iTCP:$(PORT) -sTCP:LISTEN 2>/dev/null | head -1)
 
-.PHONY: help deps build web test typecheck app open-app start stop restart \
+.PHONY: help deps build web test typecheck app release-dmg open-app start stop restart \
         status logs pair devices revoke threads info desktop link-desktop \
         unlink-desktop protocol
 
@@ -43,6 +43,9 @@ typecheck: ## Type-check all packages
 
 app: web ## Build the Codex Pocket menu bar app into packages/desktop/release
 	$(DESKTOP) app
+
+release-dmg: web ## Sign, notarize, and verify an Apple silicon DMG locally
+	$(DESKTOP) release:dmg
 
 open-app: ## Launch the built menu bar app (it starts the host; quit it to stop)
 	open "$(APP)"
