@@ -2,10 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pocketHome } from "./paths.js";
 
-// The host always talks to the official `codex app-server daemon` over its
-// unix socket. `port` is the local TCP port the host relays onto that socket
-// for the ChatGPT desktop app (`link-desktop`), so phone and desktop share
-// one process and every thread.
+// The host talks to the official daemon over its unix socket. A separate
+// desktop bridge uses `port` to expose that same daemon to the desktop app.
 export interface CodexSettings {
   port: number;
 }

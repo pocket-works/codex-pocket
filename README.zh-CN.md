@@ -33,6 +33,8 @@ make open-app
 
 在菜单栏点击 Codex Pocket 的 **Pair a phone...**，用接入同一局域网的手机扫描二维码；也可以在手机上打开菜单里显示的地址并输入配对码。需要在外网访问时，配置下文的 [Tailscale HTTPS](#部署tailscale-https)。本地构建仍未签名；v0.1.0 的 zip 也未签名。签名并公证的正式版本将通过 DMG 分发。
 
+通过 DMG 安装时，先在 Mac 上安装并登录 ChatGPT，再打开 Codex Pocket。host 会按需使用 ChatGPT 内置的 CLI 启动 Codex 官方 daemon；无需另装 Codex CLI、Node 或 pnpm。在 Pocket 菜单中选 **Desktop sharing > Link desktop…**，然后退出并重新打开 ChatGPT。如果 daemon 已运行但缺少桌面工具所需的环境，关联时会重启它一次并中断正在进行的轮次；全新启动的 daemon 不需要重启。
+
 ![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
 
 当前构建面向 Apple 芯片 Mac。通过 `link-desktop` 与桌面 App 共享线程还要求 Codex daemon 的 `account/read` 响应带有 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）；`codex-pocket desktop` 会检查这项能力。听写依赖未文档化的 ChatGPT 接口，接口变更后可能失效。
@@ -47,7 +49,7 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 
 ## 运行：菜单栏应用
 
-host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host，后台不会留下任何进程。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。勾选 **Keep this Mac awake** 后，host 运行期间 Mac 不会因闲置而睡眠，手机随时能发起任务、跑着的任务也不会被打断（屏幕照常熄灭；电池供电时合盖仍会睡眠）。这个选项保存在 `~/.codex-pocket/desktop.json`。
+host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host；如果已关联桌面应用，独立的本地转发服务会继续运行，直到执行 `unlink-desktop`。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。勾选 **Keep this Mac awake** 后，host 运行期间 Mac 不会因闲置而睡眠，手机随时能发起任务、跑着的任务也不会被打断（屏幕照常熄灭；电池供电时合盖仍会睡眠）。这个选项保存在 `~/.codex-pocket/desktop.json`。
 
 `make app` 会生成 `packages/desktop/release/mac-arm64/Codex Pocket.app`，也可以把它拖到 `/Applications`。应用内置了 host 和 PWA，不依赖系统 Node。Codex app-server 本身是官方 daemon（`codex app-server daemon start`），归 Codex 管，应用只显示它的连接状态，不会去停它。
 
@@ -69,7 +71,7 @@ pnpm dev:host revoke <id>
 参与贡献请先看 [CONTRIBUTING.md](./CONTRIBUTING.md)；各包职责与代码约定见 [AGENTS.md](./AGENTS.md)。
 维护者的 macOS 手动打包与发版检查见 [docs/releasing.md](./docs/releasing.md)。
 
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`。
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`；关联桌面后还有 `desktop-bridge.log`。
 
 ## 部署：Tailscale HTTPS
 
@@ -106,14 +108,15 @@ pnpm dev:host serve
 Codex 的 writer 锁是跨进程的文件锁：桌面 ChatGPT App 默认自己 spawn 一个私有 `app-server`，手机连别的进程就打不开桌面正开着的线程。解决办法是让两边进同一个进程：
 
 ```bash
-codex-pocket link-desktop   # 设置 CODEX_APP_SERVER_WS_URL=ws://127.0.0.1:7355/，并安装登录时自动设置的 LaunchAgent
+codex-pocket link-desktop   # 启动独立的本地转发服务，再让 ChatGPT 连接它
 # 退出并重新打开 ChatGPT
 codex-pocket desktop        # 查看链接状态，以及 daemon 是否已经可以 link
 ```
 
-`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`），并把 `ws://127.0.0.1:7355` 转发到这个 socket 供桌面 App 使用。daemon 进程由 Codex 自己管理：按需启动、记录 pid、自动升级。host 通过你的交互式登录 shell 启动它（与桌面 App 走 SSH 时的做法一致），因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与你终端里一致。桌面和手机最终在同一个进程里，桌面打开的线程在手机上可以直接继续，双方实时同步。`link-desktop` 会先检查 daemon 的 `account/read` 是否带 `workspaceRouting`：桌面 App 的所有后端请求（登录信息、听写）都要经过这个字段，缺了会静默失效——standalone 版 codex 0.155.1 就没有，而 ChatGPT.app 自带的那份已经有了。这个字段随 codex 0.156.0 发布（openai/codex#45529）；在 daemon 升到该版本之前该命令会拒绝执行（`--force` 可强制），桌面 App 继续用自己的私有 app-server。`codex-pocket desktop` 会做同样的检查，Codex 升级后跑一下就知道能不能 link。桌面 App 提供给 Codex 的工具（新建或转交线程、自动化等，即内置的 `codex_app` MCP）要通过一个 unix socket 连到 App：App 每次启动都会新开这个 socket，平时把路径交给它自己启动的 app-server。桌面挂到 daemon 后，host 用固定路径 `~/.codex-pocket/app-tools.sock` 启动 daemon，并根据 App 的日志让这个 symlink 始终指向正在运行的 App 的 socket；该 socket 要求对端是 OpenAI 签名的进程，所以 MCP 通过 App 自带的 node 运行。在此之前就已启动的 daemon 会由 `link-desktop` 重启一次（正在跑的对话会被打断）。`codex-pocket unlink-desktop` 可恢复桌面 App 的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口。
+`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`）。未设置 `CODEX_BIN` 且已安装 ChatGPT 时，Pocket 使用 ChatGPT 内置的 CLI；否则使用 shell 的 `PATH` 中的 CLI。`link-desktop` 会安装用户级 LaunchAgent，把 `ws://127.0.0.1:7355` 转发到该 socket。转发服务使用 Pocket 内置的 Electron 运行时，先验证能通过入口连接 app-server，再设置桌面 App 的 `CODEX_APP_SERVER_WS_URL`；`link-desktop` 会等待服务就绪。首次关联时不必先打开 Pocket。退出 Pocket 后转发服务仍在；执行 `unlink-desktop` 才移除它。daemon 进程始终由 Codex 自己管理。桌面和手机最终在同一个 daemon 中，桌面打开的线程在手机上可以直接继续，双方实时同步。转发服务通过交互式登录 shell 启动 Codex，因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与终端里一致。`link-desktop` 会先检查 daemon 的 `account/read` 是否带 `workspaceRouting`：桌面 App 的所有后端请求（登录信息、听写）都要经过这个字段，缺了会静默失效——standalone 版 codex 0.155.1 就没有，而 ChatGPT.app 自带的那份已经有了。这个字段随 codex 0.156.0 发布（openai/codex#45529）；在 daemon 升到该版本之前该命令会拒绝执行（`--force` 可强制），桌面 App 继续用自己的私有 app-server。`codex-pocket desktop` 会做同样的检查，Codex 升级后跑一下就知道能不能 link。桌面 App 提供给 Codex 的工具（新建或转交线程、自动化等，即内置的 `codex_app` MCP）要通过一个 unix socket 连到 App：App 每次启动都会新开这个 socket。转发服务让 `~/.codex-pocket/app-tools.sock` 始终指向正在运行的 App 的 socket；该 socket 要求对端是 OpenAI 签名的进程，所以 MCP 通过 App 自带的 node 运行。此前已启动的 daemon 可能由 `link-desktop` 重启一次（正在跑的对话会被打断）。执行 `codex-pocket unlink-desktop` 后，重启 ChatGPT 即可恢复它的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口，改后须重新执行 `link-desktop`。
 
-从曾经自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，下一次 `serve` 会移除该 agent 并接管端口；请先等桌面上正在进行的轮次结束。
+从曾经自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，`link-desktop` 会先移除旧 agent，再安装转发服务；请先等桌面上正在进行的轮次结束。
+从 host 托管转发入口的版本升级时，请重启 Pocket，并重新运行 `link-desktop` 安装独立转发服务，然后再退出 Pocket。
 
 升级 Codex 后重新生成协议类型：
 

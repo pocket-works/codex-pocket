@@ -1,6 +1,8 @@
+import { execFile, execFileSync } from "node:child_process";
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, powerSaveBlocker, shell, Tray, utilityProcess, type MenuItemConstructorOptions } from "electron";
 import { AdminClient, pocketHome, type Device } from "./admin.js";
 import { encodePng, trayGlyph } from "./icons.js";
@@ -9,12 +11,13 @@ import { buildMenu, staleDevices, trayColor, trayTooltip, type MenuAction, type 
 import { pairPageFor } from "./pair-page.js";
 import { HostSupervisor, type HostChild, type HostState } from "./supervisor.js";
 
-// Menu bar app that owns the host: launching it starts `serve`, quitting it
-// stops `serve`. Nothing is left running in the background afterwards; the
+// Menu bar app that owns the phone host: launching it starts `serve`, quitting
+// it stops `serve`. A linked desktop bridge has its own LaunchAgent; the
 // Codex daemon itself belongs to Codex and is only observed here.
 
 const KILL_GRACE_MS = 5000;
 const DEVICE_REFRESH_MS = 30_000;
+const execFileAsync = promisify(execFile);
 
 interface HostLocation {
   script: string;
@@ -112,14 +115,23 @@ async function main(): Promise<void> {
   const prefs = readPrefs(pocketHome());
   const awake = new KeepAwake({ start: () => powerSaveBlocker.start("prevent-app-suspension"), stop: (id) => powerSaveBlocker.stop(id) });
   let pairWindow: BrowserWindow | null = null;
+  let desktopBusy = false;
   const tray = new Tray(trayIcon({ kind: "stopped" }));
+
+  const desktopLinked = () => {
+    try {
+      return Boolean(execFileSync("launchctl", ["getenv", "CODEX_APP_SERVER_WS_URL"], { encoding: "utf8" }).trim());
+    } catch {
+      return false;
+    }
+  };
 
   const render = () => {
     const state = supervisor.state;
     tray.setImage(trayIcon(state));
     tray.setToolTip(trayTooltip(state));
     awake.set(wantsAwake(prefs.keepAwake, state));
-    tray.setContextMenu(Menu.buildFromTemplate(toTemplate(buildMenu(state, devices, Date.now(), prefs.keepAwake), (a) => void runAction(a))));
+    tray.setContextMenu(Menu.buildFromTemplate(toTemplate(buildMenu(state, devices, Date.now(), prefs.keepAwake, desktopLinked(), desktopBusy), (a) => void runAction(a))));
   };
 
   // Light/dark switched (by hand or at sunset): the glyph's ink follows.
@@ -165,6 +177,25 @@ async function main(): Promise<void> {
         render();
       }
       else if (action === "log") await shell.openPath(logFile());
+      else if (action === "link-desktop" || action === "unlink-desktop") {
+        if (desktopBusy) return;
+        desktopBusy = true;
+        render();
+        try {
+          await execFileAsync(process.execPath, [location.script, action], {
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+            timeout: 120_000,
+          });
+          await dialog.showMessageBox({
+            type: "info",
+            message: action === "link-desktop" ? "Desktop linked" : "Desktop unlinked",
+            detail: "Quit and reopen ChatGPT for the change to take effect.",
+          });
+        } finally {
+          desktopBusy = false;
+          render();
+        }
+      }
       else if (action === "quit") app.quit();
       else if (action === "revoke-stale") {
         const stale = staleDevices(devices, Date.now());
