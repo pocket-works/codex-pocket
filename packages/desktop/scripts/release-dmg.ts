@@ -41,14 +41,13 @@ const { hash: identityHash, team } = selected[0];
 process.env.CSC_NAME = identityHash;
 
 execFileSync(process.execPath, [join(desktop, "scripts", "bundle.ts")], { cwd: desktop, stdio: "inherit" });
-const { identity: ignoredIdentity, ...mac } = manifest.build.mac ?? {};
-void ignoredIdentity;
 const config: Configuration = {
   ...manifest.build,
   directories: { ...manifest.build.directories, output: "release/signed" },
   forceCodeSigning: true,
   mac: {
-    ...mac,
+    ...manifest.build.mac,
+    identity: identityHash,
     target: ["dmg"],
     type: "distribution",
     hardenedRuntime: true,
