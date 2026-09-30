@@ -19,6 +19,7 @@ import {
 } from "./thread-reducer.js";
 import { applyThreadListNotification, markRead, mergeThreadList, withFirstMessage, type ThreadSummary } from "./thread-list.js";
 import { summarizeProjects, type ProjectSummary } from "./projects.js";
+import { isPendingTurnFinished, loadThreadReadiness, saveThreadReadiness } from "./thread-readiness.js";
 import { imageMimeType } from "../ui/uploaded-image.js";
 import { buildUserInput, type Draft } from "./compose.js";
 import { getLastModel, setLastModel } from "./model-prefs.js";
@@ -270,6 +271,8 @@ export class Session {
   private titled = new Set<string>();
   /** Ephemeral titling threads: their traffic is collected here, not shown. */
   private titleRuns = new Map<string, { text: string; done: (text: string) => void }>();
+  private readiness = loadThreadReadiness();
+  private completionChecks = new Map<string, object>();
 
   constructor(rpc: RpcClient) {
     this.rpc = rpc;
@@ -297,13 +300,91 @@ export class Session {
     rpc.onServerRequest((req) => this.onServerRequest(req));
     // The host mutes push notifications for the thread on screen.
     let lastThread: string | null = null;
+    let lastThreads = this.store.get().threads;
     this.store.subscribe(() => {
-      const threadId = this.store.get().open?.view.threadId || null;
+      const state = this.store.get();
+      if (state.threads !== lastThreads) {
+        lastThreads = state.threads;
+        for (const thread of state.threads) {
+          const saved = this.readiness.get(thread.id) ?? { pending: false, since: 0, turnId: null };
+          this.readiness.delete(thread.id);
+          this.readiness.set(thread.id, { ...saved, unread: thread.unread });
+        }
+        saveThreadReadiness(this.readiness);
+      }
+      const threadId = state.open?.view.threadId || null;
       if (threadId === lastThread) return;
       lastThread = threadId;
       this.reportClientState();
     });
-    if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => this.reportClientState());
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+      this.reportClientState();
+      if (document.visibilityState !== "visible") return;
+      const open = this.store.get().open;
+      if (this.store.get().connection === "open") {
+        if (open) void this.openThread(open.view.threadId, { force: true });
+        void this.loadThreads();
+      }
+    });
+  }
+
+  private isViewingThread(threadId: string): boolean {
+    const open = this.store.get().open;
+    return open?.view.threadId === threadId && open.state !== "loading" && open.state !== "error" &&
+      (typeof document === "undefined" || document.visibilityState === "visible");
+  }
+
+  private readThread(threadId: string): void {
+    this.completionChecks.delete(threadId);
+    const saved = this.readiness.get(threadId);
+    if (saved) {
+      const open = this.store.get().open;
+      const finished = open?.view.threadId === threadId && Object.values(open.view.turns).some((turn) =>
+        isPendingTurnFinished(saved, { ...turn, completedAt: turn.completedAt === null ? null : turn.completedAt / 1000 }),
+      );
+      this.readiness.set(threadId, { ...saved, unread: false, ...(finished ? { pending: false, since: 0, turnId: null } : {}) });
+      saveThreadReadiness(this.readiness);
+    }
+    this.store.set((s) => {
+      const threads = markRead(s.threads, threadId);
+      return threads === s.threads ? s : { ...s, threads };
+    });
+  }
+
+  private trackPending(threadId: string, pending: boolean, turnId?: string): void {
+    const thread = this.store.get().threads.find((entry) => entry.id === threadId);
+    if (!thread && !this.readiness.has(threadId)) return;
+    const saved = this.readiness.get(threadId);
+    const unread = thread?.unread ?? saved?.unread ?? false;
+    this.readiness.set(threadId, {
+      unread, pending,
+      since: pending ? (turnId || !saved?.pending ? Math.floor(Date.now() / 1000) : saved.since) : 0,
+      turnId: pending ? turnId ?? saved?.turnId ?? null : null,
+    });
+    saveThreadReadiness(this.readiness);
+  }
+
+  private async checkThreadCompletion(threadId: string): Promise<void> {
+    if (!this.readiness.get(threadId)?.pending || this.completionChecks.has(threadId)) return;
+    const check = {};
+    this.completionChecks.set(threadId, check);
+    try {
+      const res = await this.rpc.request<v2.ThreadTurnsListResponse>("thread/turns/list", {
+        threadId, limit: 1, sortDirection: "desc", itemsView: "notLoaded",
+      });
+      if (this.completionChecks.get(threadId) !== check) return;
+      const turn = res.data[0];
+      if (!turn || turn.status === "inProgress") return;
+      const pending = this.readiness.get(threadId);
+      if (!pending || !isPendingTurnFinished(pending, turn)) return;
+      this.trackPending(threadId, false);
+      if (turn.status !== "completed" || this.isViewingThread(threadId)) return;
+      this.store.set((s) => ({
+        ...s, threads: s.threads.map((thread) => thread.id === threadId ? { ...thread, unread: true } : thread),
+      }));
+    } catch {} finally {
+      if (this.completionChecks.get(threadId) === check) this.completionChecks.delete(threadId);
+    }
   }
 
   private reportClientState(): void {
@@ -347,15 +428,34 @@ export class Session {
   // --- thread list --------------------------------------------------------
 
   async loadThreads(): Promise<void> {
+    if (this.store.get().threadsLoading) return;
     this.store.set((s) => ({ ...s, threadsLoading: true, threadsError: null }));
     try {
       const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "recency_at" });
-      this.store.set((s) => ({ ...s, threads: mergeThreadList(s.threads, res.data), threadsLoading: false }));
+      this.store.set((s) => ({
+        ...s,
+        threads: mergeThreadList(s.threads, res.data).map((thread) => {
+          const saved = this.readiness.get(thread.id);
+          return saved?.unread && !thread.unread ? { ...thread, unread: true } : thread;
+        }),
+        threadsLoading: false,
+      }));
+      for (const thread of this.store.get().threads) {
+        if (thread.status === "running" || thread.status === "waiting") {
+          this.completionChecks.delete(thread.id);
+          this.trackPending(thread.id, true);
+        }
+        else void this.checkThreadCompletion(thread.id);
+      }
     } catch (err) {
       // A dropped socket is not a list error: the banner says we are
       // reconnecting, and the list reloads as soon as the socket is back.
       this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: isConnectionError(err) ? null : friendlyError(err) }));
     }
+  }
+
+  async refreshPendingThreads(): Promise<void> {
+    if ([...this.readiness.values()].some((entry) => entry.pending)) await this.loadThreads();
   }
 
   async loadRateLimits(): Promise<void> {
@@ -520,7 +620,6 @@ export class Session {
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals, activeTurnId: runningTurnId(resumed.thread.status, history.turns) };
         return {
           ...s,
-          threads: markRead(s.threads, threadId),
           open: {
             ...s.open,
             view,
@@ -534,6 +633,7 @@ export class Session {
           },
         };
       });
+      if (this.isViewingThread(threadId)) this.readThread(threadId);
       this.replayPendingRequests(threadId);
       void this.loadQueue(threadId);
     } catch (err) {
@@ -554,6 +654,7 @@ export class Session {
           const view = history ? mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns) : s.open.view;
           return { ...s, open: { ...s.open, view, state: readOnly, error: null } };
         });
+        if (history && this.isViewingThread(threadId)) this.readThread(threadId);
         return;
       }
       this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, state: "error", error: friendlyError(err) } } : s));
@@ -1284,6 +1385,7 @@ export class Session {
     const open = this.store.get().open;
     if (open) void this.openThread(open.view.threadId, { force: true });
     void this.loadProjects();
+    void this.loadThreads();
     void this.loadRateLimits();
     this.reportClientState();
   }
@@ -1302,6 +1404,7 @@ export class Session {
     if (n.method === "pocket/upstream/status") {
       const connected = !!(n.params as { connected?: boolean } | undefined)?.connected;
       this.store.set((s) => ({ ...s, upstreamConnected: connected }));
+      if (connected && this.store.get().connection === "open") void this.loadThreads();
       return;
     }
     if (n.method === "account/rateLimits/updated") {
@@ -1351,15 +1454,33 @@ export class Session {
       void this.loadProjects();
       return;
     }
+    if (n.method === "turn/started" || n.method === "turn/completed") {
+      const { threadId, turn } = n.params as v2.TurnStartedNotification;
+      this.completionChecks.delete(threadId);
+      this.trackPending(threadId, n.method === "turn/started", turn.id);
+    }
+    if (n.method === "thread/archived" || n.method === "thread/deleted") {
+      const { threadId } = n.params as v2.ThreadArchivedNotification;
+      this.completionChecks.delete(threadId);
+      this.readiness.delete(threadId);
+      saveThreadReadiness(this.readiness);
+    }
     this.store.set((s) => {
       let threads = applyThreadListNotification(s.threads, n, Date.now());
       // A turn that finishes while its thread is on screen is already read.
       const onScreen = s.open?.view.threadId;
-      if (n.method === "turn/completed" && onScreen !== undefined && (n.params as { threadId?: string }).threadId === onScreen) {
+      if (n.method === "turn/completed" && onScreen !== undefined && (n.params as { threadId?: string }).threadId === onScreen && this.isViewingThread(onScreen)) {
         threads = markRead(threads, onScreen);
       }
       return threads === s.threads ? s : { ...s, threads };
     });
+    if (n.method === "thread/status/changed") {
+      const { threadId, status } = n.params as v2.ThreadStatusChangedNotification;
+      if (status.type === "active") {
+        this.completionChecks.delete(threadId);
+        this.trackPending(threadId, true);
+      } else if (status.type === "idle" || status.type === "notLoaded") void this.checkThreadCompletion(threadId);
+    }
     // A turn finishing somewhere else while the app is open: say so, since
     // push stays quiet for a visible app and the list is not on screen.
     if (n.method === "turn/completed") {
@@ -1368,7 +1489,7 @@ export class Session {
       const summary = s.threads.find((t) => t.id === threadId);
       const visible = typeof document === "undefined" || document.visibilityState === "visible";
       // Only threads we list: an unknown id is side traffic, not news.
-      if (visible && summary && s.open?.view.threadId !== threadId) this.toast(threadId, `${summary.title} finished`);
+      if (visible && summary && turn.status === "completed" && s.open?.view.threadId !== threadId) this.toast(threadId, `${summary.title} finished`);
       if (turn.status === "completed" && summary && !summary.named) void this.maybeTitle(threadId);
     }
     this.store.set((s) => {

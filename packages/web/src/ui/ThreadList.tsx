@@ -75,6 +75,10 @@ export function ThreadList({ session }: { session: Session }) {
     if (connection !== "open") return;
     void session.loadThreads();
     void session.loadProjects();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void session.refreshPendingThreads();
+    }, 15_000);
+    return () => window.clearInterval(timer);
   }, [connection, session]);
 
   const archive = (id: string) => void session.archiveThread(id).catch((err) => session.notify(friendlyError(err)));
