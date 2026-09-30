@@ -4,6 +4,10 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop sending push notifications for ephemeral threads. Tapping one used to fail with "Codex hasn't saved this thread yet", because these threads are never written to disk.
+
 ## [0.1.1] - 2026-09-29
 
 ### Added
