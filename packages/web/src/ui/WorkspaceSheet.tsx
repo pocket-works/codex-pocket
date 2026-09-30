@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { v2 } from "@codex-pocket/protocol";
-import { diffStats, splitGitDiff } from "../state/diff.js";
+import { diffStats } from "../state/diff.js";
+import { loadWorkspaceChanges, type WorkspaceChanges } from "../state/workspace-changes.js";
 import { branchLabel, type FileMatch, type Session } from "../state/session.js";
 import { DiffBody } from "./DiffView.js";
 import { ChevronIcon, ExternalIcon, FileIcon, FolderIcon, SearchIcon } from "./icons.js";
@@ -23,12 +24,12 @@ const MODE_LABEL: Record<DiffMode, string> = { uncommitted: "Uncommitted", branc
 // The official app's Changes / Files sheet: one full-height panel with a
 // Modified tab (git diff of the working tree, per file, hunks expandable)
 // and an All Files tab (lazy folder tree with fuzzy search at the bottom).
-export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session: Session; cwd: string; initialTab: WorkspaceTab; onClose: () => void }) {
+export function WorkspaceSheet({ session, cwd, initialTab, onClose, onUncommittedChanges }: { session: Session; cwd: string; initialTab: WorkspaceTab; onClose: () => void; onUncommittedChanges?: (changes: WorkspaceChanges) => void }) {
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [mode, setMode] = useState<DiffMode>("uncommitted");
   const [collapsed, setCollapsed] = useState(0);
   const [modeMenu, setModeMenu] = useState(false);
-  const [changes, setChanges] = useState<{ files: v2.FileUpdateChange[]; branch: string; upstream: string | null } | null>(null);
+  const [changes, setChanges] = useState<WorkspaceChanges | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [file, setFile] = useState<{ path: string; text: string | null; image?: string | null } | null>(null);
   const drag = useSheetDrag(onClose);
@@ -55,22 +56,19 @@ export function WorkspaceSheet({ session, cwd, initialTab, onClose }: { session:
     let cancelled = false;
     setChanges(null);
     setError(null);
-    session
-      .gitChanges(cwd, mode)
-      .then((r) => !cancelled && setChanges({ files: splitGitDiff(r.diff, cwd), branch: r.branch, upstream: r.upstream }))
+    loadWorkspaceChanges(session, cwd, mode)
+      .then((snapshot) => {
+        if (cancelled) return;
+        setChanges(snapshot);
+        if (mode === "uncommitted") onUncommittedChanges?.(snapshot);
+      })
       .catch((err) => !cancelled && setError(isNotARepo(err) ? NOT_A_REPO : friendlyError(err)));
     return () => {
       cancelled = true;
     };
-  }, [tab, mode, cwd, session]);
+  }, [tab, mode, cwd, session, onUncommittedChanges]);
 
-  const totals = changes?.files.reduce(
-    (acc, f) => {
-      const s = diffStats(f.diff);
-      return { added: acc.added + s.added, removed: acc.removed + s.removed };
-    },
-    { added: 0, removed: 0 },
-  );
+  const totals = changes?.totals;
 
   if (file) {
     return (

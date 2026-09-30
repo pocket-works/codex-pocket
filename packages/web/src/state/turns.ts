@@ -277,26 +277,6 @@ export function stripDirectives(text: string): string {
     .trim();
 }
 
-/**
- * Files and +/- across the whole thread, for the pill above the composer.
- * The latest patch of each file wins so repeated edits are not double counted.
- */
-export function threadChangeTotals(view: ThreadViewState, stats: (diff: string) => { added: number; removed: number }): { files: number; added: number; removed: number } {
-  const latest = new Map<string, string>();
-  for (const item of view.items) {
-    if (item.type !== "fileChange" || item.status === "declined" || item.status === "failed") continue;
-    for (const c of item.changes) latest.set(c.path, c.diff);
-  }
-  let added = 0;
-  let removed = 0;
-  for (const diff of latest.values()) {
-    const s = stats(diff);
-    added += s.added;
-    removed += s.removed;
-  }
-  return { files: latest.size, added, removed };
-}
-
 /** Totals across every file edited in a turn. */
 export function changeTotals(changes: FileChange[], stats: (diff: string) => { added: number; removed: number }): { files: number; added: number; removed: number } {
   let added = 0;

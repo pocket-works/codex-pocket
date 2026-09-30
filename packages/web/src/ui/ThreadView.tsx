@@ -11,21 +11,19 @@ import { UserInputSheet } from "./UserInputSheet.js";
 import { ELICITATION_METHOD, USER_INPUT_METHOD } from "../state/thread-reducer.js";
 import { ElicitationSheet } from "./ElicitationSheet.js";
 import { QueuedList } from "./QueuedList.js";
-import { WorkspaceSheet } from "./WorkspaceSheet.js";
-import { threadChangeTotals } from "../state/turns.js";
-import { diffStats } from "../state/diff.js";
+import { WorkspaceChangesButton } from "./WorkspaceChangesButton.js";
 import { friendlyError } from "../state/errors.js";
 import { useSwipeBack } from "./gestures.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const open = useStore(session.store, (s) => s.open);
+  const connected = useStore(session.store, (s) => s.connection === "open" && s.upstreamConnected);
   // The list's title for this thread; the folder name stands in until the
   // list has loaded (a push notification can open a thread first).
   const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
-  const [showChanges, setShowChanges] = useState(false);
   const back = useSwipeBack(() => navigate({ name: "list" }));
 
   const items = open?.view.items ?? [];
@@ -75,7 +73,6 @@ export function ThreadView({ session }: { session: Session }) {
   if (!open) return null;
   const busy = open.view.activeTurnId !== null;
   const pending = open.view.approvals[0];
-  const totals = threadChangeTotals(open.view, diffStats);
 
   return (
     <main className={`screen thread ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
@@ -148,19 +145,7 @@ export function ThreadView({ session }: { session: Session }) {
         </button>
       )}
 
-      {totals.files > 0 && open.cwd && (
-        <div className="changes-pill-row">
-          <button className="changes-pill" onClick={() => setShowChanges(true)} aria-label="Show changes">
-            <span>
-              {totals.files} file{totals.files === 1 ? "" : "s"}
-            </span>
-            <span className="diff-stats">
-              <span className="add">+{totals.added}</span> <span className="del">−{totals.removed}</span>
-            </span>
-          </button>
-        </div>
-      )}
-      {showChanges && <WorkspaceSheet session={session} cwd={open.cwd} initialTab="modified" onClose={() => setShowChanges(false)} />}
+      {open.cwd && <WorkspaceChangesButton key={`workspace-changes:${open.view.threadId}`} session={session} cwd={open.cwd} view={open.view} connected={connected} />}
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method === ELICITATION_METHOD && <ElicitationSheet session={session} request={pending} />}
