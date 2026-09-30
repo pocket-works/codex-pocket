@@ -51,7 +51,7 @@ function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { gr
         </>
       )}
       {group.final && <FinalAnswer text={group.final.text} group={group} session={session} cwd={cwd} />}
-      {!group.final && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
+      {!group.final && !group.inProgress && group.meta?.status !== "inProgress" && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
     </section>
   );
 }
@@ -413,7 +413,7 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
   return (
     <div className="final">
       <Markdown className="final-text" text={text} strip session={session} />
-      {group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
+      {!group.inProgress && group.meta?.status !== "inProgress" && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">
           <button className="act" aria-label="Copy" onClick={() => void copy()}>
