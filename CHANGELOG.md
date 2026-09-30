@@ -4,6 +4,14 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-30
+
+### Changed
+
+- Prepare the source and bundled license notices for public distribution, using sample filesystem paths and the GitHub account attribution.
+- Include the upstream Codex protocol's Apache 2.0 license in the desktop application.
+- Update repository links to pocket-works/codex-pocket.
+
 ### Fixed
 
 - Stop sending push notifications for ephemeral threads. Tapping one used to fail with "Codex hasn't saved this thread yet", because these threads are never written to disk.
