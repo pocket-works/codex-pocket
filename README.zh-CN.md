@@ -34,7 +34,7 @@
 ### 安装 DMG
 
 1. 在 Apple 芯片的 Mac 上安装并登录 ChatGPT 桌面 app。
-2. 从[最新版本](https://github.com/jerryan999/codex-pocket/releases/latest)下载已签名并公证的 Apple 芯片 DMG，打开后把 **Codex Pocket** 拖入 **Applications（应用程序）**，再从应用程序中启动。应用图标会出现在菜单栏。
+2. 从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载已签名并公证的 Apple 芯片 DMG，打开后把 **Codex Pocket** 拖入 **Applications（应用程序）**，再从应用程序中启动。应用图标会出现在菜单栏。
 3. 如果希望 iPhone 收到通知，先配置下文的 [Tailscale HTTPS](#部署tailscale-https)，再配对手机；否则让手机与 Mac 连接同一局域网即可。在 Pocket 菜单里选 **Pair a phone…**，用手机扫描二维码，或打开弹窗里的地址手动输入配对码。配对码 10 分钟后失效。
 4. 在 Safari 中打开准备长期使用的 PWA 地址（需要通知时用 HTTPS 地址），选择**添加到主屏幕**。打开主屏幕 PWA 后，需要再次在 Pocket 菜单中配对，因为 iOS 为它使用独立的存储。需要 Web Push 时，再到 PWA 设置中开启 **Notifications**。
 
@@ -157,7 +157,7 @@ pnpm --filter @codex-pocket/protocol generate
 
 ## 版本发布
 
-带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 并通过 CI 后会创建 Release 草稿；维护者在本机完成 DMG 的签名、公证和验证，再上传并发布。具体步骤见[发版流程](./docs/releasing.md)。
+带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 并通过 CI 后会创建 Release 草稿；维护者在本机完成 DMG 的签名、公证和验证，再上传并发布。具体步骤见[发版流程](./docs/releasing.md)。
 
 ## 许可
 

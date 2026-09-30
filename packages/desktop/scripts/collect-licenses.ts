@@ -19,6 +19,7 @@ rmSync(legal, { recursive: true, force: true });
 mkdirSync(dependencies, { recursive: true });
 copyFileSync(resolve(root, "LICENSE"), resolve(legal, "LICENSE"));
 copyFileSync(resolve(root, "packages", "protocol", "NOTICE"), resolve(legal, "PROTOCOL-NOTICE"));
+copyFileSync(resolve(root, "packages", "protocol", "LICENSE-APACHE-2.0"), resolve(legal, "PROTOCOL-LICENSE-APACHE-2.0"));
 
 const electron = resolve(desktop, "node_modules", "electron", "dist");
 copyFileSync(resolve(electron, "LICENSE"), resolve(legal, "ELECTRON-LICENSE"));
@@ -56,6 +57,7 @@ writeFileSync(resolve(legal, "THIRD-PARTY-NOTICES.txt"), [
   "",
   "The license files named below are included with this application.",
   "Electron and Chromium notices are in ELECTRON-LICENSE and LICENSES.chromium.html.",
+  "Codex protocol attribution and license are in PROTOCOL-NOTICE and PROTOCOL-LICENSE-APACHE-2.0.",
   "",
   ...entries,
   "",

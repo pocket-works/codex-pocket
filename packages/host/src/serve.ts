@@ -31,7 +31,7 @@ export interface ServeOptions {
 
 export const DEFAULT_PORT = 7333;
 // VAPID wants a contact for the push services; the project page will do.
-const VAPID_SUBJECT = "https://github.com/jerryan999/codex-pocket";
+const VAPID_SUBJECT = "https://github.com/pocket-works/codex-pocket";
 
 function defaultStaticDir(): string {
   // packages/host/dist/serve.js -> packages/web/dist

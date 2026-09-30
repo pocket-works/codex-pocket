@@ -1,7 +1,8 @@
 The TypeScript declarations under src/generated are produced by
 `codex app-server generate-ts` from the OpenAI Codex CLI
 (https://github.com/openai/codex), which is licensed under the
-Apache License, Version 2.0. They are redistributed here unchanged; see
+Apache License, Version 2.0 (see LICENSE-APACHE-2.0 in this directory).
+They are redistributed here unchanged; see
 src/generated/CODEX_VERSION for the CLI version they were generated from.
 Everything else in this repository is licensed under the MIT License (see
 the top-level LICENSE file).
