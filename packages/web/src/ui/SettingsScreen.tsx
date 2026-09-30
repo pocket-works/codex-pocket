@@ -66,6 +66,10 @@ export function SettingsScreen({ session }: { session: Session }) {
       <div className="settings">
         <div className="setting-group">
           <div className="setting-row">
+            <span>Version</span>
+            <span className="setting-value muted">{import.meta.env.VITE_APP_VERSION}</span>
+          </div>
+          <div className="setting-row">
             <span>Host</span>
             <span className="setting-value muted">{location.host}</span>
           </div>
