@@ -12,6 +12,17 @@ Codex Pocket uses one [Semantic Versioning](https://semver.org/) version across 
 
 ## Before tagging
 
+Before making a private repository public, review every branch and tag,
+commit and tag identities, issue and pull request comments, screenshots,
+Actions logs and artifacts, and Release assets. Editing the current tree
+does not remove personal data from Git history. Back up the repository
+before rewriting history, and coordinate changes to published refs.
+GitHub pull request refs and cached commits can retain the original history
+after a force push; resolve their exposure before changing visibility.
+Keep existing Releases as drafts until their packaged license notices and
+public signing identity have been reviewed. Publish rebuilt artifacts under
+a new version instead of replacing assets under an existing published tag.
+
 1. Review Git history and the planned artifact for credentials, personal data, and license obligations. Check `git config user.name` and `git config user.email` locally before committing; use a GitHub noreply address and a nonpersonal display name if the repository may become public. Run `gitleaks git --redact .` and `gitleaks dir --redact .`; investigate findings beyond the self-signed `*.lan.example.test` test key.
 2. Update all five `package.json` versions and move notes from `## [Unreleased]` to a dated `## [<version>] - YYYY-MM-DD` heading in `CHANGELOG.md`. Add a new `## [Unreleased]` heading above it. Keep both READMEs aligned.
 3. Run `pnpm install --frozen-lockfile`, `pnpm release:check`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. Test pairing, reconnecting, approvals, and desktop linking with a supported Codex CLI.

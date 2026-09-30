@@ -6,7 +6,7 @@ labels: bug
 assignees: ""
 ---
 
-Before reporting a security issue, read [SECURITY.md](https://github.com/jerryan999/codex-pocket/security/policy). Do not post pairing codes, device tokens, logs containing credentials, or private thread content.
+Before reporting a security issue, read [SECURITY.md](https://github.com/pocket-works/codex-pocket/security/policy). Do not post pairing codes, device tokens, logs containing credentials, or private thread content.
 
 ## What happened?
 

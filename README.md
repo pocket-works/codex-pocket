@@ -34,7 +34,7 @@ These screens use sample conversations and paths; no personal thread content or 
 ### Install the DMG
 
 1. On an Apple silicon Mac, install and sign in to the ChatGPT desktop app.
-2. Download the signed and notarized Apple silicon DMG from the [latest release](https://github.com/jerryan999/codex-pocket/releases/latest). Open it, drag **Codex Pocket** to **Applications**, then launch it from Applications. The app appears in the menu bar.
+2. Download the signed and notarized Apple silicon DMG from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest). Open it, drag **Codex Pocket** to **Applications**, then launch it from Applications. The app appears in the menu bar.
 3. For notifications on iPhone, set up [Tailscale HTTPS](#deploying-https-via-tailscale) before pairing. Otherwise, connect the phone and Mac to the same LAN. Choose **Pair a phone…** from the Pocket menu and scan the QR code, or open the displayed address and enter the code manually. The code expires after 10 minutes.
 4. In Safari, open the PWA at the address you intend to keep (the HTTPS address if you want notifications), then choose **Add to Home Screen**. Open the installed PWA and pair again from the Pocket menu: iOS keeps its storage separate from Safari. For Web Push, enable **Notifications** in the PWA settings.
 
@@ -157,7 +157,7 @@ pnpm --filter @codex-pocket/protocol generate
 
 ## Releases
 
-Versioned macOS builds are available from [GitHub Releases](https://github.com/jerryan999/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI. Signed, notarized DMGs are built and verified on the maintainer's Mac before upload and publication. See the [release process](./docs/releasing.md).
+Versioned macOS builds are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI. Signed, notarized DMGs are built and verified on the maintainer's Mac before upload and publication. See the [release process](./docs/releasing.md).
 
 ## License
 
