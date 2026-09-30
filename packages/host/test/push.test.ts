@@ -94,4 +94,25 @@ describe("PushNotifier", () => {
     await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "t9", turn: { id: "u", status: "completed" } } });
     expect((await store.listPushSubscriptions()).map((s) => s.deviceId)).not.toContain(a);
   });
+
+  it("stays quiet about ephemeral threads, whose rollout never reaches disk", async () => {
+    const { sent, notifier } = await setup();
+    // app-server announces the flag once, in thread/started; the turn
+    // notifications that follow carry no ephemeral field of their own.
+    await notifier.handle({ jsonrpc: "2.0", method: "thread/started", params: { thread: { id: "eph", ephemeral: true } } });
+    await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "eph", turn: { id: "u", status: "completed" } } });
+    expect(sent).toEqual([]);
+    // A normal thread still pushes.
+    await notifier.handle({ jsonrpc: "2.0", method: "thread/started", params: { thread: { id: "t2", ephemeral: false } } });
+    await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "t2", turn: { id: "u", status: "completed" } } });
+    expect(sent.map((s) => s.endpoint).sort()).toEqual(["https://push/a", "https://push/b"]);
+  });
+
+  it("forgets an ephemeral thread once app-server closes it", async () => {
+    const { sent, notifier } = await setup();
+    await notifier.handle({ jsonrpc: "2.0", method: "thread/started", params: { thread: { id: "eph", ephemeral: true } } });
+    await notifier.handle({ jsonrpc: "2.0", method: "thread/closed", params: { threadId: "eph" } });
+    await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "eph", turn: { id: "u", status: "completed" } } });
+    expect(sent.map((s) => s.endpoint).sort()).toEqual(["https://push/a", "https://push/b"]);
+  });
 });
