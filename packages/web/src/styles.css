@@ -2021,8 +2021,8 @@ button.chat-btn {
 
 /* Changes / Files: a near-full-height panel like the official app. */
 .sheet.workspace {
-  height: 94vh;
-  max-height: 94vh;
+  height: 94dvh;
+  max-height: calc(100dvh - var(--safe-top));
   display: flex;
   flex-direction: column;
   padding: 10px 0 0;
