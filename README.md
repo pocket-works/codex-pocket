@@ -14,16 +14,37 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
 
+## Screenshots
+
+| Threads | Conversation | Approval |
+| :---: | :---: | :---: |
+| <img src="./docs/screenshots/threads.jpg" width="240" alt="Chats and project threads on a phone"> | <img src="./docs/screenshots/conversation.jpg" width="240" alt="Conversation with reasoning, a command and a final answer"> | <img src="./docs/screenshots/approval.jpg" width="240" alt="Command approval sheet on a phone"> |
+
+These screens use sample conversations and paths; no personal thread content or pairing credentials are shown.
+
 ## Requirements
 
-- **A Mac with Apple silicon.** `make app` builds an arm64 bundle, and the icon is rendered with macOS's own `qlmanage`, `sips` and `iconutil`.
-- **Codex already signed in on that Mac** — the ChatGPT desktop app or the `codex` CLI, whichever you use. The host never signs in to OpenAI itself: it connects to the app-server Codex runs and inherits that session.
-- **Node 22 and pnpm**, to build it. The packaged menu bar app carries its own Node, so nothing is needed at runtime.
+- **A Mac with Apple silicon.** The published DMG and locally built app target arm64.
+- **Codex already signed in on that Mac.** For the DMG, install and sign in to the ChatGPT desktop app first; Pocket can use its bundled Codex CLI. A source build can also use an installed `codex` CLI. The host inherits Codex's login session rather than signing in itself.
+- **Node 22 and pnpm only for source builds.** The DMG contains the menu bar app, host and PWA; it needs neither at runtime.
 - **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
 
 ## Quick start
 
-On the Mac, with Codex already signed in:
+### Install the DMG
+
+1. On an Apple silicon Mac, install and sign in to the ChatGPT desktop app.
+2. Download the signed and notarized Apple silicon DMG from the [latest release](https://github.com/jerryan999/codex-pocket/releases/latest). Open it, drag **Codex Pocket** to **Applications**, then launch it from Applications. The app appears in the menu bar.
+3. For notifications on iPhone, set up [Tailscale HTTPS](#deploying-https-via-tailscale) before pairing. Otherwise, connect the phone and Mac to the same LAN. Choose **Pair a phone…** from the Pocket menu and scan the QR code, or open the displayed address and enter the code manually. The code expires after 10 minutes.
+4. In Safari, open the PWA at the address you intend to keep (the HTTPS address if you want notifications), then choose **Add to Home Screen**. Open the installed PWA and pair again from the Pocket menu: iOS keeps its storage separate from Safari. For Web Push, enable **Notifications** in the PWA settings.
+
+To share active threads with the ChatGPT desktop app, choose **Desktop sharing > Link desktop…** in the Pocket menu, then quit and reopen ChatGPT. If the existing Codex daemon lacks the desktop tools environment, linking restarts it once and interrupts active turns. You can use Pocket without linking, but a thread held by a separate desktop app-server cannot be opened for writing from the phone.
+
+![Codex Pocket pairing screen on a phone](./docs/screenshots/pairing.jpg)
+
+### Build from source
+
+With Codex signed in, Node 22+ and pnpm installed on an Apple silicon Mac:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -31,11 +52,7 @@ make app
 make open-app
 ```
 
-Open **Pair a phone...** from the Codex Pocket menu bar icon, then scan its QR code with a phone on the same LAN. You can also open the displayed address on the phone and enter the pairing code. For access away from home, set up [Tailscale HTTPS](#deploying-https-via-tailscale). Locally built apps remain unsigned; the v0.1.0 zip is also unsigned. Signed and notarized releases will be distributed as DMGs.
-
-For a DMG installation, install and sign in to ChatGPT on the Mac first, then open Codex Pocket. Its host starts the official Codex daemon on demand using the CLI bundled with ChatGPT; no separate Codex CLI, Node, or pnpm install is required. Choose **Desktop sharing > Link desktop…** in the Pocket menu, then quit and reopen ChatGPT. If a daemon is already running without the desktop tools environment, linking restarts it once and interrupts active turns; a fresh daemon needs no restart.
-
-![Codex Pocket pairing screen on a phone](./docs/screenshots/pairing.jpg)
+Pair the phone from the menu as above. `make app` produces an unsigned development build; use the release DMG for a signed, notarized installation. The older v0.1.0 zip was unsigned; v0.1.1 and later releases use a DMG.
 
 This is an Apple silicon build. Desktop app sharing through `link-desktop` additionally requires a Codex daemon whose `account/read` response includes `workspaceRouting` (Codex CLI 0.156.0 or newer); `codex-pocket desktop` checks that capability. Dictation depends on an undocumented ChatGPT endpoint and may stop working when that endpoint changes.
 
@@ -78,19 +95,33 @@ State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.
 The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of it, so one URL works at home and away (on the same LAN, Tailscale takes the direct path):
 
 1. Install Tailscale on the Mac and the phone with the same account, and enable **HTTPS Certificates** in the [admin console](https://login.tailscale.com/admin/dns) (the first `tailscale serve` prints the link).
-2. On the Mac, proxy the tailnet name to the host and tell the host which origin phones should use (stored in `~/.codex-pocket/config.json`, picked up by every `serve`):
+2. On the Mac, proxy the tailnet name to the host:
 
    ```bash
    tailscale serve --bg --https=443 http://127.0.0.1:7333
-   pnpm dev:host config set publicUrl https://<mac>.<tailnet>.ts.net
+   ```
+
+   If you installed the DMG, add these fields to `~/.codex-pocket/config.json` (preserve any existing fields), replacing the sample tailnet name, then quit and reopen Pocket:
+
+   ```json
+   {
+     "publicUrl": "https://<mac>.<tailnet>.ts.net",
+     "bindHost": "127.0.0.1"
+   }
+   ```
+
+   For a source build, use the equivalent CLI commands below, replacing the sample tailnet name. Restart the host afterward (`make restart` if you started it with `make start`):
+
+   ```bash
+   pnpm dev:host config set publicUrl "https://<mac>.<tailnet>.ts.net"
    pnpm dev:host config set bindHost 127.0.0.1   # loopback only: nothing else on the LAN can reach 7333
    ```
 
-3. `pnpm dev:host pair` now prints a QR pointing at `https://<mac>.<tailnet>.ts.net/#pair=…`; scan it on the phone (Tailscale connected). Tailscale issues and renews the certificate.
-4. For the full-screen experience use "Add to Home Screen" in Safari. iOS gives home-screen apps their own storage, so the installed app asks to pair once more: run `pair` again and scan the QR from inside the app, or type the 8-character code it prints.
+3. In the Pocket menu choose **Pair a phone…**; the QR points at `https://<mac>.<tailnet>.ts.net/#pair=…`. Scan it on the phone with Tailscale connected. Source-build users can also run `pnpm dev:host pair`. Tailscale issues and renews the certificate.
+4. For the full-screen experience use "Add to Home Screen" in Safari. The installed PWA needs its own pairing: choose **Pair a phone…** again, then scan inside the PWA or type the 8-character code.
 5. In the app's Settings, turn on **Notifications**. The host pushes when a turn finishes, Codex asks for approval or input, or a turn fails — unless the app is open on that thread.
 
-`pnpm dev:host config` shows the current settings; `config unset <key>` restores a default.
+For source builds, `pnpm dev:host config` shows the current settings and `config unset <key>` restores a default. For DMG installations, edit `~/.codex-pocket/config.json` and restart Pocket to apply changes.
 
 Without Tailscale, drop your own PEMs into `~/.codex-pocket/certs/fullchain.pem` and `certs/privkey.pem` and the host serves HTTPS itself (`--no-tls` forces plain HTTP). On a trusted LAN you can skip HTTPS altogether — leave `bindHost` unset and open `http://<LAN IP>:7333` — at the cost of features that need a secure context, such as push notifications.
 

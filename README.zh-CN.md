@@ -14,16 +14,37 @@
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
 - Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
 
+## 产品截图
+
+| 线程列表 | 对话 | 审批 |
+| :---: | :---: | :---: |
+| <img src="./docs/screenshots/threads.jpg" width="240" alt="手机上的 Chat 和项目线程列表"> | <img src="./docs/screenshots/conversation.jpg" width="240" alt="包含推理、命令和最终回复的对话"> | <img src="./docs/screenshots/approval.jpg" width="240" alt="手机上的命令审批弹层"> |
+
+截图由真实界面组件和虚构的示例对话生成，不含个人线程内容或配对凭据。
+
 ## 环境要求
 
-- **Apple 芯片的 Mac**：`make app` 打的是 arm64 包，图标也用 macOS 自带的 `qlmanage`、`sips`、`iconutil` 渲染。
-- **这台 Mac 上的 Codex 已登录**：ChatGPT 桌面 app 或 `codex` CLI，你平时用哪个都行。host 自己不向 OpenAI 登录，它连的是 Codex 跑起来的 app-server，沿用那边的登录态。
-- **Node 22 和 pnpm**：只在构建时需要。打包好的菜单栏应用自带 Node，运行时不依赖系统 Node。
+- **Apple 芯片的 Mac**：正式版 DMG 和本地构建的应用均面向 arm64。
+- **这台 Mac 上的 Codex 已登录**：安装 DMG 时先安装并登录 ChatGPT 桌面 app，Pocket 可使用它内置的 Codex CLI；源码构建也可使用单独安装的 `codex` CLI。host 沿用 Codex 的登录态，不自行登录。
+- **Node 22 和 pnpm 只用于源码构建**：DMG 已包含菜单栏应用、host 和 PWA，运行时不需要它们。
 - **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
 
 ## 快速开始
 
-先在 Mac 上登录 Codex，然后运行：
+### 安装 DMG
+
+1. 在 Apple 芯片的 Mac 上安装并登录 ChatGPT 桌面 app。
+2. 从[最新版本](https://github.com/jerryan999/codex-pocket/releases/latest)下载已签名并公证的 Apple 芯片 DMG，打开后把 **Codex Pocket** 拖入 **Applications（应用程序）**，再从应用程序中启动。应用图标会出现在菜单栏。
+3. 如果希望 iPhone 收到通知，先配置下文的 [Tailscale HTTPS](#部署tailscale-https)，再配对手机；否则让手机与 Mac 连接同一局域网即可。在 Pocket 菜单里选 **Pair a phone…**，用手机扫描二维码，或打开弹窗里的地址手动输入配对码。配对码 10 分钟后失效。
+4. 在 Safari 中打开准备长期使用的 PWA 地址（需要通知时用 HTTPS 地址），选择**添加到主屏幕**。打开主屏幕 PWA 后，需要再次在 Pocket 菜单中配对，因为 iOS 为它使用独立的存储。需要 Web Push 时，再到 PWA 设置中开启 **Notifications**。
+
+要与 ChatGPT 桌面 app 共享正在使用的线程，在 Pocket 菜单中选 **Desktop sharing > Link desktop…**，然后退出并重新打开 ChatGPT。如果现有 Codex daemon 缺少桌面工具环境，关联时会重启它一次并中断正在进行的轮次。无需关联也能使用 Pocket，但由独立桌面 app-server 占用的线程无法在手机上取得写入权。
+
+![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
+
+### 从源码构建
+
+在 Apple 芯片的 Mac 上登录 Codex，并安装 Node 22+ 与 pnpm 后运行：
 
 ```bash
 pnpm install --frozen-lockfile
@@ -31,11 +52,7 @@ make app
 make open-app
 ```
 
-在菜单栏点击 Codex Pocket 的 **Pair a phone...**，用接入同一局域网的手机扫描二维码；也可以在手机上打开菜单里显示的地址并输入配对码。需要在外网访问时，配置下文的 [Tailscale HTTPS](#部署tailscale-https)。本地构建仍未签名；v0.1.0 的 zip 也未签名。签名并公证的正式版本将通过 DMG 分发。
-
-通过 DMG 安装时，先在 Mac 上安装并登录 ChatGPT，再打开 Codex Pocket。host 会按需使用 ChatGPT 内置的 CLI 启动 Codex 官方 daemon；无需另装 Codex CLI、Node 或 pnpm。在 Pocket 菜单中选 **Desktop sharing > Link desktop…**，然后退出并重新打开 ChatGPT。如果 daemon 已运行但缺少桌面工具所需的环境，关联时会重启它一次并中断正在进行的轮次；全新启动的 daemon 不需要重启。
-
-![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
+随后按上面的菜单步骤配对手机。`make app` 产出的是未签名的开发构建；正常安装请使用已签名、公证的正式版 DMG。旧版 v0.1.0 zip 未签名，v0.1.1 起的正式版改用 DMG。
 
 当前构建面向 Apple 芯片 Mac。通过 `link-desktop` 与桌面 App 共享线程还要求 Codex daemon 的 `account/read` 响应带有 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）；`codex-pocket desktop` 会检查这项能力。听写依赖未文档化的 ChatGPT 接口，接口变更后可能失效。
 
@@ -78,19 +95,33 @@ pnpm dev:host revoke <id>
 host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止，一个地址在家和在外都能用（同一局域网时 Tailscale 会走内网直连）：
 
 1. Mac 和手机都安装 Tailscale 并登录同一账号；在 [管理控制台](https://login.tailscale.com/admin/dns) 打开 **HTTPS Certificates**（第一次跑 `tailscale serve` 时会给出启用链接）。
-2. 在 Mac 上把 tailnet 名反代到 host，并告诉 host 手机应该用哪个地址（写入 `~/.codex-pocket/config.json`，之后 `serve` 启动自动带上）：
+2. 在 Mac 上把 tailnet 名反代到 host：
 
    ```bash
    tailscale serve --bg --https=443 http://127.0.0.1:7333
-   pnpm dev:host config set publicUrl https://<mac>.<tailnet>.ts.net
+   ```
+
+   如果安装的是 DMG，在 `~/.codex-pocket/config.json` 中添加以下字段（保留原有字段），把示例 tailnet 名换成自己的，然后退出并重新打开 Pocket：
+
+   ```json
+   {
+     "publicUrl": "https://<mac>.<tailnet>.ts.net",
+     "bindHost": "127.0.0.1"
+   }
+   ```
+
+   如果从源码构建，可运行下面的等效 CLI 命令，把示例 tailnet 名换成自己的；之后需要重启 host（使用 `make start` 启动的可运行 `make restart`）：
+
+   ```bash
+   pnpm dev:host config set publicUrl "https://<mac>.<tailnet>.ts.net"
    pnpm dev:host config set bindHost 127.0.0.1   # 只监听回环：局域网里其他设备碰不到 7333
    ```
 
-3. `pnpm dev:host pair` 生成的二维码就指向 `https://<mac>.<tailnet>.ts.net/#pair=…`，手机（Tailscale 已连接）扫码即可；证书由 Tailscale 自动签发和续期。
-4. 想要全屏体验就在 Safari 里"添加到主屏幕"。注意 iOS 给主屏幕应用单独的存储，第一次打开会再要一次配对：在 Mac 上再跑 `pair`，在 app 里点"扫码"扫同一个二维码，或者输入它打印的 8 位码（形如 `ABCD-EFGH`）。
+3. 在 Pocket 菜单中选 **Pair a phone…**，二维码会指向 `https://<mac>.<tailnet>.ts.net/#pair=…`。手机连接 Tailscale 后扫码即可。源码构建的用户也可运行 `pnpm dev:host pair`。证书由 Tailscale 自动签发和续期。
+4. 想要全屏体验就在 Safari 里“添加到主屏幕”。主屏幕 PWA 需要独立配对：再次选择 **Pair a phone…**，在 PWA 内扫码或输入 8 位配对码。
 5. 在 app 的设置页打开 **Notifications**。轮次完成、Codex 请求审批或提问、轮次失败时会推送——除非 app 正开着那个线程。
 
-`pnpm dev:host config` 查看当前设置，`config unset <key>` 恢复默认。
+源码构建可用 `pnpm dev:host config` 查看当前设置、`config unset <key>` 恢复默认；DMG 安装可编辑 `~/.codex-pocket/config.json`，重启 Pocket 后生效。
 
 不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
 
