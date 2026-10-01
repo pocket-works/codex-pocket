@@ -12,6 +12,10 @@ describe("computer routes", () => {
     expect(readPocketPanel(panel)).toEqual({ name: "computer", id: "mac-b" });
     expect(workspaceRouteHash(panel)).toBe("#/new?cwd=%2Fproject");
     expect(pocketPanelHash(panel, null)).toBe(draft);
+    const details = pocketPanelHash(panel, { name: "computer-details", id: "mac-b" });
+    expect(readPocketPanel(details)).toEqual({ name: "computer-details", id: "mac-b" });
+    expect(parseRoute(details)).toEqual({ name: "new", cwd: "/project" });
+    expect(workspaceRouteHash(details)).toBe("#/new?cwd=%2Fproject");
     expect(pocketPanelHash("#/h/mac-a/t/thread", { name: "about" })).toBe("#/h/mac-a/t/thread?pocket=about");
     expect(readPocketPanel("#/h/mac-a/settings")).toEqual({ name: "computers" });
     expect(workspaceRouteHash("#/settings")).toBe("#/");

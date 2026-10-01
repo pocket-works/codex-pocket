@@ -182,18 +182,50 @@ describe("Computer navigation", () => {
     expect(Array.from(container.querySelectorAll<HTMLButtonElement>(".computer-choice")).every((button) => button.disabled)).toBe(true);
     expect((named("Add computer") as HTMLButtonElement).disabled).toBe(true);
     await click(named("Details for Work Mac"));
+    expect((named("Unpair computer") as HTMLButtonElement).disabled).toBe(true);
+    await click(named("Pairing details"));
     expect((named("Pair again") as HTMLButtonElement).disabled).toBe(true);
-    expect((named("Remove computer") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("returns from pairing to details without switching computers", async () => {
     await mount(); await details();
+    await click(named("Pairing details"));
     await click(named("Pair again"));
     expect(screen().querySelector("h1")!.textContent).toBe("Pair again");
+    await click(named("Back", screen()));
+    expect(screen().querySelector("h1")!.textContent).toBe("Pairing details");
     await click(named("Back", screen()));
     expect(screen().querySelector("h1")!.textContent).toBe("Work Mac");
     expect(registry.active!.id).toBe(workId);
     expect(lifecycle.unmounted).not.toHaveBeenCalled();
+  });
+
+  it("opens pairing information as a page while keeping the chat and selected computer", async () => {
+    await mount(); await details("Home Mac");
+    expect(screen().textContent).not.toContain("Pairing ID");
+    expect(named("Pair again", screen())).toBeUndefined();
+    await click(named("Pairing details"));
+    expect(readPocketPanel(currentLocation.hash)).toEqual({ name: "computer-details", id: homeId });
+    expect(screen().textContent).toContain("home-phone");
+    expect(screen().textContent).not.toContain("work-phone");
+    expect(registry.active!.id).toBe(workId);
+    expect(container.querySelector(".pocket-workspace")!.hasAttribute("hidden")).toBe(true);
+    expect(registry.active!.lastRoute).toBe("#/t/task");
+    await act(async () => history.back());
+    expect(screen().querySelector("h1")!.textContent).toBe("Home Mac");
+    expect(lifecycle.mounted).toHaveBeenCalledOnce();
+    expect(lifecycle.unmounted).not.toHaveBeenCalled();
+  });
+
+  it("returns from a direct pairing-information link to that computer's settings", async () => {
+    currentLocation.hash = `${computerRouteHash(workId, "#/t/task")}?pocket=computer-details&computer=${homeId}`;
+    history.replaceState(null, "", `/${currentLocation.hash}`);
+    await mount();
+    expect(screen().querySelector("h1")!.textContent).toBe("Pairing details");
+    await click(named("Back", screen()));
+    expect(readPocketPanel(currentLocation.hash)).toEqual({ name: "computer", id: homeId });
+    expect(screen().querySelector("h1")!.textContent).toBe("Home Mac");
+    expect(registry.active!.id).toBe(workId);
   });
 
   it("shows pairing recovery for revoked access without losing the current chat", async () => {
@@ -218,7 +250,7 @@ describe("Computer navigation", () => {
     await mount(); await details();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
-    await click(named("Remove computer"));
+    await click(named("Unpair computer"));
     expect(screen().querySelector('[role="alert"]')!.textContent).toContain("Local removal leaves its pairing");
     expect(registry.store.get().computers).toHaveLength(2);
     await click(named("Remove locally"));

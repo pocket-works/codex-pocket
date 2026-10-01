@@ -9,6 +9,7 @@ export type Route =
 export type PocketPanel =
   | { name: "computers" }
   | { name: "computer"; id: string }
+  | { name: "computer-details"; id: string }
   | { name: "pair"; id?: string }
   | { name: "about" };
 
@@ -45,7 +46,7 @@ export function readPocketPanel(hash: string): PocketPanel | null {
   const name = params.get("pocket");
   if (name === "computers" || name === "about") return { name };
   const id = params.get("computer");
-  if (name === "computer" && id) return { name, id };
+  if ((name === "computer" || name === "computer-details") && id) return { name, id };
   if (name === "pair") return id ? { name, id } : { name };
   return null;
 }
