@@ -101,6 +101,7 @@ describe("completed thread readiness", () => {
     const html = renderToStaticMarkup(createElement(ThreadRow, { thread: session.store.get().threads[0], onArchive() {} }));
     expect(html).toContain("thread-state ready");
     expect(html).toContain('aria-label="Ready"');
+    expect(html).toContain('<span class="thread-state ready" role="status" aria-label="Ready" title="Ready"><span class="dot" aria-hidden="true"></span></span>');
   });
 
   it("treats a result already visible in the thread as read", () => {

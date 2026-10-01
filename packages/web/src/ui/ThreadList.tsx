@@ -5,7 +5,7 @@ import type { Session, ThreadStatus, ThreadSummary } from "../state/session.js";
 import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { friendlyError } from "../state/errors.js";
-import { ArchiveIcon, BranchIcon, CheckIcon, ChevronIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, ChevronIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
 
@@ -347,7 +347,7 @@ function ThreadStateMark({ thread }: { thread: ThreadSummary }) {
   if (unread) {
     return (
       <span className="thread-state ready" role="status" aria-label="Ready" title="Ready">
-        <CheckIcon size={14} />
+        <span className="dot" aria-hidden="true" />
       </span>
     );
   }
