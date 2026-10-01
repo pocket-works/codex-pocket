@@ -20,9 +20,10 @@ import {
 import { applyThreadListNotification, markRead, mergeThreadList, withFirstMessage, type ThreadSummary } from "./thread-list.js";
 import { summarizeProjects, type ProjectSummary } from "./projects.js";
 import { isPendingTurnFinished, loadThreadReadiness, saveThreadReadiness } from "./thread-readiness.js";
-import { imageMimeType } from "../ui/uploaded-image.js";
+import { clearUploadedImages, imageMimeType } from "../ui/uploaded-image.js";
 import { buildUserInput, type Draft } from "./compose.js";
 import { getLastModel, setLastModel } from "./model-prefs.js";
+import type { HostClient } from "./host-client.js";
 import {
   getFollowUpMode,
   setFollowUpMode,
@@ -238,10 +239,10 @@ export function isDraft(open: OpenThread): boolean {
 // A draft starts from Codex's default model, with the model the user last
 // used as the pending pick (so thread/start receives it) when it still
 // exists and differs from the default.
-function withDefaultModel(open: OpenThread, models: v2.Model[]): OpenThread {
+function withDefaultModel(open: OpenThread, models: v2.Model[], computerId?: string): OpenThread {
   const def = models.find((m) => m.isDefault) ?? models[0];
   if (!def) return open;
-  const last = getLastModel();
+  const last = getLastModel(computerId);
   const remembered = last && models.some((m) => m.model === last.model) ? last : null;
   const override = remembered && (remembered.model !== def.model || remembered.effort !== def.defaultReasoningEffort) ? remembered : null;
   return { ...open, model: def.model, effort: def.defaultReasoningEffort, override };
@@ -258,6 +259,7 @@ function isArchivedError(err: unknown): boolean {
 // Everything the UI can do, on top of one RpcClient. State is in `store`.
 export class Session {
   readonly store: Store<SessionState>;
+  readonly operations = createStore(0);
   /** Host-level features (dictation) speak to the socket directly. */
   readonly rpc: RpcClient;
   private openGeneration = 0;
@@ -271,11 +273,15 @@ export class Session {
   private titled = new Set<string>();
   /** Ephemeral titling threads: their traffic is collected here, not shown. */
   private titleRuns = new Map<string, { text: string; done: (text: string) => void }>();
-  private readiness = loadThreadReadiness();
+  private readiness: ReturnType<typeof loadThreadReadiness>;
+  private readonly cleanups: (() => void)[] = [];
+  private disposed = false;
+  private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private completionChecks = new Map<string, object>();
 
-  constructor(rpc: RpcClient) {
+  constructor(rpc: RpcClient, readonly host?: HostClient) {
     this.rpc = rpc;
+    this.readiness = loadThreadReadiness(host?.id);
     this.store = createStore<SessionState>({
       connection: rpc.connectionState,
       upstreamConnected: false,
@@ -292,16 +298,16 @@ export class Session {
     });
     // The host reports Codex's status the moment we attach, so keep the last
     // known value across a socket blip instead of flashing "waiting for Codex".
-    rpc.onStateChange((connection) => {
+    this.cleanups.push(rpc.onStateChange((connection) => {
       this.store.set((s) => ({ ...s, connection }));
       if (connection === "open") this.onReconnected();
-    });
-    rpc.onNotification((n) => this.handleNotification(n));
-    rpc.onServerRequest((req) => this.onServerRequest(req));
+    }));
+    this.cleanups.push(rpc.onNotification((n) => { if (!this.disposed) this.handleNotification(n); }));
+    this.cleanups.push(rpc.onServerRequest((req) => { if (!this.disposed) this.onServerRequest(req); }));
     // The host mutes push notifications for the thread on screen.
     let lastThread: string | null = null;
     let lastThreads = this.store.get().threads;
-    this.store.subscribe(() => {
+    this.cleanups.push(this.store.subscribe(() => {
       const state = this.store.get();
       if (state.threads !== lastThreads) {
         lastThreads = state.threads;
@@ -310,14 +316,14 @@ export class Session {
           this.readiness.delete(thread.id);
           this.readiness.set(thread.id, { ...saved, unread: thread.unread });
         }
-        saveThreadReadiness(this.readiness);
+        saveThreadReadiness(this.readiness, this.host?.id);
       }
       const threadId = state.open?.view.threadId || null;
       if (threadId === lastThread) return;
       lastThread = threadId;
       this.reportClientState();
-    });
-    if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+    }));
+    const onVisibility = () => {
       this.reportClientState();
       if (document.visibilityState !== "visible") return;
       const open = this.store.get().open;
@@ -325,7 +331,11 @@ export class Session {
         if (open) void this.openThread(open.view.threadId, { force: true });
         void this.loadThreads();
       }
-    });
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+      this.cleanups.push(() => document.removeEventListener("visibilitychange", onVisibility));
+    }
   }
 
   private isViewingThread(threadId: string): boolean {
@@ -343,7 +353,7 @@ export class Session {
         isPendingTurnFinished(saved, { ...turn, completedAt: turn.completedAt === null ? null : turn.completedAt / 1000 }),
       );
       this.readiness.set(threadId, { ...saved, unread: false, ...(finished ? { pending: false, since: 0, turnId: null } : {}) });
-      saveThreadReadiness(this.readiness);
+      saveThreadReadiness(this.readiness, this.host?.id);
     }
     this.store.set((s) => {
       const threads = markRead(s.threads, threadId);
@@ -361,7 +371,7 @@ export class Session {
       since: pending ? (turnId || !saved?.pending ? Math.floor(Date.now() / 1000) : saved.since) : 0,
       turnId: pending ? turnId ?? saved?.turnId ?? null : null,
     });
-    saveThreadReadiness(this.readiness);
+    saveThreadReadiness(this.readiness, this.host?.id);
   }
 
   private async checkThreadCompletion(threadId: string): Promise<void> {
@@ -396,6 +406,33 @@ export class Session {
 
   start(): void {
     this.rpc.start();
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.openGeneration++;
+    this.rpc.notify("pocket/client/state", { threadId: null, visible: false });
+    for (const cleanup of this.cleanups.splice(0)) cleanup();
+    this.rpc.stop();
+    this.host?.dispose();
+    if (this.host) clearUploadedImages(this.host);
+    for (const timer of this.timers) clearTimeout(timer);
+    this.timers.clear();
+    this.completionChecks.clear();
+    for (const run of this.titleRuns.values()) run.done("");
+    this.titleRuns.clear();
+  }
+
+  beginOperation(): () => void {
+    this.operations.set((n) => n + 1);
+    return () => this.operations.set((n) => Math.max(0, n - 1));
+  }
+
+  private later(callback: () => void, ms: number): void {
+    if (this.disposed) return;
+    const timer = setTimeout(() => { this.timers.delete(timer); if (!this.disposed) callback(); }, ms);
+    this.timers.add(timer);
   }
 
   // --- projects -----------------------------------------------------------
@@ -485,7 +522,7 @@ export class Session {
   toast(threadId: string, message: string): void {
     const id = nextNoticeId++;
     this.store.set((s) => ({ ...s, toasts: [...s.toasts.filter((t) => t.threadId !== threadId), { id, threadId, message }] }));
-    setTimeout(() => this.dismissToast(id), TOAST_MS);
+    this.later(() => this.dismissToast(id), TOAST_MS);
   }
 
   dismissToast(id: number): void {
@@ -529,7 +566,7 @@ export class Session {
     const res = await this.rpc.request<v2.ModelListResponse>("model/list", {});
     this.store.set((s) => {
       const models = res.data.filter((m) => !m.hidden);
-      const open = s.open && isDraft(s.open) && !s.open.model ? withDefaultModel(s.open, models) : s.open;
+      const open = s.open && isDraft(s.open) && !s.open.model ? withDefaultModel(s.open, models, this.host?.id) : s.open;
       return { ...s, models, open };
     });
   }
@@ -564,6 +601,7 @@ export class Session {
           serviceTierOverride: null,
         },
         s.models,
+        this.host?.id,
       ),
     }));
   }
@@ -844,7 +882,7 @@ export class Session {
     // not leave a ghost bubble behind. A steered message is only echoed
     // once the running tool call ends, so wait out the turn first.
     const retireLater = () =>
-      setTimeout(() => {
+      this.later(() => {
         const view = this.store.get().open?.view;
         if (view?.threadId === threadId && view.activeTurnId) retireLater();
         else retire();
@@ -888,7 +926,7 @@ export class Session {
     const id = started.thread.id;
     const answer = new Promise<string>((resolve) => {
       this.titleRuns.set(id, { text: "", done: resolve });
-      setTimeout(() => this.finishTitle(id), TITLE_TIMEOUT_MS);
+      this.later(() => this.finishTitle(id), TITLE_TIMEOUT_MS);
     });
     const efforts = this.store.get().models.find((m) => m.model === started.model)?.supportedReasoningEfforts;
     const turn: v2.TurnStartParams = { threadId: id, input: [{ type: "text", text: `Give a short title for this request:\n\n${prompt}`, text_elements: [] }] };
@@ -963,7 +1001,7 @@ export class Session {
       if (tier) Object.assign(next, { serviceTier: tier === "default" ? null : tier, serviceTierOverride: null });
       return { ...s, open: next };
     });
-    if (open.override) setLastModel(open.override);
+    if (open.override) setLastModel(open.override, this.host?.id);
     return true;
   }
 
@@ -1105,7 +1143,7 @@ export class Session {
   ): Promise<string> {
     const res = await this.rpc.request<v2.ThreadStartResponse>("thread/start", { cwd, model, serviceTier, projectId });
     this.adoptStarted(res, effort);
-    setLastModel({ model: res.model, effort: effort ?? res.reasoningEffort });
+    setLastModel({ model: res.model, effort: effort ?? res.reasoningEffort }, this.host?.id);
     return res.thread.id;
   }
 
@@ -1467,7 +1505,7 @@ export class Session {
       const { threadId } = n.params as v2.ThreadArchivedNotification;
       this.completionChecks.delete(threadId);
       this.readiness.delete(threadId);
-      saveThreadReadiness(this.readiness);
+      saveThreadReadiness(this.readiness, this.host?.id);
     }
     this.store.set((s) => {
       let threads = applyThreadListNotification(s.threads, n, Date.now());

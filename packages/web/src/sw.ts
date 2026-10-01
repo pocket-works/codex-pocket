@@ -6,6 +6,8 @@ declare const __SHELL_VERSION__: string;
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const CACHE_PREFIX = "codex-pocket-shell-";
 const CACHE = `${CACHE_PREFIX}${__SHELL_VERSION__}`;
+const METADATA = "codex-pocket-metadata";
+const LEGACY_COMPUTER = "/__pocket-legacy-computer";
 const SHELL_NETWORK_TIMEOUT_MS = 3000;
 
 worker.addEventListener("install", (event) => {
@@ -19,6 +21,11 @@ worker.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE).map((key) => caches.delete(key))))
       .then(() => worker.clients.claim()),
   );
+});
+
+worker.addEventListener("message", (event) => {
+  if (event.data?.type !== "legacy-computer" || typeof event.data.id !== "string") return;
+  event.waitUntil(caches.open(METADATA).then((cache) => cache.put(LEGACY_COMPUTER, new Response(JSON.stringify({ id: event.data.id, name: event.data.name })))));
 });
 
 worker.addEventListener("fetch", (event) => {
@@ -73,19 +80,24 @@ worker.addEventListener("push", (event) => {
     data = { body: event.data ? event.data.text() : "" };
   }
   const threadId = data.threadId || null;
-  event.waitUntil(worker.registration.showNotification(data.title || "Codex", {
-    body: data.body || "",
-    tag: data.tag || threadId || undefined,
-    icon: "/icon-180.png?v=2",
-    badge: "/icon-180.png?v=2",
-    data: { threadId },
+  event.waitUntil(caches.open(METADATA).then((cache) => cache.match(LEGACY_COMPUTER)).then(async (response) => {
+    const computer = response ? await response.json() : null;
+    return worker.registration.showNotification(data.title || "Codex", {
+      body: data.body || "",
+      tag: data.tag || threadId || undefined,
+      icon: "/icon-180.png?v=2",
+      badge: "/icon-180.png?v=2",
+      data: { threadId, computerId: computer?.id ?? null },
+    });
   }));
 });
 
 worker.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const threadId = event.notification.data && event.notification.data.threadId;
-  const url = threadId ? `/#/t/${encodeURIComponent(threadId)}` : "/";
+  const computerId = event.notification.data && event.notification.data.computerId;
+  const base = computerId ? `/#/h/${encodeURIComponent(computerId)}` : "/#";
+  const url = threadId ? `${base}/t/${encodeURIComponent(threadId)}` : `${base}/`;
   event.waitUntil(worker.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
     const client = list[0];
     if (client) {

@@ -6,10 +6,10 @@ import { ThreadList } from "./ThreadList.js";
 import { ThreadView } from "./ThreadView.js";
 import { navigate, useRoute } from "./route.js";
 import { ArchivedList } from "./ArchivedList.js";
-import { SettingsScreen } from "./SettingsScreen.js";
 import { checkForUpdate } from "../state/updates.js";
+import { RefreshIcon } from "./icons.js";
 
-export function App({ session }: { session: Session }) {
+export function App({ session, connectionProblem, onRetry, onComputers, onPairAgain }: { session: Session; connectionProblem?: string | null; onRetry?: () => void; onComputers?: () => void; onPairAgain?: () => void }) {
   const route = useRoute();
   const connection = useStore(session.store, (s) => s.connection);
   const upstream = useStore(session.store, (s) => s.upstreamConnected);
@@ -39,20 +39,20 @@ export function App({ session }: { session: Session }) {
   // problem once it has lasted a moment. If the socket is still not open
   // after STUCK_AFTER_MS, the Mac is unreachable — with Tailscale off on the
   // phone the connect hangs rather than fails — so say so instead of spinning.
-  const trouble = connection !== "open" || !upstream;
+  const trouble = Boolean(connectionProblem) || connection !== "open" || !upstream;
   const showBanner = useStuck(trouble, BANNER_AFTER_MS);
   const stuck = useStuck(connection !== "open", STUCK_AFTER_MS);
   const updated = useUpdateAvailable(connection === "open");
 
   const banner = !showBanner
     ? null
-    : connection !== "open"
+    : connectionProblem ?? (connection !== "open"
       ? stuck
         ? "Can't reach your Mac. Make sure Codex Pocket is running and Tailscale is on when away from home. Reconnecting..."
         : "Connecting to your Mac…"
       : !upstream
         ? "Mac reached, waiting for Codex app-server…"
-        : null;
+        : null);
 
   // An iPad or a desktop window: the list stays on the left and the
   // screens open beside it, like the official app's sidebar.
@@ -61,14 +61,13 @@ export function App({ session }: { session: Session }) {
     <>
       {route.name === "new" && <NewThread session={session} presetCwd={route.cwd} />}
       {route.name === "archived" && <ArchivedList session={session} />}
-      {route.name === "settings" && <SettingsScreen session={session} />}
       {route.name === "thread" && <ThreadView session={session} />}
     </>
   );
 
   return (
     <div className={`app ${split ? "split" : ""}`}>
-      {banner && <div className="banner">{banner}</div>}
+      {banner && <div className="banner connection-banner" role="status"><span>{banner}</span>{onPairAgain ? <button onClick={onPairAgain}>Pair again</button> : onRetry && <button className="icon-btn" aria-label="Retry connection" title="Retry connection" onClick={onRetry}><RefreshIcon /></button>}{onComputers && <button onClick={onComputers}>Computers</button>}</div>}
       {updated && !banner && (
         <button className="banner update" onClick={() => location.reload()}>
           Codex Pocket was updated — tap to reload

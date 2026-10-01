@@ -1,4 +1,5 @@
 import type { v2 } from "@codex-pocket/protocol";
+import { scopedKey } from "./computers.js";
 
 export interface ThreadReadiness {
   unread: boolean;
@@ -15,9 +16,9 @@ export function isPendingTurnFinished(readiness: ThreadReadiness, turn: Pick<v2.
     (readiness.turnId !== null ? turn.id === readiness.turnId : typeof turn.completedAt === "number" && turn.completedAt >= readiness.since);
 }
 
-export function loadThreadReadiness(): Map<string, ThreadReadiness> {
+export function loadThreadReadiness(computerId?: string): Map<string, ThreadReadiness> {
   try {
-    const entries: unknown = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const entries: unknown = JSON.parse(localStorage.getItem(scopedKey(KEY, computerId)) ?? "[]");
     if (!Array.isArray(entries)) return new Map();
     return new Map(entries.slice(-MAX_ENTRIES).filter((entry): entry is [string, ThreadReadiness] =>
       Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" &&
@@ -31,8 +32,8 @@ export function loadThreadReadiness(): Map<string, ThreadReadiness> {
   }
 }
 
-export function saveThreadReadiness(entries: Map<string, ThreadReadiness>): void {
+export function saveThreadReadiness(entries: Map<string, ThreadReadiness>, computerId?: string): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify([...entries].slice(-MAX_ENTRIES)));
+    localStorage.setItem(scopedKey(KEY, computerId), JSON.stringify([...entries].slice(-MAX_ENTRIES)));
   } catch {}
 }
