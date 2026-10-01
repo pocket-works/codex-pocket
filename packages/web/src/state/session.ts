@@ -152,13 +152,13 @@ export interface SessionState {
 }
 
 const HISTORY_PAGE = 40;
+const HISTORY_CONTEXT_TURNS = 3;
 /**
  * Codex pages items, not turns, and a tool-heavy turn runs well past one
  * page, so the newest page can hold nothing but its tool calls — the thread
  * then opens on a wall of commands with the question that started them
- * nowhere on screen. Keep pulling pages until that message is in hand; on
- * real threads one page almost always already holds it, and this caps what
- * a pathological turn may cost.
+ * nowhere on screen. Preload recent turn context as well as that message,
+ * with a page cap so opening a thread never fetches its entire history.
  */
 const HISTORY_MAX_PAGES = 4;
 /** How long a sent message stays "pending" if Codex never echoes it. */
@@ -673,15 +673,19 @@ export class Session {
       ]);
       let entries = page.data.slice().reverse();
       let cursor = page.nextCursor;
-      for (let more = 1; more < HISTORY_MAX_PAGES && cursor !== null && !newestTurnComplete(entries); more++) {
-        const older: v2.ThreadItemsListResponse = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
-          threadId,
-          cursor,
-          limit: HISTORY_PAGE,
-          sortDirection: "desc",
-        });
-        entries = [...older.data.slice().reverse(), ...entries];
-        cursor = older.nextCursor;
+      for (let more = 1; more < HISTORY_MAX_PAGES && cursor !== null && !initialHistoryContextComplete(entries); more++) {
+        try {
+          const older = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
+            threadId,
+            cursor,
+            limit: HISTORY_PAGE,
+            sortDirection: "desc",
+          });
+          entries = [...older.data.slice().reverse(), ...entries];
+          cursor = older.nextCursor;
+        } catch {
+          break;
+        }
       }
       return { entries, turns, olderCursor: cursor };
     } catch (err) {
@@ -1536,10 +1540,10 @@ export class Session {
   }
 }
 
-/** Whether these entries hold the message that started the newest turn among them. */
-function newestTurnComplete(entries: v2.ThreadItemEntry[]): boolean {
+function initialHistoryContextComplete(entries: v2.ThreadItemEntry[]): boolean {
   const newest = entries[entries.length - 1];
-  return newest !== undefined && entries.some((e) => e.item.type === "userMessage" && e.turnId === newest.turnId);
+  const startedTurns = new Set(entries.filter((entry) => entry.item.type === "userMessage").map((entry) => entry.turnId));
+  return newest !== undefined && startedTurns.has(newest.turnId) && startedTurns.size >= HISTORY_CONTEXT_TURNS;
 }
 
 /** The first user message's text, shortened to `max` characters, or null. */
