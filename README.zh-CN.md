@@ -123,7 +123,9 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 
 源码构建可用 `pnpm dev:host config` 查看当前设置、`config unset <key>` 恢复默认；DMG 安装可编辑 `~/.codex-pocket/config.json`，重启 Pocket 后生效。
 
-不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
+不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知和离线启动等需要安全上下文的能力。
+
+在 host 运行时打开 HTTPS PWA，等待应用资源完成缓存后，即使 Mac 上的 Pocket 已停止或无法连接，手机也能打开界面，显示连接提示，并在 host 恢复后自动重连。更新 Pocket 后，需要在 host 运行时打开一次手机应用，以刷新离线缓存。尚未缓存资源的首次访问仍需要 host 在线。
 
 host 日志在 `~/.codex-pocket/host.log`，Codex daemon 日志在 `~/.codex/app-server-control/app-server.log`。
 
