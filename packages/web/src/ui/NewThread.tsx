@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getToken } from "../state/auth.js";
+import { hostClientFor } from "../state/host-client.js";
 import type { Draft } from "../state/compose.js";
 import { branchLabel, type Session } from "../state/session.js";
 import { projectForCwd } from "../state/projects.js";
@@ -90,15 +90,12 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
   }, [cwd, connection, session]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
-    fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => (r.ok ? (r.json() as Promise<{ host?: string; home?: string }>) : null))
-      .then(setMe)
-      .catch(() => setMe(null));
-  }, []);
+    let live = true;
+    void hostClientFor(session).me().then((info) => { if (live) setMe(info); }).catch(() => { if (live) setMe(null); });
+    return () => { live = false; };
+  }, [session]);
 
-  const host = me?.host ?? location.hostname;
+  const host = session.host?.computer.name ?? me?.host ?? location.hostname;
   const repo = git?.cwd === cwd ? git : null;
   const chosenBranch = branch ?? repo?.branch ?? null;
   const ready = target.kind === "project" ? mode === "local" || Boolean(me?.home) : Boolean(me?.home);
@@ -125,6 +122,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
     const id = await session.startThread(dir, model?.model ?? null, model?.effort ?? null, tier === "default" ? null : tier, projectId);
     if (perms) session.setPermissions(perms.approval, perms.sandbox, perms.reviewer);
     await session.sendMessage(draft);
+    if (session.host?.disposed) return;
     navigate({ name: "thread", id });
   }
 
@@ -199,7 +197,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
         />
       )}
 
-      <Composer session={session} draftKey="new" disabled={!ready} busy={false} placeholder={`Work on ${host}`} onSend={start} />
+      <Composer session={session} draftKey="new" disabled={!ready || connection !== "open"} busy={false} placeholder={`Work on ${host}`} onSend={start} />
     </main>
   );
 }

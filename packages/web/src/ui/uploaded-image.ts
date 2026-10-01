@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getToken } from "../state/auth.js";
 import type { Session } from "../state/session.js";
+import type { HostClient } from "../state/host-client.js";
 
 // Images the phone attached are files in the host's uploads folder; the host
 // serves those (and only those) back by name. Anything else — a screenshot
@@ -25,34 +26,48 @@ export function imageMimeType(path: string): string | null {
   return IMAGE_TYPES[ext] ?? null;
 }
 
-const cache = new Map<string, Promise<string | null>>();
+const legacyCache = new Map<string, Promise<string | null>>();
+const hostCaches = new WeakMap<HostClient, Map<string, Promise<string | null>>>();
+
+export function clearUploadedImages(host: HostClient): void {
+  const cache = hostCaches.get(host);
+  hostCaches.delete(host);
+  if (cache) for (const pending of cache.values()) void pending.then((url) => { if (url) URL.revokeObjectURL(url); });
+}
 
 /** Object URL for an image the phone uploaded, or null when it is not one of ours (or failed to load). */
-export function uploadedImageUrl(path: string): Promise<string | null> {
+export function uploadedImageUrl(path: string, host?: HostClient): Promise<string | null> {
   const name = path.slice(path.lastIndexOf("/") + 1);
   if (!UPLOAD_NAME.test(name)) return Promise.resolve(null);
+  if (host?.disposed) return Promise.resolve(null);
+  let cache = host ? hostCaches.get(host) : legacyCache;
+  if (!cache) { cache = new Map(); hostCaches.set(host!, cache); }
   let p = cache.get(path);
   if (!p) {
-    p = fetch(`/api/uploads/${name}`, { headers: { Authorization: `Bearer ${getToken() ?? ""}` } })
+    p = (host ? host.fetch(`/api/uploads/${name}`) : fetch(`/api/uploads/${name}`, { headers: { Authorization: `Bearer ${getToken() ?? ""}` } }))
       .then((res) => (res.ok ? res.blob().then((b) => URL.createObjectURL(b)) : null))
       .catch(() => null);
     cache.set(path, p);
+    const currentCache = cache;
+    const currentPromise = p;
+    void p.then((url) => { if (!url && currentCache.get(path) === currentPromise) currentCache.delete(path); });
   }
   return p;
 }
 
-export function useUploadedImage(path: string | null): string | null {
+export function useUploadedImage(path: string | null, host?: HostClient): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
+    setUrl(null);
     if (path === null) return;
     let live = true;
-    void uploadedImageUrl(path).then((u) => {
+    void uploadedImageUrl(path, host).then((u) => {
       if (live) setUrl(u);
     });
     return () => {
       live = false;
     };
-  }, [path]);
+  }, [path, host]);
   return url;
 }
 
@@ -66,7 +81,7 @@ export function useLocalImage(session: Session, path: string | null): string | n
     setUrl(null);
     if (path === null) return;
     let live = true;
-    void uploadedImageUrl(path)
+    void uploadedImageUrl(path, session.host)
       .then((u) => u ?? session.readImageFile(path))
       .catch(() => null)
       .then((u) => {

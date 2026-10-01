@@ -44,6 +44,7 @@ describe("LanServer", () => {
       port: 0,
       host: "127.0.0.1",
       deviceStore: store,
+      instanceId: "test-instance",
       proxy,
       uploadsDir,
       adminToken: ADMIN,
@@ -90,9 +91,9 @@ describe("LanServer", () => {
     return ((await res.json()) as { token: string }).token;
   }
 
-  function openWs(protocols: string[]): Promise<{ ws: WebSocket; status: number }> {
+  function openWs(protocols: string[], origin?: string): Promise<{ ws: WebSocket; status: number }> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${base.replace("http", "ws")}/ws`, protocols);
+      const ws = new WebSocket(`${base.replace("http", "ws")}/ws`, protocols, origin ? { origin } : undefined);
       ws.once("open", () => resolve({ ws, status: 101 }));
       ws.once("unexpected-response", (_req, res) => resolve({ ws, status: res.statusCode ?? 0 }));
       ws.once("error", (err) => {
@@ -106,6 +107,47 @@ describe("LanServer", () => {
   it("admin endpoints require the admin token", async () => {
     const res = await fetch(`${base}/api/admin/pairing-code`, { method: "POST" });
     expect(res.status).toBe(401);
+  });
+
+  it("preflights phone APIs without enabling cross-origin admin access", async () => {
+    const headers = { Origin: "https://entry.ts.net", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,authorization" };
+    const res = await fetch(`${base}/api/pair`, { method: "OPTIONS", headers });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe(headers.Origin);
+    expect(res.headers.get("access-control-allow-headers")).toContain("Authorization");
+    const admin = await fetch(`${base}/api/admin/devices`, { method: "OPTIONS", headers });
+    expect(admin.status).toBe(401);
+    expect(admin.headers.get("access-control-allow-origin")).toBeNull();
+    expect((await fetch(`${base}/api/pair`, { method: "OPTIONS", headers: { Origin: "http://other.test" } })).status).toBe(403);
+  });
+
+  it("binds HTTP and WebSocket credentials to the origin that paired", async () => {
+    const origin = "https://entry.ts.net";
+    const { code } = await adminPairingCode();
+    const pair = await fetch(`${base}/api/pair`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify({ code, deviceName: "Phone" }) });
+    const paired = await pair.json() as { token: string; instanceId: string; deviceId: string };
+    expect(paired.instanceId).toBe("test-instance");
+    const headers = { Origin: origin, Authorization: `Bearer ${paired.token}` };
+    const me = await fetch(`${base}/api/me`, { headers });
+    expect(me.status).toBe(200);
+    expect(me.headers.get("access-control-allow-origin")).toBe(origin);
+    expect(await me.json()).toMatchObject({ instanceId: "test-instance", apiVersion: 2 });
+    const wrong = { ...headers, Origin: "https://other.ts.net" };
+    expect((await fetch(`${base}/api/me`, { headers: wrong })).status).toBe(401);
+    expect((await fetch(`${base}/api/uploads`, { method: "POST", headers: { ...wrong, "Content-Type": "image/png" }, body: "image" })).status).toBe(401);
+    expect((await openWs([WS_PROTOCOL, `tok.${paired.token}`], wrong.Origin)).status).toBe(401);
+    const { ws, status } = await openWs([WS_PROTOCOL, `tok.${paired.token}`], origin);
+    expect(status).toBe(101);
+    const closed = new Promise<number>((resolve) => ws.once("close", resolve));
+    expect((await fetch(`${base}/api/device`, { method: "DELETE", headers })).status).toBe(200);
+    expect(await closed).toBe(4001);
+    expect(await store.verifyToken(paired.token)).toBeNull();
+  });
+
+  it("restricts legacy browser credentials to this host's origin", async () => {
+    const token = await pair();
+    expect((await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${token}`, Origin: "https://other.ts.net" } })).status).toBe(401);
+    expect((await fetch(`${base}/api/me`, { headers: { Authorization: `Bearer ${token}`, Origin: "http://example.test" } })).status).toBe(200);
   });
 
   it("reports host status to the admin", async () => {

@@ -27,6 +27,7 @@ export interface LanServerOptions {
   /** Where phone image attachments are written so Codex can read them as `localImage`. */
   uploadsDir?: string | null;
   deviceStore: DeviceStore;
+  instanceId?: string;
   proxy: CodexProxy;
   /** Shared secret for the loopback-only admin endpoints. */
   adminToken: string;
@@ -84,6 +85,10 @@ export function createLanServer(opts: LanServerOptions): LanServer {
   const httpsServer = opts.tls ? createHttpsServer({ key: opts.tls.key, cert: opts.tls.cert }, handler) : null;
   const server: Server = httpsServer ?? createHttpServer(handler);
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, handleProtocols: selectProtocol });
+  const connectedDevices = new Map<WebSocket, string>();
+  const offRevoke = opts.deviceStore.onRevoke((id) => {
+    for (const [ws, deviceId] of connectedDevices) if (deviceId === id) ws.close(4001, "Pairing revoked");
+  });
 
   server.on("upgrade", (req, socket, head) => {
     handleUpgrade(opts, wss, req, socket, head).catch((err) => {
@@ -96,6 +101,7 @@ export function createLanServer(opts: LanServerOptions): LanServer {
   wss.on("connection", (ws: WebSocket, req: IncomingMessage & { device?: Device }) => {
     const connId = String(nextConnId++);
     const device = req.device;
+    if (device) connectedDevices.set(ws, device.id);
     const send = (msg: JsonRpcMessage) => {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
     };
@@ -119,6 +125,7 @@ export function createLanServer(opts: LanServerOptions): LanServer {
       handle.receive(msg);
     });
     ws.on("close", () => {
+      connectedDevices.delete(ws);
       handle.detach();
       dictation?.detach();
       opts.push?.notifier.clearClient(connId);
@@ -138,6 +145,7 @@ export function createLanServer(opts: LanServerOptions): LanServer {
       });
     },
     close() {
+      offRevoke();
       return new Promise((resolve) => {
         for (const client of wss.clients) client.terminate();
         wss.close(() => server.close(() => resolve()));
@@ -164,7 +172,7 @@ async function handleUpgrade(
   if (url.pathname !== "/ws") return rejectUpgrade(socket, 404, "Not Found");
   const offered = (req.headers["sec-websocket-protocol"] ?? "").split(",").map((s) => s.trim());
   const tokenEntry = offered.find((p) => p.startsWith(WS_TOKEN_PREFIX));
-  const device = tokenEntry ? await opts.deviceStore.verifyToken(tokenEntry.slice(WS_TOKEN_PREFIX.length)) : null;
+  const device = tokenEntry ? await opts.deviceStore.verifyToken(tokenEntry.slice(WS_TOKEN_PREFIX.length), req.headers.origin, serverOrigin(opts, req)) : null;
   if (!device || !offered.includes(WS_PROTOCOL)) return rejectUpgrade(socket, 401, "Unauthorized");
   (req as IncomingMessage & { device?: Device }).device = device;
   wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
@@ -180,17 +188,40 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
   const method = req.method ?? "GET";
   const path = url.pathname;
 
+  // Preflight carries no credential; the actual request checks the pairing's origin.
+  const origin = req.headers.origin;
+  if (path.startsWith("/api/") && !path.startsWith("/api/admin/") && origin) {
+    if (!validOrigin(origin) || (new URL(origin).protocol !== "https:" && origin !== serverOrigin(opts, req))) {
+      return sendJson(res, 403, { error: "origin not allowed; use HTTPS for multiple computers" });
+    }
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    if (method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+        "Access-Control-Max-Age": "600",
+      });
+      res.end();
+      return;
+    }
+    if (path !== "/api/pair" && path !== "/api/health" &&
+        !await opts.deviceStore.verifyToken(bearerToken(req), origin, serverOrigin(opts, req))) {
+      return sendJson(res, 401, { error: "unauthorized" });
+    }
+  }
+
   if (path === "/api/health" && method === "GET") {
-    return sendJson(res, 200, { ok: true, upstream: opts.proxy.isUpstreamConnected });
+    return sendJson(res, 200, { ok: true, upstream: opts.proxy.isUpstreamConnected, apiVersion: 2 });
   }
 
   if (path === "/api/pair" && method === "POST") {
     const body = await readJsonBody(req);
     const code = typeof body?.code === "string" ? body.code : "";
     const deviceName = typeof body?.deviceName === "string" ? body.deviceName : "";
-    const paired = await opts.deviceStore.redeemPairingCode(code, deviceName);
+    const paired = await opts.deviceStore.redeemPairingCode(code, deviceName, origin);
     if (!paired) return sendJson(res, 403, { error: "invalid or expired pairing code" });
-    return sendJson(res, 200, paired);
+    return sendJson(res, 200, { ...paired, instanceId: opts.instanceId ?? null, host: hostname(), apiVersion: 2 });
   }
 
   if (path === "/api/me" && method === "GET") {
@@ -198,7 +229,14 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     if (!device) return sendJson(res, 401, { error: "unauthorized" });
     // `host` names the Mac on the new-thread screen, as the official app does;
     // `home` is where project-less chats get their scratch folder.
-    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected, host: hostname(), home: homedir(), dictation: opts.dictation?.available ?? false });
+    return sendJson(res, 200, { device, upstream: opts.proxy.isUpstreamConnected, host: hostname(), home: homedir(), dictation: opts.dictation?.available ?? false, instanceId: opts.instanceId ?? null, apiVersion: 2 });
+  }
+
+  if (path === "/api/device" && method === "DELETE") {
+    const device = await opts.deviceStore.verifyToken(bearerToken(req));
+    if (!device) return sendJson(res, 401, { error: "unauthorized" });
+    await opts.deviceStore.revoke(device.id);
+    return sendJson(res, 200, { ok: true });
   }
 
   if (path === "/api/uploads" && method === "POST") {
@@ -296,6 +334,20 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
 function bearerToken(req: IncomingMessage): string {
   const h = req.headers.authorization ?? "";
   return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+}
+
+function validOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    return ["http:", "https:"].includes(url.protocol) && url.origin === origin && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function serverOrigin(opts: LanServerOptions, req: IncomingMessage): string {
+  const direct = `${opts.tls ? "https" : "http"}://${req.headers.host}`;
+  return req.headers.origin === direct ? direct : opts.publicUrl ?? direct;
 }
 
 function parsePushSubscription(raw: unknown): PushSubscription | null {

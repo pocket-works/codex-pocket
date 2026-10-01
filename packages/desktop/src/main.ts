@@ -106,6 +106,7 @@ function toTemplate(entries: MenuEntry[], run: (action: MenuAction) => void): Me
 async function main(): Promise<void> {
   await app.whenReady();
   app.dock?.hide();
+  app.setAboutPanelOptions({ applicationName: "Codex Pocket", applicationVersion: app.getVersion(), version: "" });
   mkdirSync(pocketHome(), { recursive: true, mode: 0o700 });
   const log = createWriteStream(logFile(), { flags: "a" });
   const admin = new AdminClient();
@@ -177,6 +178,11 @@ async function main(): Promise<void> {
         render();
       }
       else if (action === "log") await shell.openPath(logFile());
+      else if (action === "about") {
+        // Opening the native panel does not activate a menu bar app on macOS.
+        app.focus({ steal: true });
+        app.showAboutPanel();
+      }
       else if (action === "link-desktop" || action === "unlink-desktop") {
         if (desktopBusy) return;
         desktopBusy = true;
