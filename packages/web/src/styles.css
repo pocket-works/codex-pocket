@@ -444,6 +444,11 @@ code,
   color: var(--ok);
 }
 
+.thread-state.ready .dot {
+  width: 10px;
+  height: 10px;
+}
+
 .thread-state-chip {
   border-radius: 999px;
   background: color-mix(in srgb, var(--warn) 15%, transparent);
