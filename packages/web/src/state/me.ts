@@ -1,4 +1,5 @@
 import { getToken } from "./auth.js";
+import type { HostClient } from "./host-client.js";
 
 /** What the host knows about this pairing: the Mac's name and home folder. */
 export interface Me {
@@ -10,7 +11,8 @@ export interface Me {
 let cached: Promise<Me> | null = null;
 
 /** GET /api/me, once per page: the answer does not change while paired. */
-export function fetchMe(): Promise<Me> {
+export function fetchMe(host?: HostClient): Promise<Me> {
+  if (host) return host.me();
   if (!cached) {
     cached = fetch("/api/me", { headers: { Authorization: `Bearer ${getToken() ?? ""}` } })
       .then((res) => {

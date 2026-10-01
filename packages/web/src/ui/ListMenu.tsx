@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import type { RateLimits, RateLimitWindow, Session } from "../state/session.js";
 import type { ListView } from "../state/list-prefs.js";
 import { useStore } from "../state/store.js";
-import { ArchiveIcon, CheckIcon, ClockIcon, FolderIcon, MenuIcon, RefreshIcon, SettingsIcon } from "./icons.js";
+import { ArchiveIcon, CheckIcon, ClockIcon, FolderIcon, InfoIcon, MenuIcon, MonitorIcon, RefreshIcon } from "./icons.js";
 import { navigate } from "./route.js";
+import { useComputers } from "./ComputerContext.js";
 
 // Thread-list menu modelled on the official app: view mode, Manage
 // section, and remaining usage at the bottom.
 export function ListMenu({ session, view, onView }: { session: Session; view: ListView; onView: (v: ListView) => void }) {
   const rateLimits = useStore(session.store, (s) => s.rateLimits);
+  const computers = useComputers();
   const [show, setShow] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -40,8 +42,9 @@ export function ListMenu({ session, view, onView }: { session: Session; view: Li
           <div className="menu-sep" />
           <div className="menu-heading">Manage</div>
           <MenuItem icon={<ArchiveIcon />} label="Archived threads" onClick={pick(() => navigate({ name: "archived" }))} />
-          <MenuItem icon={<SettingsIcon />} label="Settings" onClick={pick(() => navigate({ name: "settings" }))} />
+          {computers && <MenuItem icon={<MonitorIcon />} label="Computers" onClick={pick(() => computers.manage())} />}
           <MenuItem icon={<RefreshIcon />} label="Refresh" onClick={pick(() => void session.loadThreads())} />
+          {computers && <MenuItem icon={<InfoIcon />} label="About" onClick={pick(computers.about)} />}
           {rateLimits && <UsageFooter limits={rateLimits} />}
         </div>
       )}

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { DeviceStore } from "./auth/device-store.js";
 import { codexConnector } from "./codex/target.js";
 import { retireLegacyLaunchAgents } from "./launchd.js";
-import { adminToken, devicesFile, findCertFiles, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
+import { adminToken, devicesFile, findCertFiles, hostInstanceId, uploadsDir, vapidFile, writeRuntimeInfo } from "./config/paths.js";
 import { PushNotifier } from "./push/notifier.js";
 import { loadOrCreateVapidKeys } from "./push/vapid.js";
 import webpush from "web-push";
@@ -73,6 +73,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
     staticDir: opts.staticDir ?? defaultStaticDir(),
     uploadsDir: uploadsDir(),
     deviceStore,
+    instanceId: hostInstanceId(),
     proxy,
     adminToken: adminToken(),
     publicUrl,
