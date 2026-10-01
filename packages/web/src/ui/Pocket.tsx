@@ -118,7 +118,7 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
 
   const current = session?.host?.id === active?.id && session?.host?.computer.token === active?.token ? session : null;
   const manage = (id?: string) => openPocketPanel(id ? { name: "computer", id } : { name: "computers" });
-  const fullPage = panel?.name === "computer" || panel?.name === "pair";
+  const fullPage = panel?.name === "computer" || panel?.name === "computer-details" || panel?.name === "pair";
   const target = panel && "id" in panel ? state.computers.find((computer) => computer.id === panel.id) : undefined;
 
   function useComputer(computer: Computer) {
@@ -170,7 +170,10 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
         )}
         </div>
         {panel?.name === "computers" && <ComputersSheet registry={registry} session={current} onChoose={useComputer} onDetails={(id) => manage(id)} onAdd={() => openPocketPanel({ name: "pair" })} onClose={closePocketPanel} />}
-        {panel?.name === "computer" && target && <ComputerScreen key={`${target.id}:${target.token}`} computer={target} registry={registry} session={current} onBack={closePocketPanel} onUse={useComputer} onPair={() => openPocketPanel({ name: "pair", id: target.id })} onRemove={removeComputer} />}
+        {(panel?.name === "computer" || panel?.name === "computer-details") && target && <ComputerScreen key={`${target.id}:${target.token}`} computer={target} registry={registry} session={current} showPairingDetails={panel.name === "computer-details"} onBack={() => {
+          if (panel.name === "computer-details" && !history.state?.pocketPanel) openPocketPanel({ name: "computer", id: target.id }, true);
+          else closePocketPanel();
+        }} onUse={useComputer} onDetails={() => openPocketPanel({ name: "computer-details", id: target.id })} onPair={() => openPocketPanel({ name: "pair", id: target.id })} onRemove={removeComputer} />}
         {fullPage && panel && "id" in panel && panel.id && !target && <main className="screen computer-screen"><header className="topbar"><button className="icon-btn" aria-label="Back" onClick={closePocketPanel}>‹</button><h1>Computer</h1></header><p className="muted center">This computer is no longer paired.</p><button onClick={() => openPocketPanel({ name: "computers" }, true)}>Computers</button></main>}
         {panel?.name === "pair" && (!panel.id || target) && <PairingScreen key={target?.id ?? "new"} computer={target} pending={pending > 0} onBack={closePocketPanel} onPaired={paired} />}
         {panel?.name === "about" && <AboutSheet onClose={closePocketPanel} />}

@@ -200,15 +200,19 @@ button.computer-setting {
 .computer-content .setting-row, .about-sheet .setting-row { padding: 14px 0; gap: 16px; font-size: calc(16rem / 17); }
 .computer-content .setting-row > span:first-child, .about-sheet .setting-row > span:first-child { flex-shrink: 0; }
 .computer-content .setting-value, .about-sheet .setting-value { flex: 1; min-width: 0; justify-content: flex-end; text-align: right; overflow-wrap: anywhere; }
+.computer-settings-screen .topbar { align-items: center; }
+.computer-settings-screen .computer-content { padding-left: 16px; padding-right: 16px; }
+.computer-settings-group { margin: 0 0 24px; }
+.computer-settings-group h2 { margin: 8px 0 4px; font-size: calc(13rem / 17); font-weight: 500; color: var(--muted); }
+.computer-settings-group .setting-row, .computer-maintenance .setting-row { min-height: 52px; }
+.computer-settings-group .setting-value { color: var(--muted); }
 .computer-maintenance { margin-top: 16px; border-top: 1px solid var(--line); }
 .computer-maintenance button { border-radius: 0; }
+.computer-unpair { margin-top: 32px; border-top: 1px solid var(--line); }
+.computer-unpair .danger-row { min-height: 52px; border-radius: 0; }
 .computer-add { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; border: none; background: none; text-align: left; padding: 10px 4px; }
 .computer-info.icon-btn { border: none; background: none; color: var(--muted); flex-shrink: 0; }
-.computer-use { width: 100%; min-height: 44px; border-radius: 8px; margin-bottom: 16px; }
-.computer-diagnostics { margin-top: 24px; border-top: 1px solid var(--line); color: var(--muted); }
-.computer-diagnostics h2 { margin: 0; padding: 16px 0 4px; font-size: calc(14rem / 17); font-weight: 500; }
-.computer-diagnostics .setting-row { font-size: calc(14rem / 17); }
-.computer-diagnostics .setting-value { color: inherit; }
+.computer-use { width: 100%; min-height: 44px; border-radius: 8px; margin-bottom: 24px; }
 .computer-recovery { display: flex; align-items: center; gap: 12px; font-size: calc(14rem / 17); margin-bottom: 16px; }
 .computer-recovery > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .computer-maintenance .needs-pairing { font-weight: 600; }
