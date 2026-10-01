@@ -1,5 +1,26 @@
-import { describe, expect, it } from "vitest";
-import { deviceName, pairingCodeFromScan } from "../src/state/auth.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { deviceName, pairingCodeFromScan, redeemPairingCode } from "../src/state/auth.js";
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("redeemPairingCode", () => {
+  function mockBrowser() {
+    vi.stubGlobal("navigator", { userAgent: "iPhone" });
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+  }
+
+  it("explains how to recover when the host is unreachable", async () => {
+    mockBrowser();
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(redeemPairingCode("ABCD-EFGH")).rejects.toThrow("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+  });
+
+  it("still identifies invalid pairing codes separately", async () => {
+    mockBrowser();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Forbidden", { status: 403 })));
+    await expect(redeemPairingCode("ABCD-EFGH")).rejects.toThrow("Pairing code is invalid or expired");
+  });
+});
 
 describe("pairingCodeFromScan", () => {
   it("takes the code from a pairing link or a bare typed code", () => {

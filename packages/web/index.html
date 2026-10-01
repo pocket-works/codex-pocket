@@ -33,9 +33,23 @@
     <link rel="apple-touch-startup-image" href="/splash/375x667@2-light.jpg" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
     <link rel="apple-touch-startup-image" href="/splash/375x667@2-dark.jpg" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait) and (prefers-color-scheme: dark)" />
     <title>Codex Pocket</title>
+    <style>
+      #startup { box-sizing: border-box; min-height: 100dvh; margin: 0 auto; padding: 24px; max-width: 420px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; }
+      #startup h1 { font-size: 24px; margin: 0 0 12px; }
+      #startup p { margin: 0 0 16px; }
+      #startup button { min-height: 44px; padding: 8px 20px; border: 1px solid #ddd; border-radius: 8px; background: #f5f5f7; color: inherit; font: inherit; }
+      @media (prefers-color-scheme: dark) { body { background: #111; } #startup { color: #f3f4f6; } #startup button { background: #262626; border-color: #444; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main id="startup">
+        <h1>Codex Pocket</h1>
+        <p role="status">Connecting to your Mac...</p>
+        <p>Make sure Codex Pocket is running on your Mac. Away from home? Check that Tailscale is on.</p>
+        <button type="button" onclick="location.reload()">Retry</button>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

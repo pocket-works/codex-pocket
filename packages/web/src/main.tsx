@@ -9,10 +9,21 @@ import { installKeyboardFix } from "./ui/keyboard-fix.js";
 import "./styles.css";
 
 async function boot(): Promise<void> {
+  if ("serviceWorker" in navigator && import.meta.env.PROD) {
+    void navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
   installKeyboardFix();
   const root = createRoot(document.getElementById("root")!);
   const code = pairingCodeFromUrl();
   if (code) {
+    root.render(
+      <div className="app">
+        <main className="screen center">
+          <h1>Codex Pocket</h1>
+          <p role="status">Pairing with your Mac...</p>
+        </main>
+      </div>,
+    );
     try {
       setToken(await redeemPairingCode(code));
       history.replaceState(null, "", "/#/");
@@ -44,9 +55,6 @@ async function boot(): Promise<void> {
       <App session={session} />
     </StrictMode>,
   );
-  if ("serviceWorker" in navigator && import.meta.env.PROD) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
 }
 
 void boot();

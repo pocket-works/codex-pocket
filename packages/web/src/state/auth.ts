@@ -24,11 +24,17 @@ export function pairingCodeFromScan(text: string): string | null {
 }
 
 export async function redeemPairingCode(code: string): Promise<string> {
-  const res = await fetch("/api/pair", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    throw new Error("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+  }
   if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Run `codex-pocket pair` again." : `Pairing failed (HTTP ${res.status})`);
   const { token } = (await res.json()) as { token: string };
   return token;

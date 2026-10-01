@@ -48,7 +48,7 @@ export function App({ session }: { session: Session }) {
     ? null
     : connection !== "open"
       ? stuck
-        ? "Can't reach your Mac. Away from home? Check that Tailscale is on."
+        ? "Can't reach your Mac. Make sure Codex Pocket is running and Tailscale is on when away from home. Reconnecting..."
         : "Connecting to your Mac…"
       : !upstream
         ? "Mac reached, waiting for Codex app-server…"

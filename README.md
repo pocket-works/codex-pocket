@@ -123,7 +123,9 @@ The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of 
 
 For source builds, `pnpm dev:host config` shows the current settings and `config unset <key>` restores a default. For DMG installations, edit `~/.codex-pocket/config.json` and restart Pocket to apply changes.
 
-Without Tailscale, drop your own PEMs into `~/.codex-pocket/certs/fullchain.pem` and `certs/privkey.pem` and the host serves HTTPS itself (`--no-tls` forces plain HTTP). On a trusted LAN you can skip HTTPS altogether — leave `bindHost` unset and open `http://<LAN IP>:7333` — at the cost of features that need a secure context, such as push notifications.
+Without Tailscale, drop your own PEMs into `~/.codex-pocket/certs/fullchain.pem` and `certs/privkey.pem` and the host serves HTTPS itself (`--no-tls` forces plain HTTP). On a trusted LAN you can skip HTTPS altogether — leave `bindHost` unset and open `http://<LAN IP>:7333` — at the cost of features that need a secure context, such as push notifications and offline startup.
+
+After opening the HTTPS PWA while the host is running and allowing its app resources to cache, it can open even when Pocket on the Mac is stopped or unreachable. It shows a connection notice and reconnects automatically when the host returns. After updating Pocket, open the phone app once while the host is running to refresh its offline cache. A first visit without cached resources still requires the host to be available.
 
 Logs go to `~/.codex-pocket/host.log`; the Codex daemon logs to `~/.codex/app-server-control/app-server.log`.
 
