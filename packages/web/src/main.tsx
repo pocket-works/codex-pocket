@@ -1,20 +1,24 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./ui/App.js";
-import { getToken, pairingCodeFromUrl, redeemPairingCode, setToken, wsUrl } from "./state/auth.js";
-import { Session } from "./state/session.js";
-import { RpcClient } from "./rpc/client.js";
-import { PairScreen } from "./ui/PairScreen.js";
+import { pairComputer, pairingCodeFromUrl } from "./state/auth.js";
+import { getComputerRegistry } from "./state/computers.js";
+import { Pocket } from "./ui/Pocket.js";
 import { installKeyboardFix } from "./ui/keyboard-fix.js";
 import "./styles.css";
 
+const root = createRoot(document.getElementById("root")!);
+
 async function boot(): Promise<void> {
-  if ("serviceWorker" in navigator && import.meta.env.PROD) {
-    void navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }
   installKeyboardFix();
-  const root = createRoot(document.getElementById("root")!);
+  const registry = getComputerRegistry();
+  if ("serviceWorker" in navigator && import.meta.env.PROD) {
+    void navigator.serviceWorker.register("/sw.js").then(async (reg) => {
+      const entry = registry.store.get().computers.find((c) => c.origin === location.origin);
+      const worker = reg.active ?? (await navigator.serviceWorker.ready).active;
+      if (entry) worker?.postMessage({ type: "legacy-computer", id: entry.id, name: entry.name });
+    }).catch(() => {});
+  }
   const code = pairingCodeFromUrl();
+  let initialError: string | undefined;
   if (code) {
     root.render(
       <div className="app">
@@ -24,37 +28,16 @@ async function boot(): Promise<void> {
         </main>
       </div>,
     );
+    history.replaceState(null, "", "/#/");
     try {
-      setToken(await redeemPairingCode(code));
-      history.replaceState(null, "", "/#/");
+      registry.add(location.origin, await pairComputer(location.origin, code));
     } catch (err) {
-      root.render(
-        <div className="app">
-          <PairScreen error={err instanceof Error ? err.message : String(err)} />
-        </div>,
-      );
-      return;
+      initialError = err instanceof Error ? err.message : String(err);
     }
   }
-  const token = getToken();
-  if (!token) {
-    root.render(
-      <div className="app">
-        <PairScreen />
-      </div>,
-    );
-    return;
-  }
-  const session = new Session(new RpcClient({ url: wsUrl(), token }));
-  session.start();
-  // For poking at the app from the browser console (it holds nothing the
-  // page does not already have).
-  (window as unknown as { codexPocket: { session: Session } }).codexPocket = { session };
-  root.render(
-    <StrictMode>
-      <App session={session} />
-    </StrictMode>,
-  );
+  root.render(<Pocket registry={registry} initialError={initialError} />);
 }
 
-void boot();
+void boot().catch((err) => {
+  root.render(<main className="screen center"><p role="alert">{err instanceof Error ? err.message : String(err)}</p><button onClick={() => location.reload()}>Retry</button></main>);
+});

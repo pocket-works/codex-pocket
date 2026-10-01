@@ -9,6 +9,7 @@ export interface Device {
   lastSeenAt: number;
   /** Whether the phone has registered for Web Push, i.e. it is an installed, active app. */
   push: boolean;
+  origin?: string;
 }
 
 /** What `PushManager.subscribe` returns, as sent by the phone. */
@@ -62,6 +63,7 @@ function safeEqualHex(a: string, b: string): boolean {
 // JSON file (token hashes only); pairing codes are in-memory because they
 // only make sense for the running server that printed the QR code.
 export class DeviceStore {
+  private readonly revokeListeners = new Set<(id: string) => void>();
   private readonly path: string;
   private readonly now: () => number;
   private readonly codes = new Map<string, PairingCode>();
@@ -82,7 +84,7 @@ export class DeviceStore {
     return code;
   }
 
-  async redeemPairingCode(code: string, deviceName: string): Promise<PairedDevice | null> {
+  async redeemPairingCode(code: string, deviceName: string, origin?: string): Promise<PairedDevice | null> {
     this.pruneCodes();
     if (!this.codes.delete(normalizeCode(code))) {
       // Too many misses: drop every outstanding code so `pair` must be re-run.
@@ -95,6 +97,7 @@ export class DeviceStore {
       name: deviceName.trim().slice(0, 64) || "Unnamed device",
       createdAt: this.now(),
       lastSeenAt: this.now(),
+      ...(origin ? { origin } : {}),
       tokenHash: sha256(token),
     };
     const devices = await this.load();
@@ -103,12 +106,13 @@ export class DeviceStore {
     return { deviceId: device.id, token };
   }
 
-  async verifyToken(token: string): Promise<Device | null> {
+  async verifyToken(token: string, origin?: string, fallbackOrigin?: string): Promise<Device | null> {
     if (typeof token !== "string" || token.length < 16) return null;
     const hash = sha256(token);
     const devices = await this.load();
     const found = devices.find((d) => safeEqualHex(d.tokenHash, hash));
     if (!found) return null;
+    if (origin && origin !== (found.origin ?? fallbackOrigin)) return null;
     found.lastSeenAt = this.now();
     // Best-effort touch; a failed write must not fail authentication.
     this.save(devices).catch(() => {});
@@ -140,7 +144,13 @@ export class DeviceStore {
     if (idx < 0) return false;
     devices.splice(idx, 1);
     await this.save(devices);
+    for (const listener of this.revokeListeners) listener(deviceId);
     return true;
+  }
+
+  onRevoke(listener: (id: string) => void): () => void {
+    this.revokeListeners.add(listener);
+    return () => this.revokeListeners.delete(listener);
   }
 
   private pruneCodes(): void {
@@ -178,5 +188,5 @@ export class DeviceStore {
 }
 
 function publicView(d: StoredDevice): Device {
-  return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, push: d.pushSubscription !== undefined };
+  return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, push: d.pushSubscription !== undefined, ...(d.origin ? { origin: d.origin } : {}) };
 }

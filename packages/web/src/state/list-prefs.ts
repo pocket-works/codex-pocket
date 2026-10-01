@@ -1,5 +1,7 @@
 // Per-device presentation preferences for the thread list (not user data,
 // so localStorage is fine; the official app keeps these per device too).
+import { scopedKey } from "./computers.js";
+
 export type ListView = "project" | "chronological";
 
 const KEY = "codex-pocket.listView";
@@ -22,9 +24,9 @@ const COLLAPSED_KEY = "codex-pocket.collapsedSections";
 
 const EXPANDED: CollapsedSections = { chats: false };
 
-export function getCollapsedSections(): CollapsedSections {
+export function getCollapsedSections(computerId?: string): CollapsedSections {
   try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
+    const raw = localStorage.getItem(scopedKey(COLLAPSED_KEY, computerId));
     if (!raw) return { ...EXPANDED };
     const parsed = JSON.parse(raw) as Partial<Record<ListSection, boolean>>;
     return { chats: parsed.chats === true };
@@ -33,9 +35,9 @@ export function getCollapsedSections(): CollapsedSections {
   }
 }
 
-export function setSectionCollapsed(section: ListSection, collapsed: boolean): void {
+export function setSectionCollapsed(section: ListSection, collapsed: boolean, computerId?: string): void {
   try {
-    localStorage.setItem(COLLAPSED_KEY, JSON.stringify({ ...getCollapsedSections(), [section]: collapsed }));
+    localStorage.setItem(scopedKey(COLLAPSED_KEY, computerId), JSON.stringify({ ...getCollapsedSections(computerId), [section]: collapsed }));
   } catch {
     // Private mode or blocked storage: the fold lasts for this page only.
   }

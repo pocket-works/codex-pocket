@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { emptyDraft, mentionQuery, sendBlocker, type Draft, type DraftImage } from "../state/compose.js";
-import { isEmptyDraft, loadDraft, saveDraft } from "../state/drafts.js";
+import { hasUnconfirmedSend, isEmptyDraft, loadDraft, saveDraft, setUnconfirmedSend } from "../state/drafts.js";
 import { Session, type FileMatch, type Skill } from "../state/session.js";
 import { uploadImage } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
@@ -10,6 +10,8 @@ import { isPinned, togglePin } from "../state/pins.js";
 import { navigate } from "./route.js";
 import { useUploadedImage } from "./uploaded-image.js";
 import { friendlyError } from "../state/errors.js";
+import type { HostClient } from "../state/host-client.js";
+import { isConnectionError } from "../rpc/client.js";
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -48,9 +50,12 @@ export function Composer({
   /** Present when the queue is paused (idle thread, queued messages). */
   onResume?: () => void;
 }) {
-  const [draft, setDraft] = useState<Draft>(() => loadDraft(draftKey));
+  const [draft, setDraft] = useState<Draft>(() => loadDraft(draftKey, session.host?.id));
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(() => hasUnconfirmedSend(draftKey, session.host?.id));
   const [uploading, setUploading] = useState(0);
   const [popover, setPopover] = useState<Popover | null>(null);
   const [files, setFiles] = useState<FileMatch[]>([]);
@@ -62,7 +67,7 @@ export function Composer({
   const [modelSheet, setModelSheet] = useState(false);
   const dictation = useDictation({ session, onText: (text) => setDraft((d) => ({ ...d, text })), onError: setError });
 
-  useEffect(() => saveDraft(draftKey, draft), [draftKey, draft]);
+  useEffect(() => { if (!sending) saveDraft(draftKey, draft, session.host?.id); }, [draftKey, draft, sending, session]);
 
   // "Edit" on the last message: its text replaces the draft until sent or cancelled.
   const editing = useStore(session.store, (s) => s.open?.editing ?? null);
@@ -88,7 +93,7 @@ export function Composer({
   const models = useStore(session.store, (s) => s.models);
   const hasDraft = draft.text.trim() !== "" || draft.images.length > 0;
   const blocker = sendBlocker({ draft, uploading, model, models });
-  const canSend = !disabled && !sending && blocker === null && hasDraft;
+  const canSend = !disabled && !sending && !unconfirmed && blocker === null && hasDraft;
   const showStop = busy && onStop !== undefined && !hasDraft && !sending;
   const showResume = !busy && onResume !== undefined && !hasDraft && !sending && !disabled;
   const sendLabel = busy ? (followUp === "queue" ? "Queue" : "Steer") : "Send";
@@ -145,16 +150,19 @@ export function Composer({
     if (!list || list.length === 0) return;
     setError(null);
     for (const file of Array.from(list)) {
+      if (session.host?.disposed) break;
+      const finish = session.beginOperation();
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const previewUrl = URL.createObjectURL(file);
       setUploading((n) => n + 1);
       try {
-        const path = await uploadImage(file);
+        const path = await uploadImage(file, session.host);
         setDraft((d) => ({ ...d, images: [...d.images, { id, path, previewUrl }] }));
       } catch (err) {
         URL.revokeObjectURL(previewUrl);
         setError(friendlyError(err));
       } finally {
+        finish();
         setUploading((n) => n - 1);
       }
     }
@@ -183,19 +191,31 @@ export function Composer({
     // Sending ends dictation: the mic has nothing left to fill in.
     dictation.discard();
     setSending(true);
+    const finish = session.beginOperation();
     setError(null);
     // Clear the box right away so the tap visibly landed (the transcript
     // shows the message as pending meanwhile); put it back if the send fails.
     const sent = draft;
+    saveDraft(draftKey, sent, session.host?.id);
+    setUnconfirmedSend(draftKey, true, session.host?.id);
+    latestDraft.current = emptyDraft;
     setDraft(emptyDraft);
     setPopover(null);
     try {
       await (onSend ? onSend(sent) : session.sendMessage(sent));
+      setUnconfirmedSend(draftKey, false, session.host?.id);
+      saveDraft(draftKey, latestDraft.current, session.host?.id);
       for (const img of sent.images) URL.revokeObjectURL(img.previewUrl);
     } catch (err) {
-      setDraft((d) => (isEmptyDraft(d) ? sent : d));
+      const uncertain = isConnectionError(err) && err.message !== "not connected";
+      setUnconfirmedSend(draftKey, uncertain, session.host?.id);
+      setUnconfirmed(uncertain);
+      const restored = isEmptyDraft(latestDraft.current) ? sent : latestDraft.current;
+      saveDraft(draftKey, restored, session.host?.id);
+      setDraft(restored);
       setError(friendlyError(err));
     } finally {
+      finish();
       setSending(false);
     }
   }
@@ -206,7 +226,7 @@ export function Composer({
   const threadId = useStore(session.store, (s) => s.open?.view.threadId ?? null);
   const threadTitle = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const cwd = useStore(session.store, (s) => s.open?.cwd ?? "");
-  const pinned = threadId !== null && isPinned(threadId);
+  const pinned = threadId !== null && isPinned(threadId, session.host?.id);
   const COMMANDS: { name: string; description: string; run: () => Promise<void>; turn?: boolean }[] = [
     { name: "compact", description: "Compact this chat's context", run: () => session.compactThread(), turn: true },
     { name: "review", description: "Review uncommitted changes", run: () => session.startReview(), turn: true },
@@ -217,7 +237,7 @@ export function Composer({
       name: "fork",
       description: "Fork this chat",
       run: async () => {
-        if (threadId) navigate({ name: "thread", id: await session.forkThread(threadId) });
+        if (threadId) navigate({ name: "thread", id: await session.forkThread(threadId) }, session.host?.id);
       },
     },
     {
@@ -233,7 +253,7 @@ export function Composer({
       description: pinned ? "Remove this chat from the top of the list" : "Keep this chat at the top of the list",
       run: async () => {
         if (!threadId) return;
-        togglePin(threadId);
+        togglePin(threadId, session.host?.id);
         session.touchThreads();
       },
     },
@@ -243,7 +263,7 @@ export function Composer({
       run: async () => {
         if (threadId && window.confirm("Archive this thread?")) {
           await session.archiveThread(threadId);
-          navigate({ name: "list" });
+          navigate({ name: "list" }, session.host?.id);
         }
       },
     },
@@ -324,10 +344,11 @@ export function Composer({
             </span>
           )}
           {draft.images.map((img) => (
-            <Thumb key={img.id} image={img} onRemove={() => removeImage(img)} />
+            <Thumb key={img.id} image={img} host={session.host} onRemove={() => removeImage(img)} />
           ))}
         </div>
       )}
+      {unconfirmed && <div className="composer-unconfirmed" role="alert"><span>Send not confirmed. Check the thread before resending.</span><button onClick={() => { setUnconfirmedSend(draftKey, false, session.host?.id); setUnconfirmed(false); }}>Checked</button></div>}
       <div
         className={`composer-box ${expanded ? "" : "collapsed"}`}
         ref={boxRef}
@@ -409,8 +430,8 @@ export function Composer({
 }
 
 // A restored draft has no local preview; fetch the upload back from the host.
-function Thumb({ image, onRemove }: { image: DraftImage; onRemove: () => void }) {
-  const uploaded = useUploadedImage(image.previewUrl ? null : image.path);
+function Thumb({ image, onRemove, host }: { image: DraftImage; onRemove: () => void; host?: HostClient }) {
+  const uploaded = useUploadedImage(image.previewUrl ? null : image.path, host);
   const src = image.previewUrl || uploaded;
   return (
     <span className="thumb">

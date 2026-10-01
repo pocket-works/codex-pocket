@@ -12,7 +12,7 @@ function appShellWorker(): Plugin {
     generateBundle: {
       order: "post",
       async handler(_, bundle) {
-        const assets = Object.keys(bundle).filter((name) => name.startsWith("assets/") && !name.endsWith(".map")).sort();
+        const assets = Object.keys(bundle).filter((name) => /\.(js|css|woff2)$/.test(name)).sort().map((name) => `/${name}`);
         const html = bundle["index.html"];
         if (!html || html.type !== "asset") throw new Error("App shell HTML is missing");
         const source = readFileSync(new URL("./src/sw.ts", import.meta.url), "utf8");
@@ -22,9 +22,10 @@ function appShellWorker(): Plugin {
           format: "iife",
           define: {
             __SHELL_VERSION__: JSON.stringify(revision),
-            __SHELL_ASSETS__: JSON.stringify(["/", "/manifest.webmanifest", "/icon.svg?v=2", "/icon-180.png?v=2", "/icon-512.png", ...assets.map((name) => `/${name}`)]),
+            __SHELL_ASSETS__: JSON.stringify(["/", "/manifest.webmanifest", "/icon.svg?v=2", "/icon-180.png?v=2", "/icon-512.png", ...assets]),
           },
         });
+        this.emitFile({ type: "asset", fileName: "shell-assets.json", source: JSON.stringify(assets) });
         this.emitFile({ type: "asset", fileName: "sw.js", source: code });
       },
     },
@@ -34,7 +35,13 @@ function appShellWorker(): Plugin {
 export default defineConfig({
   plugins: [react(), appShellWorker()],
   define: { "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.VITE_APP_VERSION || version) },
-  build: { outDir: "dist", sourcemap: true },
+  build: {
+    outDir: "dist", sourcemap: true,
+    rollupOptions: {
+      input: { main: new URL("./index.html", import.meta.url).pathname, "push-worker": new URL("./src/push-worker.ts", import.meta.url).pathname },
+      output: { entryFileNames: (chunk) => chunk.name === "push-worker" ? "push-worker.js" : "assets/index-[hash].js" },
+    },
+  },
   server: {
     // During development the host runs separately; proxy API + WS to it.
     proxy: {

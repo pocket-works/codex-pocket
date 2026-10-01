@@ -23,14 +23,15 @@ function harness() {
     location: { origin: "https://mac.test" },
     addEventListener: (name: string, listener: (event: unknown) => void) => listeners.set(name, listener),
     skipWaiting: vi.fn().mockResolvedValue(undefined),
-    clients: { claim: vi.fn().mockResolvedValue(undefined) },
+    clients: { claim: vi.fn().mockResolvedValue(undefined), matchAll: vi.fn().mockResolvedValue([]), openWindow: vi.fn().mockResolvedValue(undefined) },
+    registration: { showNotification: vi.fn().mockResolvedValue(undefined) },
   };
   const fetch = vi.fn().mockRejectedValue(new Error("Host stopped"));
-  runInNewContext(code, { self, caches, fetch, AbortController, setTimeout, clearTimeout, URL });
+  runInNewContext(code, { self, caches, fetch, AbortController, setTimeout, clearTimeout, URL, Response });
 
-  function lifecycle(name: string): Promise<void> {
+  function lifecycle(name: string, event: Record<string, unknown> = {}): Promise<void> {
     let done!: Promise<void>;
-    listeners.get(name)!({ waitUntil: (work: Promise<void>) => { done = work; } });
+    listeners.get(name)!({ ...event, waitUntil: (work: Promise<void>) => { done = work; } });
     return done;
   }
 
@@ -49,6 +50,28 @@ function harness() {
 }
 
 describe("offline app shell", () => {
+  it("keeps computer metadata used by notifications", async () => {
+    const h = harness();
+    await h.lifecycle("message", { data: { type: "legacy-computer", id: "mac-one", name: "Work Mac" } });
+    expect(h.caches.open).toHaveBeenCalledWith("codex-pocket-metadata");
+    const [key, response] = h.cache.put.mock.calls[0] as [string, Response];
+    expect(key).toBe("/__pocket-legacy-computer");
+    expect(await response.json()).toEqual({ id: "mac-one", name: "Work Mac" });
+  });
+
+  it("keeps the computer ID in push notifications", async () => {
+    const h = harness();
+    h.cache.match.mockResolvedValue(new Response(JSON.stringify({ id: "mac-one" })));
+    await h.lifecycle("push", { data: { json: () => ({ title: "Codex", body: "Done", threadId: "thread-one" }) } });
+    expect(h.self.registration.showNotification).toHaveBeenCalledWith("Codex", expect.objectContaining({ data: { threadId: "thread-one", computerId: "mac-one" } }));
+  });
+
+  it("opens notification threads on the correct computer", async () => {
+    const h = harness();
+    await h.lifecycle("notificationclick", { notification: { close: vi.fn(), data: { threadId: "thread/one", computerId: "mac one" } } });
+    expect(h.self.clients.openWindow).toHaveBeenCalledWith("/#/h/mac%20one/t/thread%2Fone");
+  });
+
   it("preloads HTML, CSS, entry and lazy bundles before taking control", async () => {
     const h = harness();
     await h.lifecycle("install");
@@ -66,7 +89,7 @@ describe("offline app shell", () => {
 
   it("only removes older Pocket shell caches", async () => {
     const h = harness();
-    h.caches.keys.mockResolvedValue(["codex-pocket-shell-v2", "codex-pocket-shell-test", "another-app"]);
+    h.caches.keys.mockResolvedValue(["codex-pocket-shell-v2", "codex-pocket-shell-test", "codex-pocket-metadata", "another-app"]);
     await h.lifecycle("activate");
     expect(h.caches.delete.mock.calls).toEqual([["codex-pocket-shell-v2"]]);
     expect(h.self.clients.claim).toHaveBeenCalledOnce();

@@ -5,7 +5,7 @@ import type { Rgb } from "./icons.js";
 // The tray menu as plain data, so what the user sees for each state can be
 // tested without Electron. main.ts turns it into a real Menu.
 
-export type MenuAction = "start" | "stop" | "restart" | "pair" | "keep-awake" | "log" | "quit" | "revoke-stale" | "link-desktop" | "unlink-desktop" | { revoke: string };
+export type MenuAction = "start" | "stop" | "restart" | "pair" | "keep-awake" | "log" | "about" | "quit" | "revoke-stale" | "link-desktop" | "unlink-desktop" | { revoke: string };
 
 export interface MenuItem {
   label: string;
@@ -107,6 +107,7 @@ export function buildMenu(state: HostState, devices: Device[], now = Date.now(),
     { label: "Keep this Mac awake", action: "keep-awake", checked: keepAwake },
     { label: "Open log", action: "log" },
     "separator",
+    { label: "About Codex Pocket", action: "about" },
     { label: "Quit Codex Pocket", action: "quit" },
   ];
 }

@@ -13,6 +13,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Rename, archive (swipe), fork and review threads
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
+- Multiple computers in one installed PWA, with separate credentials, drafts, pins and notification subscriptions
 
 ## Screenshots
 
@@ -36,7 +37,7 @@ These screens use sample conversations and paths; no personal thread content or 
 1. On an Apple silicon Mac, install and sign in to the ChatGPT desktop app.
 2. Download the signed and notarized Apple silicon DMG from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest). Open it, drag **Codex Pocket** to **Applications**, then launch it from Applications. The app appears in the menu bar.
 3. For notifications on iPhone, set up [Tailscale HTTPS](#deploying-https-via-tailscale) before pairing. Otherwise, connect the phone and Mac to the same LAN. Choose **Pair a phone…** from the Pocket menu and scan the QR code, or open the displayed address and enter the code manually. The code expires after 10 minutes.
-4. In Safari, open the PWA at the address you intend to keep (the HTTPS address if you want notifications), then choose **Add to Home Screen**. Open the installed PWA and pair again from the Pocket menu: iOS keeps its storage separate from Safari. For Web Push, enable **Notifications** in the PWA settings.
+4. In Safari, open the PWA at the address you intend to keep (the HTTPS address if you want notifications), then choose **Add to Home Screen**. Open the installed PWA and pair again from the Pocket menu: iOS keeps its storage separate from Safari. For Web Push, open **Menu → Computers**, open your Mac's details using its information button, and enable **Notifications**.
 
 To share active threads with the ChatGPT desktop app, choose **Desktop sharing > Link desktop…** in the Pocket menu, then quit and reopen ChatGPT. If the existing Codex daemon lacks the desktop tools environment, linking restarts it once and interrupts active turns. You can use Pocket without linking, but a thread held by a separate desktop app-server cannot be opened for writing from the phone.
 
@@ -56,12 +57,24 @@ Pair the phone from the menu as above. `make app` produces an unsigned developme
 
 This is an Apple silicon build. Desktop app sharing through `link-desktop` additionally requires a Codex daemon whose `account/read` response includes `workspaceRouting` (Codex CLI 0.156.0 or newer); `codex-pocket desktop` checks that capability. Dictation depends on an undocumented ChatGPT endpoint and may stop working when that endpoint changes.
 
+## Multiple computers
+
+1. Run an updated Codex Pocket on each Mac and configure a separate [Tailscale HTTPS](#deploying-https-via-tailscale) address for each one.
+2. Keep one installed phone PWA. Open **Menu → Computers**, choose **Add computer**, and scan the other Mac's pairing QR inside that PWA. Manual pairing takes the other Mac's HTTPS address and its code.
+3. Select a computer from **Computers** to switch. Threads, projects, files and tasks belong to that computer. Switching saves drafts and does not stop running turns; an in-progress send or upload finishes before switching is available.
+4. Open a computer's information button to manage it. **Computer** contains its editable name and address; **This phone** contains the notification preference and **Pairing details**. Pairing details opens a separate page with the phone's name, pairing date, pairing ID and **Pair again**. When access needs recovery, **Pair again** also appears on the main computer page. **Unpair computer** is a separate action at the end of that page. Returning from either page restores your chat or draft. Unpairing revokes this phone's access when the Mac is reachable and does not delete chats on the Mac. **Remove locally** only forgets the phone's credentials; revoke the old pairing on the Mac afterward. **Menu → About** shows the phone app version.
+
+The installed PWA keeps its original address. Once its resources have been cached, it can open and connect to another Mac while the entry Mac is unavailable. Initial installation, updates and registration of new notification workers require the entry address to be reachable. Each computer uses its own scoped Web Push subscription; notification clicks select that computer and thread. Concurrent notifications from multiple computers still require verification on an installed iPhone PWA.
+
+An upgrade migrates the existing pairing and local data at this PWA's origin. Storage from separate browser origins or Home Screen apps cannot be imported automatically: add those Macs again from the PWA you keep. An address change requires a fresh pairing; existing tokens are never sent to an edited address.
+
 ## Security model
 
 The host is a **transparent proxy**: a paired phone gets everything the Codex app-server can do, including running commands and reading or writing files on the Mac. The only two boundaries are network reachability and the pairing code, so:
 
 - Reach it over Tailscale (or the LAN) only. With `bindHost 127.0.0.1` the port is not exposed on the LAN at all. **Do not** put it on the public internet (Cloudflare Tunnel, port forwarding, …) without an extra layer of authentication.
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
+- Browser pairings are bound to the PWA origin. Cross-origin phone APIs require that pairing's token and origin; admin APIs have no cross-origin access. The phone retains a separate token for each computer.
 - Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up. The host dials chatgpt.com directly and does not read `HTTPS_PROXY`; if your Mac needs a proxy for that, set `config set outboundProxy http://127.0.0.1:1082`. Dictation start errors such as "did not answer session.start in time" usually mean exactly that.
 
 ## Running it: the menu bar app
@@ -119,7 +132,7 @@ The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of 
 
 3. In the Pocket menu choose **Pair a phone…**; the QR points at `https://<mac>.<tailnet>.ts.net/#pair=…`. Scan it on the phone with Tailscale connected. Source-build users can also run `pnpm dev:host pair`. Tailscale issues and renews the certificate.
 4. For the full-screen experience use "Add to Home Screen" in Safari. The installed PWA needs its own pairing: choose **Pair a phone…** again, then scan inside the PWA or type the 8-character code.
-5. In the app's Settings, turn on **Notifications**. The host pushes when a turn finishes, Codex asks for approval or input, or a turn fails — unless the app is open on that thread.
+5. Open **Menu → Computers**, open your Mac's details, and turn on **Notifications**. The host pushes when a turn finishes, Codex asks for approval or input, or a turn fails — unless the app is open on that thread.
 
 For source builds, `pnpm dev:host config` shows the current settings and `config unset <key>` restores a default. For DMG installations, edit `~/.codex-pocket/config.json` and restart Pocket to apply changes.
 
