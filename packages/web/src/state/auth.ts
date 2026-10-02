@@ -1,3 +1,5 @@
+import { normalizeOrigin, type PairResult } from "./computers.js";
+
 // The device token is a credential for this phone, not a user setting, so
 // localStorage is the right place for it.
 const TOKEN_KEY = "codex-pocket.token";
@@ -23,12 +25,49 @@ export function pairingCodeFromScan(text: string): string | null {
   return /^[A-Za-z0-9-]{8,12}$/.test(text.trim()) ? text.trim() : null;
 }
 
+export function pairingTargetFromScan(text: string, fallbackOrigin: string): { origin: string; code: string } | null {
+  try {
+    const code = pairingCodeFromScan(text);
+    if (!code) return null;
+    const origin = /^https?:\/\//i.test(text.trim()) ? normalizeOrigin(text.trim()) : normalizeOrigin(fallbackOrigin);
+    return { origin, code };
+  } catch {
+    return null;
+  }
+}
+
+export async function pairComputer(origin: string, code: string): Promise<PairResult> {
+  origin = normalizeOrigin(origin);
+  if (origin !== location.origin && new URL(origin).protocol !== "https:") throw new Error("Use an HTTPS address to add another computer.");
+  let res: Response;
+  try {
+    res = await fetch(`${origin}/api/pair`, {
+      method: "POST", credentials: "omit", redirect: "error", signal: AbortSignal.timeout(8000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
+    });
+  } catch {
+    throw new Error("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+  }
+  if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Generate a new code on this computer." : `Pairing failed (HTTP ${res.status}).`);
+  const pair = await res.json() as PairResult;
+  if (typeof pair.token !== "string" || typeof pair.deviceId !== "string") throw new Error("Invalid pairing response.");
+  if (origin !== location.origin && pair.apiVersion !== 2) throw new Error("Update Codex Pocket on this computer before adding it.");
+  return pair;
+}
+
 export async function redeemPairingCode(code: string): Promise<string> {
-  const res = await fetch("/api/pair", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch {
+    throw new Error("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+  }
   if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Run `codex-pocket pair` again." : `Pairing failed (HTTP ${res.status})`);
   const { token } = (await res.json()) as { token: string };
   return token;

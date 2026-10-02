@@ -14,8 +14,11 @@ import { QueuedList } from "./QueuedList.js";
 import { WorkspaceChangesButton } from "./WorkspaceChangesButton.js";
 import { friendlyError } from "../state/errors.js";
 import { useSwipeBack } from "./gestures.js";
+import { useComputers } from "./ComputerContext.js";
 
 export function ThreadView({ session }: { session: Session }) {
+  const computers = useComputers();
+  const computerName = computers?.active?.name ?? session.host?.computer.name;
   const open = useStore(session.store, (s) => s.open);
   const connected = useStore(session.store, (s) => s.connection === "open" && s.upstreamConnected);
   // The list's title for this thread; the folder name stands in until the
@@ -82,7 +85,10 @@ export function ThreadView({ session }: { session: Session }) {
         </button>
         <div className="topbar-title">
           <h1>{title ?? open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
-          <div className="topbar-meta muted small">{open.cwd}</div>
+          <div className="topbar-meta thread-location muted small">
+            {computerName && <span className="thread-computer" title={computerName}>{computerName}</span>}
+            <span className="thread-cwd" title={open.cwd}>{open.cwd}</span>
+          </div>
         </div>
         <ThreadMenu session={session} />
       </header>

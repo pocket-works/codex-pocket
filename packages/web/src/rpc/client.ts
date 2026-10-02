@@ -7,8 +7,8 @@ export type ServerRequestListener = (req: JsonRpcRequest) => void;
 /** Error code for requests that failed because the socket was not open. */
 export const CONNECTION_ERROR = -32001;
 
-/** True when a request failed only because the socket dropped; the reconnect retries it. */
-export function isConnectionError(err: unknown): boolean {
+/** True when the connection was unavailable or a request was not confirmed. */
+export function isConnectionError(err: unknown): err is RpcError {
   return err instanceof RpcError && err.code === CONNECTION_ERROR;
 }
 
@@ -26,6 +26,7 @@ export class RpcError extends Error {
 interface Pending {
   resolve: (v: unknown) => void;
   reject: (e: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
 }
 
 export interface RpcClientOptions {
@@ -51,6 +52,9 @@ export class RpcClient {
   private attempt = 0;
   private reconnectTimer: number | null = null;
   private stopped = false;
+  private revoked = false;
+
+  get pairingRevoked(): boolean { return this.revoked; }
 
   constructor(opts: RpcClientOptions) {
     this.opts = { backoffMs: [250, 500, 1000, 2000, 3000], ...opts };
@@ -61,7 +65,9 @@ export class RpcClient {
   }
 
   start(): void {
+    if (!this.stopped && this.state !== "closed") return;
     this.stopped = false;
+    this.revoked = false;
     this.connect();
     window.addEventListener("online", this.kick);
     document.addEventListener("visibilitychange", this.onVisibility);
@@ -72,7 +78,15 @@ export class RpcClient {
     window.removeEventListener("online", this.kick);
     document.removeEventListener("visibilitychange", this.onVisibility);
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
-    this.ws?.close();
+    this.reconnectTimer = null;
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+      ws.close();
+    }
+    this.rejectAllPending("connection stopped; request outcome may be unknown");
+    this.setState("closed");
   }
 
   request<T = unknown>(method: string, params?: unknown): Promise<T> {
@@ -80,7 +94,11 @@ export class RpcClient {
     if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new RpcError(CONNECTION_ERROR, "not connected"));
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new RpcError(CONNECTION_ERROR, "request timed out; check the thread before sending again"));
+      }, 30_000);
+      this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
       ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
     });
   }
@@ -137,14 +155,16 @@ export class RpcClient {
     const ws = new WebSocket(this.opts.url, ["cp1", `tok.${this.opts.token}`]);
     this.ws = ws;
     ws.onopen = () => {
+      if (this.stopped || this.ws !== ws) return;
       this.attempt = 0;
       this.setState("open");
     };
-    ws.onmessage = (ev) => this.handleMessage(String(ev.data));
-    ws.onclose = () => {
+    ws.onmessage = (ev) => { if (!this.stopped && this.ws === ws) this.handleMessage(String(ev.data)); };
+    ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this.ws = null;
       this.rejectAllPending("connection closed");
+      if (event.code === 4001) { this.stopped = true; this.revoked = true; }
       this.setState("closed");
       this.scheduleReconnect();
     };
@@ -169,7 +189,10 @@ export class RpcClient {
   }
 
   private rejectAllPending(reason: string): void {
-    for (const p of this.pending.values()) p.reject(new RpcError(CONNECTION_ERROR, reason));
+    for (const p of this.pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(new RpcError(CONNECTION_ERROR, reason));
+    }
     this.pending.clear();
   }
 
@@ -189,6 +212,7 @@ export class RpcClient {
     const res = msg as JsonRpcResponse;
     const p = this.pending.get(res.id);
     if (!p) return;
+    clearTimeout(p.timer);
     this.pending.delete(res.id);
     if (res.error) p.reject(new RpcError(res.error.code, res.error.message, res.error.data));
     else p.resolve(res.result);

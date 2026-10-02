@@ -13,7 +13,10 @@ const FRIENDLY: [RegExp, string][] = [
 
 /** The message to show a person for `err`. */
 export function friendlyError(err: unknown): string {
-  if (isConnectionError(err)) return "Lost the connection to your Mac. Reconnecting…";
+  if (isConnectionError(err)) {
+    if (/timed out|outcome may be unknown/.test(err.message)) return "The computer did not confirm this request. Check the thread before sending again.";
+    return "Lost the connection to your Mac. Reconnecting…";
+  }
   const raw = err instanceof Error ? err.message : String(err);
   for (const [pattern, text] of FRIENDLY) if (pattern.test(raw)) return text;
   return raw;

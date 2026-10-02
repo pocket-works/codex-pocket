@@ -1,4 +1,5 @@
 import { getToken } from "./auth.js";
+import type { HostClient } from "./host-client.js";
 
 const MAX_EDGE = 2000;
 const JPEG_QUALITY = 0.85;
@@ -22,13 +23,14 @@ async function shrink(file: File): Promise<Blob> {
 }
 
 /** Uploads an image to the host and returns its path on the Mac. */
-export async function uploadImage(file: File): Promise<string> {
+export async function uploadImage(file: File, host?: HostClient): Promise<string> {
   const blob = await shrink(file);
-  const res = await fetch("/api/uploads", {
+  const request = {
     method: "POST",
     headers: { Authorization: `Bearer ${getToken() ?? ""}`, "Content-Type": blob.type || file.type },
     body: blob,
-  });
+  } satisfies RequestInit;
+  const res = await (host ? host.fetch("/api/uploads", request) : fetch("/api/uploads", request));
   if (!res.ok) throw new Error(res.status === 413 ? "Image is too large" : `Upload failed (HTTP ${res.status})`);
   return ((await res.json()) as { path: string }).path;
 }
