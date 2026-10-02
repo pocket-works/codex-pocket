@@ -9,6 +9,7 @@ import { transcriptMarkdown } from "../state/turns.js";
 import { MenuItem } from "./ListMenu.js";
 import { navigate } from "./route.js";
 import { friendlyError } from "../state/errors.js";
+import { isSubagent } from "../state/thread-list.js";
 
 // "⋯" in the thread topbar, laid out like the official iOS app's thread
 // menu: title, Pin / Rename / Copy thread ID / Archive, then Changes and
@@ -86,6 +87,7 @@ export function ThreadMenu({ session }: { session: Session }) {
               <MenuItem
                 icon={<PinIcon />}
                 label={pinned ? "Unpin" : "Pin"}
+                disabled={isSubagent(open)}
                 onClick={() => {
                   togglePin(threadId, session.host?.id);
                   bump((n) => n + 1);

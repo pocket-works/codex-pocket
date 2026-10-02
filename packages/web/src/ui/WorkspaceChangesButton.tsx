@@ -44,14 +44,12 @@ export function WorkspaceChangesButton({ session, cwd, view, connected }: { sess
   return (
     <>
       {totals && totals.files > 0 && (
-        <div className="changes-pill-row">
-          <button className="changes-pill" onClick={() => setOpen(true)} aria-label="Show changes">
-            <span>{totals.files} file{totals.files === 1 ? "" : "s"}</span>
-            <span className="diff-stats">
-              <span className="add">+{totals.added}</span> <span className="del">−{totals.removed}</span>
-            </span>
-          </button>
-        </div>
+        <button className="changes-pill" onClick={() => setOpen(true)} aria-label="Show changes">
+          <span>{totals.files} file{totals.files === 1 ? "" : "s"}</span>
+          <span className="diff-stats">
+            <span className="add">+{totals.added}</span> <span className="del">−{totals.removed}</span>
+          </span>
+        </button>
       )}
       {open && <WorkspaceSheet session={session} cwd={cwd} initialTab="modified" onClose={() => setOpen(false)} onUncommittedChanges={acceptChanges} />}
     </>

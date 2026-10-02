@@ -17,7 +17,7 @@ import {
   runningTurnId,
   type ThreadViewState,
 } from "./thread-reducer.js";
-import { applyThreadListNotification, markRead, mergeThreadList, withFirstMessage, type ThreadSummary } from "./thread-list.js";
+import { applyThreadListNotification, canAcceptInput, isSubagent, markRead, mergeThreadList, threadAgentInfo, upsertThreadList, withFirstMessage, type ThreadAgentInfo, type ThreadSummary } from "./thread-list.js";
 import { summarizeProjects, type ProjectSummary } from "./projects.js";
 import { isPendingTurnFinished, loadThreadReadiness, saveThreadReadiness } from "./thread-readiness.js";
 import { clearUploadedImages, imageMimeType } from "../ui/uploaded-image.js";
@@ -107,7 +107,7 @@ export function permissionPreset(p: Permissions | null): PermissionPreset | null
 /** "archived": Codex refuses to resume it, but its history can be read. */
 export type OpenState = "loading" | "ready" | "locked" | "archived" | "error";
 
-export interface OpenThread {
+export interface OpenThread extends ThreadAgentInfo {
   view: ThreadViewState;
   state: OpenState;
   error: string | null;
@@ -471,13 +471,14 @@ export class Session {
       const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "recency_at" });
       this.store.set((s) => ({
         ...s,
-        threads: mergeThreadList(s.threads, res.data).map((thread) => {
+        threads: [...mergeThreadList(s.threads, res.data), ...s.threads.filter((thread) => isSubagent(thread) && !res.data.some((fresh) => fresh.id === thread.id))].map((thread) => {
           const saved = this.readiness.get(thread.id);
           return saved?.unread && !thread.unread ? { ...thread, unread: true } : thread;
         }),
         threadsLoading: false,
       }));
       for (const thread of this.store.get().threads) {
+        if (isSubagent(thread)) continue;
         if (thread.status === "running" || thread.status === "waiting") {
           this.completionChecks.delete(thread.id);
           this.trackPending(thread.id, true);
@@ -489,6 +490,28 @@ export class Session {
       // reconnecting, and the list reloads as soon as the socket is back.
       this.store.set((s) => ({ ...s, threadsLoading: false, threadsError: isConnectionError(err) ? null : friendlyError(err) }));
     }
+  }
+
+  private subagentLoads = new Map<string, Promise<void>>();
+
+  /** Descendants are fetched within their parent chat, including older pages. */
+  loadSubagents(parentThreadId: string): Promise<void> {
+    const pending = this.subagentLoads.get(parentThreadId);
+    if (pending) return pending;
+    const load = (async () => {
+      const threads: v2.Thread[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: v2.ThreadListResponse = await this.rpc.request("thread/list", {
+          ancestorThreadId: parentThreadId, sourceKinds: ["subAgentThreadSpawn"], sortKey: "recency_at", limit: 100, cursor,
+        });
+        threads.push(...page.data);
+        cursor = page.nextCursor;
+      } while (cursor);
+      this.store.set((s) => ({ ...s, threads: upsertThreadList(s.threads, threads) }));
+    })().finally(() => this.subagentLoads.delete(parentThreadId));
+    this.subagentLoads.set(parentThreadId, load);
+    return load;
   }
 
   async refreshPendingThreads(): Promise<void> {
@@ -614,6 +637,7 @@ export class Session {
 
   async openThread(threadId: string, opts: { force?: boolean } = {}): Promise<void> {
     const current = this.store.get().open;
+    const known = this.store.get().threads.find((thread) => thread.id === threadId);
     // A thread we just started is already live; resuming it would fail
     // because Codex has not written its rollout yet.
     if (!opts.force && current?.view.threadId === threadId && current.state === "ready") return;
@@ -626,13 +650,18 @@ export class Session {
     this.store.set((s) => ({
       ...s,
       open: {
+        parentThreadId: known?.parentThreadId ?? (refreshing ? current.parentThreadId : null),
+        isSubagent: known?.isSubagent ?? (refreshing ? current.isSubagent : false),
+        canAcceptDirectInput: known?.canAcceptDirectInput ?? (refreshing ? current.canAcceptDirectInput : null),
+        agentNickname: known?.agentNickname ?? null,
+        agentRole: known?.agentRole ?? null,
         view: current?.view.threadId === threadId ? current.view : initialThreadState(threadId),
         state: refreshing ? "ready" : "loading",
         error: null,
-        model: current?.model ?? "",
-        effort: current?.effort ?? null,
+        model: known?.model ?? (refreshing ? current.model : ""),
+        effort: refreshing ? current.effort : null,
         override: current?.view.threadId === threadId ? current.override : null,
-        cwd: current?.cwd ?? "",
+        cwd: known?.cwd ?? (refreshing ? current.cwd : ""),
         olderCursor: null,
         loadingOlder: false,
         queue: current?.view.threadId === threadId ? current.queue : [],
@@ -658,8 +687,10 @@ export class Session {
         const view: ThreadViewState = { ...fresh, approvals: s.open.view.approvals, activeTurnId: runningTurnId(resumed.thread.status, history.turns) };
         return {
           ...s,
+          threads: upsertThreadList(s.threads, [resumed.thread]),
           open: {
             ...s.open,
+            ...threadAgentInfo(resumed.thread),
             view,
             state: "ready",
             model: resumed.model,
@@ -673,12 +704,37 @@ export class Session {
       });
       if (this.isViewingThread(threadId)) this.readThread(threadId);
       this.replayPendingRequests(threadId);
-      void this.loadQueue(threadId);
+      const opened = this.store.get().open;
+      if (opened && canAcceptInput(opened)) void this.loadQueue(threadId);
     } catch (err) {
       if (generation !== this.openGeneration) return;
       // The socket dropped mid-load (or was not open yet): the reconnect
       // re-opens the thread, so leave it loading rather than flash an error.
       if (isConnectionError(err)) return;
+      if (/direct app-server input is not allowed/i.test(describe(err))) {
+        try {
+          const { thread } = await this.rpc.request<v2.ThreadReadResponse>("thread/read", { threadId, includeTurns: false });
+          const history = await this.loadHistory(threadId);
+          if (generation !== this.openGeneration) return;
+          this.store.set((s) => s.open?.view.threadId !== threadId ? s : {
+            ...s,
+            threads: upsertThreadList(s.threads, [thread]),
+            open: {
+              ...s.open, ...threadAgentInfo(thread), canAcceptDirectInput: false, state: "ready", error: null,
+              cwd: thread.cwd, model: thread.model ?? "", queue: [], olderCursor: history.olderCursor,
+              view: {
+                ...mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns),
+                approvals: s.open.view.approvals, activeTurnId: runningTurnId(thread.status, history.turns),
+              },
+            },
+          });
+          this.replayPendingRequests(threadId);
+          return;
+        } catch (readError) {
+          err = readError;
+        }
+        if (generation !== this.openGeneration) return;
+      }
       // Archived threads cannot be resumed, and one another process is
       // writing to (the desktop app, or a codex CLI) refuses a second writer.
       // Reading the transcript needs neither, so show it read-only with the
@@ -852,6 +908,7 @@ export class Session {
   async sendMessage(draft: Draft): Promise<void> {
     let open = this.store.get().open;
     if (!open || open.state !== "ready") throw new Error("thread not ready");
+    if (!canAcceptInput(open)) throw new Error("This thread does not accept direct input. Continue in the parent thread.");
     const threadId = open.view.threadId;
     const input = buildUserInput(draft);
     if (input.length === 0) return;
@@ -1007,7 +1064,7 @@ export class Session {
 
   /** Puts the last turn's message back in the composer; sending replaces that turn. */
   beginEdit(turnId: string, text: string): void {
-    this.store.set((s) => (s.open && !s.open.view.activeTurnId ? { ...s, open: { ...s.open, editing: { turnId, text } } } : s));
+    this.store.set((s) => (s.open && canAcceptInput(s.open) && !s.open.view.activeTurnId ? { ...s, open: { ...s.open, editing: { turnId, text } } } : s));
   }
 
   cancelEdit(): void {
@@ -1017,7 +1074,7 @@ export class Session {
   /** Sends the last user message again after a turn failed (network, model errors). */
   async retryLastTurn(): Promise<void> {
     const open = this.store.get().open;
-    if (!open || open.state !== "ready" || !open.view.lastTurnError || open.view.activeTurnId) return;
+    if (!open || !canAcceptInput(open) || open.state !== "ready" || !open.view.lastTurnError || open.view.activeTurnId) return;
     const last = [...open.view.items].reverse().find((i) => i.type === "userMessage");
     if (!last || last.type !== "userMessage" || last.content.length === 0) return;
     const threadId = open.view.threadId;
@@ -1078,7 +1135,7 @@ export class Session {
   async sendQueuedNow(id: string): Promise<void> {
     const open = this.store.get().open;
     const item = open?.queue.find((q) => q.id === id);
-    if (!open || !item) return;
+    if (!open || !canAcceptInput(open) || !item) return;
     const threadId = open.view.threadId;
     const activeTurnId = open.view.activeTurnId;
     if (activeTurnId) {
@@ -1154,6 +1211,7 @@ export class Session {
     this.store.set((s) => ({
       ...s,
       open: {
+        ...threadAgentInfo(res.thread),
         view: initialThreadState(threadId),
         state: "ready",
         error: null,
@@ -1186,7 +1244,7 @@ export class Session {
   /** Archived threads, newest first (not kept in the store: rarely viewed). */
   async loadArchivedThreads(): Promise<ThreadSummary[]> {
     const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 100, sortKey: "recency_at", archived: true });
-    return mergeThreadList([], res.data);
+    return mergeThreadList([], res.data).filter((thread) => !isSubagent(thread));
   }
 
   async unarchiveThread(threadId: string): Promise<void> {
@@ -1531,8 +1589,8 @@ export class Session {
       const summary = s.threads.find((t) => t.id === threadId);
       const visible = typeof document === "undefined" || document.visibilityState === "visible";
       // Only threads we list: an unknown id is side traffic, not news.
-      if (visible && summary && turn.status === "completed" && s.open?.view.threadId !== threadId) this.toast(threadId, `${summary.title} finished`);
-      if (turn.status === "completed" && summary && !summary.named) void this.maybeTitle(threadId);
+      if (visible && summary && !isSubagent(summary) && turn.status === "completed" && s.open?.view.threadId !== threadId) this.toast(threadId, `${summary.title} finished`);
+      if (turn.status === "completed" && summary && !isSubagent(summary) && !summary.named) void this.maybeTitle(threadId);
     }
     this.store.set((s) => {
       if (!s.open) return s;

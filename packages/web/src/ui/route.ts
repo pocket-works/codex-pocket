@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 export type Route =
   | { name: "list" }
-  | { name: "thread"; id: string }
+  | { name: "thread"; id: string; subagents?: boolean }
   | { name: "new"; cwd?: string }
   | { name: "archived" };
 
@@ -81,7 +81,10 @@ export function closePocketPanel(): void {
 export function parseRoute(hash: string): Route {
   hash = workspaceRouteHash(hash);
   const m = hash.match(/^#\/t\/([^/?]+)/);
-  if (m) return { name: "thread", id: decodeURIComponent(m[1]) };
+  if (m) {
+    const subagents = new URLSearchParams(hash.split("?")[1] ?? "").get("subagents") === "1";
+    return { name: "thread", id: decodeURIComponent(m[1]), ...(subagents ? { subagents: true } : {}) };
+  }
   if (hash.startsWith("#/new")) {
     const cwd = new URLSearchParams(hash.split("?")[1] ?? "").get("cwd");
     return cwd ? { name: "new", cwd } : { name: "new" };
@@ -93,7 +96,7 @@ export function parseRoute(hash: string): Route {
 export function routeHash(route: Route): string {
   switch (route.name) {
     case "thread":
-      return `#/t/${encodeURIComponent(route.id)}`;
+      return `#/t/${encodeURIComponent(route.id)}${route.subagents ? "?subagents=1" : ""}`;
     case "new":
       return route.cwd ? `#/new?cwd=${encodeURIComponent(route.cwd)}` : "#/new";
     case "archived":

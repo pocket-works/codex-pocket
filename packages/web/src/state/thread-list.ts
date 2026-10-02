@@ -12,7 +12,15 @@ export type ThreadStatus = "idle" | "running" | "waiting" | "error" | "unknown";
 /** Which kind of input an `active` thread is blocked on. */
 export type WaitingFor = "approval" | "input";
 
-export interface ThreadSummary {
+export interface ThreadAgentInfo {
+  parentThreadId?: string | null;
+  isSubagent?: boolean;
+  canAcceptDirectInput?: boolean | null;
+  agentNickname?: string | null;
+  agentRole?: string | null;
+}
+
+export interface ThreadSummary extends ThreadAgentInfo {
   id: string;
   cwd: string;
   /**
@@ -34,6 +42,43 @@ export interface ThreadSummary {
   branch: string | null;
   /** Codex holds a name for it (as opposed to the title being its first message). */
   named: boolean;
+}
+
+export function isSubagent(thread: ThreadAgentInfo): boolean {
+  return thread.isSubagent === true || thread.parentThreadId != null;
+}
+
+export function canAcceptInput(thread: ThreadAgentInfo): boolean {
+  return thread.canAcceptDirectInput ?? !isSubagent(thread);
+}
+
+export function subagentsForParent(threads: ThreadSummary[], parentThreadId: string): ThreadSummary[] {
+  const parents = new Map(threads.map((thread) => [thread.id, thread.parentThreadId]));
+  return threads.filter((thread) => {
+    if (thread.id === parentThreadId) return false;
+    const visited = new Set([thread.id]);
+    let parent = thread.parentThreadId;
+    while (parent && !visited.has(parent)) {
+      if (parent === parentThreadId) return true;
+      visited.add(parent);
+      parent = parents.get(parent);
+    }
+    return false;
+  });
+}
+
+export function threadAgentInfo(thread: v2.Thread): ThreadAgentInfo {
+  const source = thread.source;
+  const child = typeof source === "object" && source !== null && "subAgent" in source;
+  const spawned = child && typeof source.subAgent === "object" && "thread_spawn" in source.subAgent ? source.subAgent.thread_spawn : null;
+  const parentThreadId = thread.parentThreadId ?? spawned?.parent_thread_id ?? null;
+  return {
+    parentThreadId,
+    isSubagent: child || parentThreadId !== null,
+    canAcceptDirectInput: thread.canAcceptDirectInput ?? null,
+    agentNickname: thread.agentNickname ?? spawned?.agent_nickname ?? null,
+    agentRole: thread.agentRole ?? spawned?.agent_role ?? null,
+  };
 }
 
 function clean(text: string): string {
@@ -64,19 +109,28 @@ function readStatus(s: v2.ThreadStatus): Pick<ThreadSummary, "status" | "waiting
 }
 
 export function summarize(t: v2.Thread, unread = false): ThreadSummary {
+  const preview = t.preview ?? "";
   return {
+    ...threadAgentInfo(t),
     id: t.id,
     cwd: t.cwd,
     projectId: t.projectId ?? null,
-    title: title(t.name, t.preview),
-    preview: t.preview,
-    updatedAt: (t.recencyAt ?? t.updatedAt) * 1000,
+    title: title(t.name, preview),
+    preview,
+    updatedAt: (t.recencyAt ?? t.updatedAt ?? 0) * 1000,
     model: t.model,
-    ...readStatus(t.status),
+    ...readStatus(t.status ?? { type: "notLoaded" }),
     unread,
     named: clean(t.name ?? "") !== "",
     branch: t.gitInfo?.branch ?? null,
   };
+}
+
+/** Merge a partial response without discarding other threads or live children. */
+export function upsertThreadList(current: ThreadSummary[], fresh: v2.Thread[]): ThreadSummary[] {
+  const updates = mergeThreadList(current, fresh);
+  const ids = new Set(updates.map((thread) => thread.id));
+  return sorted([...updates, ...current.filter((thread) => !ids.has(thread.id))]);
 }
 
 function sorted(list: ThreadSummary[]): ThreadSummary[] {
