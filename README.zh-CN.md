@@ -13,6 +13,7 @@
 - 线程改名 / 归档（左滑）/ fork / review
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
 - Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
+- 一个主屏幕 PWA 管理多台电脑，凭据、草稿、置顶和通知订阅分别保存
 
 ## 产品截图
 
@@ -36,7 +37,7 @@
 1. 在 Apple 芯片的 Mac 上安装并登录 ChatGPT 桌面 app。
 2. 从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载已签名并公证的 Apple 芯片 DMG，打开后把 **Codex Pocket** 拖入 **Applications（应用程序）**，再从应用程序中启动。应用图标会出现在菜单栏。
 3. 如果希望 iPhone 收到通知，先配置下文的 [Tailscale HTTPS](#部署tailscale-https)，再配对手机；否则让手机与 Mac 连接同一局域网即可。在 Pocket 菜单里选 **Pair a phone…**，用手机扫描二维码，或打开弹窗里的地址手动输入配对码。配对码 10 分钟后失效。
-4. 在 Safari 中打开准备长期使用的 PWA 地址（需要通知时用 HTTPS 地址），选择**添加到主屏幕**。打开主屏幕 PWA 后，需要再次在 Pocket 菜单中配对，因为 iOS 为它使用独立的存储。需要 Web Push 时，再到 PWA 设置中开启 **Notifications**。
+4. 在 Safari 中打开准备长期使用的 PWA 地址（需要通知时用 HTTPS 地址），选择**添加到主屏幕**。打开主屏幕 PWA 后，需要再次在 Pocket 菜单中配对，因为 iOS 为它使用独立的存储。需要 Web Push 时，打开 **Menu → Computers**，点击 Mac 旁的信息按钮进入详情，开启 **Notifications**。
 
 要与 ChatGPT 桌面 app 共享正在使用的线程，在 Pocket 菜单中选 **Desktop sharing > Link desktop…**，然后退出并重新打开 ChatGPT。如果现有 Codex daemon 缺少桌面工具环境，关联时会重启它一次并中断正在进行的轮次。无需关联也能使用 Pocket，但由独立桌面 app-server 占用的线程无法在手机上取得写入权。
 
@@ -56,12 +57,24 @@ make open-app
 
 当前构建面向 Apple 芯片 Mac。通过 `link-desktop` 与桌面 App 共享线程还要求 Codex daemon 的 `account/read` 响应带有 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）；`codex-pocket desktop` 会检查这项能力。听写依赖未文档化的 ChatGPT 接口，接口变更后可能失效。
 
+## 多台电脑
+
+1. 在每台 Mac 上运行更新后的 Codex Pocket，并分别配置自己的 [Tailscale HTTPS](#部署tailscale-https) 地址。
+2. 手机保留一个主屏幕 PWA，打开 **Menu → Computers**，选择 **Add computer**，在这个 PWA 内扫描另一台 Mac 的配对二维码。手动配对需要另一台 Mac 的 HTTPS 地址和配对码。
+3. 在 **Computers** 中选择电脑即可切换。线程、项目、文件和任务属于各自的电脑。切换会保存草稿，不会停止正在运行的轮次；发送或上传过程中，要等待操作完成后才能切换。
+4. 点击电脑旁的信息按钮进入管理页。**Computer** 包含可编辑的名称和地址，**This phone** 包含通知偏好和 **Pairing details** 入口。配对详情是独立页面，显示手机名称、配对时间、配对 ID 和 **Pair again**；需要恢复访问时，电脑管理主页也会显示 **Pair again**。**Unpair computer** 单独放在主页内容末尾。从这两个页面返回都会恢复聊天或草稿。电脑可达时，解除配对会撤销这部手机的权限，不会删除 Mac 上的聊天；**Remove locally** 只删除手机上的凭据，需要稍后在 Mac 上撤销旧配对。**Menu → About** 显示手机应用版本。
+
+主屏幕 PWA 保持原来的安装地址。应用资源缓存完成后，即使入口 Mac 暂时不可达，也能打开应用并连接其他 Mac。首次安装、更新和注册新的通知 worker 仍需要入口地址可达。每台电脑使用独立作用域的 Web Push 订阅，点击通知会选择对应电脑和线程。多台电脑同时向主屏幕 iPhone PWA 推送，仍需实机验证。
+
+升级会迁移当前 PWA 地址下已有的配对和本地数据。不同浏览器地址或主屏幕应用的存储无法自动导入，需要在保留的 PWA 中重新添加那些 Mac。电脑地址变更需要重新配对，旧 token 不会发送到修改后的地址。
+
 ## 安全模型
 
 host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 Mac 上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
 
 - 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
+- 浏览器配对绑定 PWA 来源地址。手机 API 的跨域访问同时校验对应配对的 token 和来源，管理接口不开放跨域访问；手机为每台电脑分别保存 token。
 - 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。host 是直连 chatgpt.com 的，不读 `HTTPS_PROXY`；如果这台 Mac 访问它需要代理，用 `config set outboundProxy http://127.0.0.1:1082` 指定。听写启动报 "did not answer session.start in time" 之类的错，多半就是这个原因。
 
 ## 运行：菜单栏应用
@@ -119,11 +132,13 @@ host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止
 
 3. 在 Pocket 菜单中选 **Pair a phone…**，二维码会指向 `https://<mac>.<tailnet>.ts.net/#pair=…`。手机连接 Tailscale 后扫码即可。源码构建的用户也可运行 `pnpm dev:host pair`。证书由 Tailscale 自动签发和续期。
 4. 想要全屏体验就在 Safari 里“添加到主屏幕”。主屏幕 PWA 需要独立配对：再次选择 **Pair a phone…**，在 PWA 内扫码或输入 8 位配对码。
-5. 在 app 的设置页打开 **Notifications**。轮次完成、Codex 请求审批或提问、轮次失败时会推送——除非 app 正开着那个线程。
+5. 打开 **Menu → Computers**，进入 Mac 的详情并开启 **Notifications**。轮次完成、Codex 请求审批或提问、轮次失败时会推送——除非 app 正开着那个线程。
 
 源码构建可用 `pnpm dev:host config` 查看当前设置、`config unset <key>` 恢复默认；DMG 安装可编辑 `~/.codex-pocket/config.json`，重启 Pocket 后生效。
 
-不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知等需要安全上下文的能力。
+不想用 Tailscale 时，把自己的 PEM 放到 `~/.codex-pocket/certs/fullchain.pem` 和 `certs/privkey.pem`，host 会直接以 HTTPS 监听；`--no-tls` 强制明文。只在局域网使用也可以完全不配 HTTPS（不设 `bindHost`，默认监听所有接口），直接开 `http://<局域网 IP>:7333`，只是没有推送通知和离线启动等需要安全上下文的能力。
+
+在 host 运行时打开 HTTPS PWA，等待应用资源完成缓存后，即使 Mac 上的 Pocket 已停止或无法连接，手机也能打开界面，显示连接提示，并在 host 恢复后自动重连。更新 Pocket 后，需要在 host 运行时打开一次手机应用，以刷新离线缓存。尚未缓存资源的首次访问仍需要 host 在线。
 
 host 日志在 `~/.codex-pocket/host.log`，Codex daemon 日志在 `~/.codex/app-server-control/app-server.log`。
 

@@ -5,9 +5,10 @@ import type { Session, ThreadStatus, ThreadSummary } from "../state/session.js";
 import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { friendlyError } from "../state/errors.js";
-import { ArchiveIcon, BranchIcon, ChevronIcon, ComposeIcon, FolderIcon, SearchIcon } from "./icons.js";
+import { ArchiveIcon, BranchIcon, ChevronIcon, ComposeIcon, FolderIcon, MonitorIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
+import { useComputers } from "./ComputerContext.js";
 
 /** Re-renders the caller once a minute so "3m" ages while the list sits open. */
 export function useMinuteTick(): void {
@@ -41,9 +42,14 @@ export { groupByProject, isScratchThread, isWorktree };
 // Where the list was when a thread was opened, so coming back lands on the
 // same rows with the same project unfolded, as a native list would. Module
 // state: the list unmounts while a thread is on screen, but the page lives on.
-const remembered = { scrollTop: 0, expanded: null as string | null };
+const positions = new Map<string, { scrollTop: number; expanded: string | null }>();
 
 export function ThreadList({ session }: { session: Session }) {
+  const computers = useComputers();
+  const computerName = computers?.active?.name ?? session.host?.computer.name;
+  const computerId = session.host?.id ?? "";
+  const remembered = positions.get(computerId) ?? { scrollTop: 0, expanded: null };
+  positions.set(computerId, remembered);
   const threads = useStore(session.store, (s) => s.threads);
   const projects = useStore(session.store, (s) => s.projects);
   const loading = useStore(session.store, (s) => s.threadsLoading);
@@ -52,7 +58,7 @@ export function ThreadList({ session }: { session: Session }) {
   const [view, setView] = useState<ListView>(getListView);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<string | null>(remembered.expanded);
-  const [collapsed, setCollapsed] = useState(getCollapsedSections);
+  const [collapsed, setCollapsed] = useState(() => getCollapsedSections(computerId));
   const scrollRef = useRef<HTMLDivElement>(null);
   // Highlighted in the split layout, where the list stays beside the thread.
   const openId = useStore(session.store, (s) => s.open?.view.threadId ?? null);
@@ -90,7 +96,7 @@ export function ThreadList({ session }: { session: Session }) {
 
   function toggleSection(section: ListSection) {
     const next = !collapsed[section];
-    setSectionCollapsed(section, next);
+    setSectionCollapsed(section, next, computerId);
     setCollapsed((c) => ({ ...c, [section]: next }));
   }
 
@@ -110,7 +116,7 @@ export function ThreadList({ session }: { session: Session }) {
     [threads, projects, q],
   );
   // Pinned threads sit in their own section and nowhere else (unless searching).
-  const pinIds = getPins().join(",");
+  const pinIds = getPins(computerId).join(",");
   const pinned = useMemo(() => (q ? [] : pinIds.split(",").map((id) => filtered.find((t) => t.id === id)).filter((t): t is ThreadSummary => t !== undefined)), [filtered, pinIds, q]);
   const rest = useMemo(() => (pinned.length > 0 ? filtered.filter((t) => !pinned.includes(t)) : filtered), [filtered, pinned]);
   const chats = useMemo(() => rest.filter(isScratchThread), [rest]);
@@ -128,7 +134,7 @@ export function ThreadList({ session }: { session: Session }) {
     <main className="screen list">
       <header className="topbar plain">
         <h1 className="sr-only">Threads</h1>
-        <span className="spacer" />
+        {computerName ? <span className="list-computer muted small" title={computerName}><MonitorIcon /><span>{computerName}</span></span> : <span className="spacer" />}
         <ListMenu session={session} view={view} onView={changeView} />
       </header>
 

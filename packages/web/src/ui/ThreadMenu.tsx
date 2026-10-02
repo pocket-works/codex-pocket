@@ -36,7 +36,7 @@ export function ThreadMenu({ session }: { session: Session }) {
   if (!open) return null;
   const threadId = open.view.threadId;
   const running = open.view.activeTurnId !== null;
-  const pinned = isPinned(threadId);
+  const pinned = isPinned(threadId, session.host?.id);
 
   function close() {
     setShow(false);
@@ -87,7 +87,7 @@ export function ThreadMenu({ session }: { session: Session }) {
                 icon={<PinIcon />}
                 label={pinned ? "Unpin" : "Pin"}
                 onClick={() => {
-                  togglePin(threadId);
+                  togglePin(threadId, session.host?.id);
                   bump((n) => n + 1);
                   session.touchThreads();
                   close();
@@ -102,10 +102,10 @@ export function ThreadMenu({ session }: { session: Session }) {
                 disabled={busy || running || !open.cwd}
                 onClick={() =>
                   void run(async () => {
-                    const [repo, me] = await Promise.all([session.gitInfo(open.cwd), fetchMe()]);
+                    const [repo, me] = await Promise.all([session.gitInfo(open.cwd), fetchMe(session.host)]);
                     if (!repo) throw new Error("A Git repository is required to fork in a new worktree");
                     const dir = await session.gitWorktreeAdd(open.cwd, me.home, repo.branch);
-                    navigate({ name: "thread", id: await session.forkThread(threadId, undefined, dir) });
+                    navigate({ name: "thread", id: await session.forkThread(threadId, undefined, dir) }, session.host?.id);
                   })
                 }
               />
@@ -118,7 +118,7 @@ export function ThreadMenu({ session }: { session: Session }) {
                   if (confirm(running ? "Stop and archive this thread?" : "Archive this thread?")) {
                     void run(async () => {
                       await session.archiveThread(threadId);
-                      navigate({ name: "list" });
+                      navigate({ name: "list" }, session.host?.id);
                     });
                   }
                 }}

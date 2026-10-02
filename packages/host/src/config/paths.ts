@@ -12,6 +12,15 @@ export function devicesFile(): string {
   return join(pocketHome(), "devices.json");
 }
 
+export function hostInstanceId(): string {
+  const file = join(pocketHome(), "host.id");
+  if (existsSync(file)) return readFileSync(file, "utf8").trim();
+  mkdirSync(pocketHome(), { recursive: true, mode: 0o700 });
+  const id = randomBytes(16).toString("hex");
+  writeFileSync(file, id, { mode: 0o600, flag: "wx" });
+  return id;
+}
+
 export function certsDir(): string {
   return join(pocketHome(), "certs");
 }

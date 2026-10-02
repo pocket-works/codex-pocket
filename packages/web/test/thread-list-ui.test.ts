@@ -96,9 +96,9 @@ describe("routes", () => {
     expect(parseRoute(routeHash(r))).toEqual(r);
   });
 
-  it("parses archived and settings", () => {
+  it("parses archived and treats legacy settings as the chat list", () => {
     expect(parseRoute("#/archived")).toEqual({ name: "archived" });
-    expect(parseRoute("#/settings")).toEqual({ name: "settings" });
+    expect(parseRoute("#/settings")).toEqual({ name: "list" });
     expect(parseRoute("#/nope")).toEqual({ name: "list" });
   });
 });
