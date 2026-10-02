@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { v2 } from "@codex-pocket/protocol";
-import { applyThreadListNotification, mergeThreadList, summarize, withFirstMessage } from "../src/state/thread-list.js";
+import { applyThreadListNotification, canAcceptInput, isSubagent, mergeThreadList, subagentsForParent, summarize, withFirstMessage } from "../src/state/thread-list.js";
 
 function thread(id: string, updatedAt: number, extra: Partial<v2.Thread> = {}): v2.Thread {
   return {
@@ -17,6 +17,28 @@ function thread(id: string, updatedAt: number, extra: Partial<v2.Thread> = {}): 
 }
 
 describe("summarize", () => {
+  it("retains subagent ownership and input capability, including older source metadata", () => {
+    const child = summarize(thread("child", 1, {
+      source: { subAgent: { thread_spawn: { parent_thread_id: "parent", depth: 1, agent_path: null, agent_nickname: "Audit", agent_role: "reviewer" } } },
+      canAcceptDirectInput: false,
+    }));
+    expect(child).toMatchObject({ parentThreadId: "parent", agentNickname: "Audit", agentRole: "reviewer", canAcceptDirectInput: false });
+    expect(isSubagent(child)).toBe(true);
+    expect(canAcceptInput(child)).toBe(false);
+    expect(canAcceptInput({ parentThreadId: "parent", canAcceptDirectInput: null })).toBe(false);
+    expect(canAcceptInput({ parentThreadId: "parent", canAcceptDirectInput: true })).toBe(true);
+    expect(canAcceptInput({})).toBe(true);
+  });
+
+  it("selects descendants without mixing siblings, forks or cyclic parent links", () => {
+    const threads = mergeThreadList([], [
+      thread("parent", 1), thread("child", 2, { parentThreadId: "parent" }),
+      thread("nested", 3, { parentThreadId: "child" }), thread("other", 4, { parentThreadId: "different" }),
+      thread("fork", 5, { forkedFromId: "parent" }), thread("cycle", 6, { parentThreadId: "cycle" }),
+    ]);
+    expect(subagentsForParent(threads, "parent").map((t) => t.id)).toEqual(["nested", "child"]);
+    expect(isSubagent(threads.find((t) => t.id === "fork")!)).toBe(false);
+  });
   it("prefers the name over the preview and picks up the git branch", () => {
     const s = summarize(thread("a", 10, { name: "  My  thread ", gitInfo: { sha: null, branch: "feat/x", originUrl: null } }));
     expect(s.title).toBe("My thread");

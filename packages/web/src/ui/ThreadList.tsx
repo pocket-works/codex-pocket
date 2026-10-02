@@ -5,6 +5,7 @@ import type { Session, ThreadStatus, ThreadSummary } from "../state/session.js";
 import { groupByProject, isScratchThread, isWorktree, projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { friendlyError } from "../state/errors.js";
+import { isSubagent } from "../state/thread-list.js";
 import { ArchiveIcon, BranchIcon, ChevronIcon, ComposeIcon, FolderIcon, MonitorIcon, SearchIcon } from "./icons.js";
 import { ListMenu } from "./ListMenu.js";
 import { navigate } from "./route.js";
@@ -50,7 +51,8 @@ export function ThreadList({ session }: { session: Session }) {
   const computerId = session.host?.id ?? "";
   const remembered = positions.get(computerId) ?? { scrollTop: 0, expanded: null };
   positions.set(computerId, remembered);
-  const threads = useStore(session.store, (s) => s.threads);
+  const allThreads = useStore(session.store, (s) => s.threads);
+  const threads = useMemo(() => allThreads.filter((thread) => !isSubagent(thread)), [allThreads]);
   const projects = useStore(session.store, (s) => s.projects);
   const loading = useStore(session.store, (s) => s.threadsLoading);
   const error = useStore(session.store, (s) => s.threadsError);

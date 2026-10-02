@@ -18,6 +18,7 @@ export const SearchIcon = () => <Icon d="M21 21l-4.3-4.3M19 11a8 8 0 1 1-16 0 8 
 export const MenuIcon = () => <Icon d="M4 7h16M4 12h10M4 17h16" />;
 export const CheckIcon = ({ size = 18 }: { size?: number }) => <Icon size={size} d="M20 6 9 17l-5-5" />;
 export const BranchIcon = ({ size = 22 }: { size?: number }) => <Icon size={size} d="M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9" />;
+export const UsersIcon = ({ size = 22 }: { size?: number }) => <Icon size={size} d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />;
 export const MonitorIcon = () => <Icon d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM8 21h8M12 17v4" />;
 export const ShieldIcon = () => <Icon d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />;
 export const SlidersIcon = () => <Icon d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />;

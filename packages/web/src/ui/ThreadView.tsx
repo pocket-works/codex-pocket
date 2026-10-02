@@ -6,7 +6,7 @@ import { Composer } from "./Composer.js";
 import { Transcript } from "./TurnView.js";
 import { PlanView } from "./PlanView.js";
 import { ThreadMenu } from "./ThreadMenu.js";
-import { navigate } from "./route.js";
+import { navigate, useRoute } from "./route.js";
 import { UserInputSheet } from "./UserInputSheet.js";
 import { ELICITATION_METHOD, USER_INPUT_METHOD } from "../state/thread-reducer.js";
 import { ElicitationSheet } from "./ElicitationSheet.js";
@@ -15,11 +15,16 @@ import { WorkspaceChangesButton } from "./WorkspaceChangesButton.js";
 import { friendlyError } from "../state/errors.js";
 import { useSwipeBack } from "./gestures.js";
 import { useComputers } from "./ComputerContext.js";
+import { canAcceptInput } from "../state/thread-list.js";
+import { SubagentsEntry, SubagentsSheet } from "./Subagents.js";
 
 export function ThreadView({ session }: { session: Session }) {
   const computers = useComputers();
   const computerName = computers?.active?.name ?? session.host?.computer.name;
   const open = useStore(session.store, (s) => s.open);
+  const route = useRoute();
+  const parentThreadId = open?.parentThreadId ?? null;
+  const goBack = () => navigate(parentThreadId ? { name: "thread", id: parentThreadId, subagents: true } : { name: "list" });
   const connected = useStore(session.store, (s) => s.connection === "open" && s.upstreamConnected);
   // The list's title for this thread; the folder name stands in until the
   // list has loaded (a push notification can open a thread first).
@@ -27,7 +32,7 @@ export function ThreadView({ session }: { session: Session }) {
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
-  const back = useSwipeBack(() => navigate({ name: "list" }));
+  const back = useSwipeBack(goBack);
 
   const items = open?.view.items ?? [];
   const lastItem = items[items.length - 1];
@@ -76,15 +81,17 @@ export function ThreadView({ session }: { session: Session }) {
   if (!open) return null;
   const busy = open.view.activeTurnId !== null;
   const pending = open.view.approvals[0];
+  const readOnly = !canAcceptInput(open);
+  const showSubagents = route.name === "thread" && route.id === open.view.threadId && route.subagents === true;
 
   return (
     <main className={`screen thread ${back.dragging ? "dragging" : ""}`} style={back.style} {...back.handlers}>
       <header className="topbar">
-        <button className="icon-btn" aria-label="Back" onClick={() => navigate({ name: "list" })}>
+        <button className="icon-btn" aria-label={parentThreadId ? "Back to subagents" : "Back"} title={parentThreadId ? "Back to subagents" : "Back"} onClick={goBack}>
           ‹
         </button>
         <div className="topbar-title">
-          <h1>{title ?? open.cwd.split("/").filter(Boolean).pop() ?? "Thread"}</h1>
+          <h1>{open.agentNickname || title || open.cwd.split("/").filter(Boolean).pop() || "Thread"}</h1>
           <div className="topbar-meta thread-location muted small">
             {computerName && <span className="thread-computer" title={computerName}>{computerName}</span>}
             <span className="thread-cwd" title={open.cwd}>{open.cwd}</span>
@@ -130,13 +137,13 @@ export function ThreadView({ session }: { session: Session }) {
             <span className="skeleton skeleton-msg agent" />
           </div>
         )}
-        <Transcript session={session} view={open.view} cwd={open.cwd} />
+        <Transcript session={session} view={open.view} cwd={open.cwd} readOnly={readOnly} />
         {open.view.plan && <PlanView plan={open.view.plan} />}
-        {open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}
+        {!readOnly && open.queue.length > 0 && <QueuedList session={session} queue={open.queue} busy={busy} />}
         {open.view.lastTurnError && (
           <div className="turn-error">
             <p className="error">{open.view.lastTurnError}</p>
-            {!busy && open.state === "ready" && (
+            {!readOnly && !busy && open.state === "ready" && (
               <button className="link-btn" onClick={() => void session.retryLastTurn()}>
                 Retry
               </button>
@@ -151,13 +158,21 @@ export function ThreadView({ session }: { session: Session }) {
         </button>
       )}
 
-      {open.cwd && <WorkspaceChangesButton key={`workspace-changes:${open.view.threadId}`} session={session} cwd={open.cwd} view={open.view} connected={connected} />}
+      <div className="thread-context-row">
+        {open.cwd && <WorkspaceChangesButton key={`workspace-changes:${open.view.threadId}`} session={session} cwd={open.cwd} view={open.view} connected={connected} />}
+        <SubagentsEntry key={`subagents:${open.view.threadId}`} session={session} parentThreadId={open.view.threadId} connected={connected} expanded={showSubagents} />
+      </div>
 
       {pending && pending.method === USER_INPUT_METHOD && <UserInputSheet session={session} request={pending} />}
       {pending && pending.method === ELICITATION_METHOD && <ElicitationSheet session={session} request={pending} />}
       {pending && pending.method !== USER_INPUT_METHOD && pending.method !== ELICITATION_METHOD && <ApprovalSheet session={session} approval={pending} items={items} cwd={open.cwd} />}
 
-      <Composer
+      {readOnly ? (
+        <div className="subagent-footer">
+          <span className="muted small">Read-only</span>
+          {parentThreadId && <button className="link-btn" onClick={() => navigate({ name: "thread", id: parentThreadId })}>Return to parent chat</button>}
+        </div>
+      ) : <Composer
         key={open.view.threadId}
         session={session}
         draftKey={open.view.threadId}
@@ -165,7 +180,8 @@ export function ThreadView({ session }: { session: Session }) {
         busy={busy}
         onStop={() => void session.interrupt().catch((err) => session.notify(friendlyError(err)))}
         onResume={open.queue.length > 0 ? () => void session.resumeQueue() : undefined}
-      />
+      />}
+      {showSubagents && <SubagentsSheet key={`subagents-sheet:${open.view.threadId}`} session={session} parentThreadId={open.view.threadId} onClose={() => navigate({ name: "thread", id: open.view.threadId })} />}
     </main>
   );
 }

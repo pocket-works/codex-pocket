@@ -1091,6 +1091,47 @@ code,
 
 /* --- sheets --- */
 
+.subagents-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-align: left;
+  background: var(--card);
+  white-space: nowrap;
+  font-size: calc(13rem / 17);
+}
+.subagents-entry > svg, .subagents-entry > .spinner { flex-shrink: 0; }
+.subagents-entry-label { font-weight: 500; }
+.subagents-entry-status { font-size: calc(12rem / 17); }
+.subagents-entry-status.waiting { color: var(--warn); }
+.subagents-entry[aria-expanded="true"] { border-color: var(--muted); }
+.subagent-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: 14px 16px calc(14px + var(--safe-bottom)); border-top: 1px solid var(--line); }
+.subagent-footer .link-btn { text-align: right; }
+.subagents-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.subagents-heading h2 { margin: 0; }
+.subagents-section { margin-top: 20px; }
+.subagents-section h3 { margin: 0 0 8px; color: var(--muted); font-size: calc(14rem / 17); font-weight: 500; }
+.subagents-section > p { margin: 12px 0; }
+.subagent-list { margin: 0; padding: 0; list-style: none; }
+.subagent-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 70px; padding: 12px 0; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.subagent-list li + li { border-top: 1px solid var(--line); }
+.subagent-mark { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 6px; background: var(--card); color: var(--muted); }
+.subagent-mark.running { color: var(--accent); }
+.subagent-mark.waiting, .subagent-status.waiting { color: var(--warn); }
+.subagent-mark.error, .subagent-status.error { color: var(--danger); }
+.subagent-body { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.subagent-title, .subagent-preview, .subagent-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subagent-title { font-size: calc(15rem / 17); font-weight: 500; }
+.subagent-status { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; text-align: right; }
+.subagent-row > svg { flex-shrink: 0; }
+.subagents-error { display: flex; align-items: center; gap: 12px; }
+.subagents-error p { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
 .sheet-backdrop {
   position: fixed;
   inset: 0;
@@ -1590,24 +1631,33 @@ code,
   margin: 0;
 }
 
-/* Thread-wide change summary floating above the composer (official app). */
-.changes-pill-row {
+/* Compact thread controls share one row above the composer. */
+.thread-context-row {
   display: flex;
-  justify-content: center;
-  padding: 0 0 8px;
+  align-items: center;
+  justify-content: safe center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 4px 12px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.thread-context-row:empty { display: none; }
+.thread-context-row::-webkit-scrollbar { display: none; }
+.thread-context-row > button { flex-shrink: 0; }
 
 .changes-pill {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 18px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 10px;
   border-radius: 999px;
   background: var(--card);
   border: 1px solid var(--line);
   color: inherit;
-  font-size: calc(15rem / 17);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  font-size: calc(13rem / 17);
+  white-space: nowrap;
 }
 
 /* Server-side follow-up queue under the transcript. */
