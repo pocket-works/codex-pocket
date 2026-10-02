@@ -91,6 +91,11 @@ describe("isScratchThread", () => {
 });
 
 describe("routes", () => {
+  it("keeps the subagent panel in the parent thread URL", () => {
+    const route = { name: "thread" as const, id: "parent/thread", subagents: true };
+    expect(parseRoute(routeHash(route))).toEqual(route);
+    expect(parseRoute(`#/h/mac${routeHash(route).slice(1)}`)).toEqual(route);
+  });
   it("round-trips new-thread routes with a preset cwd", () => {
     const r = { name: "new" as const, cwd: "/Users/me/proj x" };
     expect(parseRoute(routeHash(r))).toEqual(r);

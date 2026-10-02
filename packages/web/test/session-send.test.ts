@@ -6,6 +6,7 @@ import { emptyDraft } from "../src/state/compose.js";
 import { branchLabel, isDraft, scratchDateDir, scratchName, Session } from "../src/state/session.js";
 import { initialThreadState } from "../src/state/thread-reducer.js";
 import { getLastModel, setLastModel } from "../src/state/model-prefs.js";
+import { summarize } from "../src/state/thread-list.js";
 
 // The test environment is node; a Map is all the preference code needs.
 const memory = new Map<string, string>();
@@ -68,6 +69,89 @@ function readySession(rpc: RpcClient, activeTurnId: string | null): Session {
   }));
   return session;
 }
+
+describe("subagent threads", () => {
+  const child = (id = "child", extra: Partial<v2.Thread> = {}): v2.Thread => ({
+    id, parentThreadId: "t1", source: { subAgent: { thread_spawn: { parent_thread_id: "t1", depth: 1, agent_path: null, agent_nickname: "Audit", agent_role: "reviewer" } } },
+    name: null, preview: "Audit the implementation", model: "m", cwd: "/proj", updatedAt: 1, status: { type: "idle" },
+    canAcceptDirectInput: false, ...extra,
+  }) as v2.Thread;
+
+  it("pages through descendants and keeps both parent and unrelated chats", async () => {
+    const { rpc, calls } = stubRpc((method, params) => {
+      if (method === "thread/list") return (params as { cursor: string | null }).cursor === null
+        ? { data: [child()], nextCursor: "next" }
+        : { data: [child("nested", { parentThreadId: "child" })], nextCursor: null };
+      return {};
+    });
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [summarize(child("t1", { parentThreadId: null, source: "cli" })), summarize(child("other", { parentThreadId: null, source: "cli" }))] }));
+    await Promise.all([session.loadSubagents("t1"), session.loadSubagents("t1")]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({ method: "thread/list", params: { ancestorThreadId: "t1", sourceKinds: ["subAgentThreadSpawn"], cursor: null } });
+    expect(calls[1].params).toMatchObject({ cursor: "next" });
+    expect(session.store.get().threads.map((thread) => thread.id).sort()).toEqual(["child", "nested", "other", "t1"]);
+  });
+
+  it("preserves children after refreshing the ordinary thread list", async () => {
+    const { rpc } = stubRpc(() => ({ data: [child("t1", { parentThreadId: null, source: "cli" })], nextCursor: null }));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [summarize(child())] }));
+    await session.loadThreads();
+    expect(session.store.get().threads.map((thread) => thread.id).sort()).toEqual(["child", "t1"]);
+  });
+
+  it("opens the child with server input capability and does not load a follow-up queue", async () => {
+    const { rpc, calls } = stubRpc((method) => {
+      if (method === "thread/resume") return { thread: child(), model: "m", cwd: "/proj", reasoningEffort: null, sandbox: { type: "readOnly" } };
+      return { data: [], nextCursor: null };
+    });
+    const session = readySession(rpc, null);
+    await session.openThread("child");
+    expect(session.store.get().open).toMatchObject({ state: "ready", parentThreadId: "t1", canAcceptDirectInput: false, agentNickname: "Audit" });
+    expect(calls.some((call) => call.method === "thread/queue/list")).toBe(false);
+  });
+
+  it("reads the child transcript when resume rejects direct input", async () => {
+    const { rpc } = stubRpc((method) => {
+      if (method === "thread/resume") return new RpcError(-32600, "direct app-server input is not allowed for multi-agent v2 sub-agents");
+      if (method === "thread/read") return { thread: child() };
+      if (method === "thread/items/list") return { data: [{ turnId: "turn", item: { type: "agentMessage", id: "answer", text: "Audit complete", phase: "final_answer" } }], nextCursor: null };
+      return { data: [], nextCursor: null };
+    });
+    const session = readySession(rpc, null);
+    await session.openThread("child");
+    expect(session.store.get().open).toMatchObject({ state: "ready", canAcceptDirectInput: false, parentThreadId: "t1" });
+    expect(session.store.get().open?.view.items.map((item) => item.id)).toEqual(["answer"]);
+  });
+
+  it.each([null, "active"])("blocks direct sends, edits, retries and queued starts (%s)", async (activeTurnId) => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = readySession(rpc, activeTurnId);
+    session.store.set((s) => ({ ...s, open: {
+      ...s.open!, parentThreadId: "parent", canAcceptDirectInput: false,
+      queue: [{ id: "q", text: "later", imageCount: 0, input: [] }],
+      view: { ...s.open!.view, lastTurnError: "failed", items: [{ type: "userMessage", id: "u", clientId: null, content: [{ type: "text", text: "original", text_elements: [] }] }] },
+    } }));
+    await expect(session.sendMessage({ ...emptyDraft, text: "new" })).rejects.toThrow("parent thread");
+    session.beginEdit("turn", "edit");
+    await session.retryLastTurn();
+    await session.sendQueuedNow("q");
+    await session.resumeQueue();
+    expect(calls).toEqual([]);
+    expect(session.store.get().open?.editing).toBeUndefined();
+    expect(session.store.get().open?.view.pending).toEqual([]);
+  });
+
+  it("does not auto-name or announce a completed child as an ordinary chat", () => {
+    const { rpc, calls } = stubRpc(() => ({}));
+    const session = readySession(rpc, null);
+    session.store.set((s) => ({ ...s, threads: [summarize(child())] }));
+    session.handleNotification({ method: "turn/completed", params: { threadId: "child", turn: { id: "done", status: "completed", items: [] } } });
+    expect(session.store.get().toasts).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+});
 
 describe("Session.sendMessage", () => {
   it("starts a turn when the thread is idle", async () => {

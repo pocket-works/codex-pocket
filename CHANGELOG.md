@@ -4,6 +4,14 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+### Added
+
+- A Subagents panel inside parent chats, with active and completed agents, read-only details, and navigation back to the parent. Its compact entry sits beside the file-change summary and is hidden when the chat has no subagents.
+
+### Fixed
+
+- Keep subagent threads out of regular and archived chat lists, and respect Codex's direct-input capability when sending, editing, retrying, or resuming queued messages.
+
 ## [0.1.2] - 2026-09-30
 
 ### Changed
