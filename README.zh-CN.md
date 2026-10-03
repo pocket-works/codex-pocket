@@ -9,7 +9,7 @@
 - 线程列表按桌面端真实项目分组（走 `project/list`）：在 Mac 上新建或删除项目，手机上立刻跟着变，不会残留一个旧文件夹冒充项目；对话流式输出、推理/工具调用折叠、Diff 视图
 - 审批（含审批策略切换）、中断、`turn/steer`、服务端消息队列（`thread/queue/*`，与桌面端共享）、模型与推理强度、Fast 档
 - 新建线程：项目 / 无项目 Chat、Work locally / New worktree、切换分支
-- 图片附件、`@文件`、`/技能`、语音听写（经 host 流式转发到桌面端听写用的同一个 ChatGPT 语音后端，标识符和中英混说都能识别对）、模型提问弹层、计划与用量显示
+- 图片和 CSV 附件、`@文件`、`/技能`、语音听写（经 host 流式转发到桌面端听写用的同一个 ChatGPT 语音后端，标识符和中英混说都能识别对）、模型提问弹层、计划与用量显示
 - 线程改名 / 归档（左滑）/ fork / review
 - 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
 - Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
@@ -101,7 +101,7 @@ pnpm dev:host revoke <id>
 参与贡献请先看 [CONTRIBUTING.md](./CONTRIBUTING.md)；各包职责与代码约定见 [AGENTS.md](./AGENTS.md)。
 维护者的 macOS 手动打包与发版检查见 [docs/releasing.md](./docs/releasing.md)。
 
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片附件）、`host.log`；关联桌面后还有 `desktop-bridge.log`。
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片和 CSV 附件，每次上传最大 10 MB）、`host.log`；关联桌面后还有 `desktop-bridge.log`。
 
 ## 部署：Tailscale HTTPS
 

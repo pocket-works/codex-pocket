@@ -49,7 +49,7 @@ function fixture() {
   saveDraft("new", { ...emptyDraft, text: "Do the work" }, "a");
   const mount = () => act(async () => root.render(createElement(Composer, { session, draftKey: "new", disabled: false, busy: false, onSend: send })));
   const clickSend = () => act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click());
-  return { resolve, reject, send, finished, mount, clickSend };
+  return { session, resolve, reject, send, finished, mount, clickSend };
 }
 
 describe("unconfirmed sends", () => {
@@ -77,5 +77,42 @@ describe("unconfirmed sends", () => {
     await act(async () => container.querySelector<HTMLButtonElement>(".composer-unconfirmed button")!.click());
     expect(hasUnconfirmedSend("new", "a")).toBe(false);
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.disabled).toBe(false);
+  });
+});
+
+describe("CSV attachments", () => {
+  async function attachCsv() {
+    const test = fixture();
+    saveDraft("new", emptyDraft, "a");
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ path: "/uploads/abc.csv" })));
+    Object.assign(test.session.host!, { fetch });
+    await test.mount();
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toContain(".csv");
+    const file = new File(["name,total\nAlice,42\n"], "sales.csv", { type: "application/vnd.ms-excel" });
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(fetch).toHaveBeenCalledWith("/api/uploads", expect.objectContaining({ headers: expect.objectContaining({ "Content-Type": "text/csv" }) }));
+    expect(container.querySelector(".file-attachment-name")!.textContent).toBe("sales.csv");
+    expect(container.querySelector(".thumb")).toBeNull();
+    return test;
+  }
+
+  it("sends CSV-only messages and restores the file after a failed send", async () => {
+    const test = await attachCsv();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.disabled).toBe(false);
+    await test.clickSend();
+    expect(test.send).toHaveBeenCalledWith(expect.objectContaining({ text: "", images: [], files: [expect.objectContaining({ name: "sales.csv", path: "/uploads/abc.csv" })] }));
+    await act(async () => test.reject(new Error("send failed")));
+    expect(container.querySelector(".file-attachment-name")!.textContent).toBe("sales.csv");
+    expect(loadDraft("new", "a").files).toEqual([expect.objectContaining({ name: "sales.csv", path: "/uploads/abc.csv" })]);
+  });
+
+  it("removes a CSV attachment from the draft", async () => {
+    await attachCsv();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Remove sales.csv"]')!.click());
+    expect(container.querySelector(".file-attachment")).toBeNull();
+    expect(loadDraft("new", "a").files).toEqual([]);
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')).toBeNull();
   });
 });

@@ -15,12 +15,14 @@ describe("drafts", () => {
 
   it("round-trips text, mentions and the skill, keeping only the image's path", () => {
     saveDraft("t1", {
+      ...emptyDraft,
       text: "look at @a.ts",
       mentions: [{ name: "a.ts", path: "/p/a.ts" }],
       skill: { name: "review", path: "/s/review" },
       images: [{ id: "i1", path: "/up/abc.jpg", previewUrl: "blob:local" }],
     });
     expect(loadDraft("t1")).toEqual({
+      ...emptyDraft,
       text: "look at @a.ts",
       mentions: [{ name: "a.ts", path: "/p/a.ts" }],
       skill: { name: "review", path: "/s/review" },
@@ -33,6 +35,18 @@ describe("drafts", () => {
     saveDraft("t1", emptyDraft);
     expect(memory.size).toBe(0);
     expect(loadDraft("t1")).toEqual(emptyDraft);
+  });
+
+  it("keeps a CSV-only draft and restores its original name and host path", () => {
+    const draft = { ...emptyDraft, files: [{ id: "csv", name: "sales.csv", path: "/up/abc.csv" }] };
+    expect(isEmptyDraft(draft)).toBe(false);
+    saveDraft("t1", draft);
+    expect(loadDraft("t1")).toEqual(draft);
+  });
+
+  it("restores drafts saved before CSV support", () => {
+    memory.set("codex-pocket.draft.t1", JSON.stringify({ text: "old", images: [], mentions: [], skill: null }));
+    expect(loadDraft("t1")).toEqual({ ...emptyDraft, text: "old" });
   });
 
   it("keeps drafts apart per key and survives garbage", () => {
