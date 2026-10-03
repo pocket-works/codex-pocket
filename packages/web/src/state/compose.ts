@@ -12,15 +12,23 @@ export interface Mention {
   path: string;
 }
 
+export interface DraftFile {
+  id: string;
+  name: string;
+  /** Path on the Mac after upload. */
+  path: string;
+}
+
 export interface Draft {
   text: string;
   images: DraftImage[];
+  files: DraftFile[];
   /** Files picked from the @ popover; only those still written in `text` are sent. */
   mentions: Mention[];
   skill: { name: string; path: string } | null;
 }
 
-export const emptyDraft: Draft = { text: "", images: [], mentions: [], skill: null };
+export const emptyDraft: Draft = { text: "", images: [], files: [], mentions: [], skill: null };
 
 const encoder = new TextEncoder();
 
@@ -35,12 +43,14 @@ export function buildUserInput(draft: Draft): v2.UserInput[] {
   const out: v2.UserInput[] = [];
   if (draft.skill) out.push({ type: "skill", name: draft.skill.name, path: draft.skill.path });
 
-  const text = draft.text;
+  // The protocol has no document input; give Codex the uploaded paths to read.
+  const attachments = draft.files.map((file) => `${JSON.stringify(file.name)}: ${JSON.stringify(file.path)}`).join("\n");
+  const text = attachments ? `${draft.text}${draft.text ? "\n\n" : ""}Attached files:\n${attachments}` : draft.text;
   const elements: v2.TextElement[] = [];
   const present: Mention[] = [];
   for (const m of draft.mentions) {
     const token = `@${m.name}`;
-    const idx = text.indexOf(token);
+    const idx = draft.text.indexOf(token);
     if (idx < 0) continue;
     const start = byteLength(text.slice(0, idx));
     elements.push({ byteRange: { start, end: start + byteLength(token) }, placeholder: m.name });

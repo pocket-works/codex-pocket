@@ -1560,6 +1560,21 @@ code,
   font-weight: 600;
 }
 
+.file-attachment {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.file-attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-attachment button {
+  flex-shrink: 0;
+}
+
 .thumb {
   position: relative;
   width: 64px;

@@ -9,7 +9,7 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 - Thread list grouped by the desktop app's real projects (`project/list`), so adding or deleting a project on the Mac shows up here immediately instead of leaving a stale folder behind; streamed replies with collapsible reasoning and tool calls; diff view
 - Approvals (with policy switching), interrupt, `turn/steer`, the server-side follow-up queue (`thread/queue/*`, shared with the desktop app), model and reasoning effort, Fast tier
 - New thread: project or project-less chat, work locally or in a new worktree, pick a branch
-- Image attachments, `@file` mentions, `/skills`, dictation (streamed through the host to the same ChatGPT speech backend the desktop app's dictation uses, so identifiers and mixed-language speech come out right), model questions, plan and usage display
+- Image and CSV attachments, `@file` mentions, `/skills`, dictation (streamed through the host to the same ChatGPT speech backend the desktop app's dictation uses, so identifiers and mixed-language speech come out right), model questions, plan and usage display
 - Rename, archive (swipe), fork and review threads
 - Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
 - Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
@@ -101,7 +101,7 @@ A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `mak
 To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md); package boundaries and code conventions are in [AGENTS.md](./AGENTS.md).
 For maintainers, the manual macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
 
-State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images sent from the phone), `host.log`, and `desktop-bridge.log` when desktop sharing is linked.
+State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images and CSV files sent from the phone, up to 10 MB per upload), `host.log`, and `desktop-bridge.log` when desktop sharing is linked.
 
 ## Deploying: HTTPS via Tailscale
 

@@ -295,7 +295,28 @@ describe("LanServer", () => {
       }
     });
 
-    it("rejects non-image bodies", async () => {
+    it("stores CSV bytes unchanged and serves them only to paired devices", async () => {
+      const token = await pair();
+      const csv = Buffer.from("name,total\r\nAlice,42\r\n");
+      const up = await fetch(`${base}/api/uploads`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/csv; charset=utf-8" },
+        body: csv,
+      });
+      expect(up.status).toBe(200);
+      const { path } = (await up.json()) as { path: string };
+      expect(path.startsWith(uploadsDir)).toBe(true);
+      expect(path.endsWith(".csv")).toBe(true);
+      expect(readFileSync(path)).toEqual(csv);
+      const url = `${base}/api/uploads/${path.slice(path.lastIndexOf("/") + 1)}`;
+      expect((await fetch(url)).status).toBe(401);
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      expect(res.headers.get("content-type")).toBe("text/csv");
+      expect(Buffer.from(await res.arrayBuffer())).toEqual(csv);
+      expect((await fetch(`${base}/api/uploads`, { method: "POST", headers: { "Content-Type": "text/csv" }, body: csv })).status).toBe(401);
+    });
+
+    it("rejects unsupported file types", async () => {
       const token = await pair();
       const res = await fetch(`${base}/api/uploads`, {
         method: "POST",

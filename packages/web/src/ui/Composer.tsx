@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { emptyDraft, mentionQuery, sendBlocker, type Draft, type DraftImage } from "../state/compose.js";
 import { hasUnconfirmedSend, isEmptyDraft, loadDraft, saveDraft, setUnconfirmedSend } from "../state/drafts.js";
 import { Session, type FileMatch, type Skill } from "../state/session.js";
-import { uploadImage } from "../state/uploads.js";
+import { isCsv, uploadFile } from "../state/uploads.js";
 import { useStore } from "../state/store.js";
 import { ContextRing, DictationButton, EffortGauge, FastButton, PermissionsButton, useDictation } from "./ComposerTools.js";
 import { ModelSheet } from "./ModelSheet.js";
@@ -22,7 +22,7 @@ interface Popover {
   query: string;
 }
 
-// Message box with image attachments, `@file` completion (fuzzyFileSearch)
+// Message box with image and CSV attachments, `@file` completion (fuzzyFileSearch)
 // and `/skill` selection. Sends via Session, which decides steer vs start,
 // unless the caller supplies `onSend` (the new-thread screen starts a thread first).
 // The send button has the official app's five states: Send when idle,
@@ -91,7 +91,7 @@ export function Composer({
   const followUp = useStore(session.store, (s) => s.followUp);
   const model = useStore(session.store, (s) => (s.open ? Session.effectiveModel(s.open).model : ""));
   const models = useStore(session.store, (s) => s.models);
-  const hasDraft = draft.text.trim() !== "" || draft.images.length > 0;
+  const hasDraft = draft.text.trim() !== "" || draft.images.length > 0 || draft.files.length > 0;
   const blocker = sendBlocker({ draft, uploading, model, models });
   const canSend = !disabled && !sending && !unconfirmed && blocker === null && hasDraft;
   const showStop = busy && onStop !== undefined && !hasDraft && !sending;
@@ -153,13 +153,16 @@ export function Composer({
       if (session.host?.disposed) break;
       const finish = session.beginOperation();
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const previewUrl = URL.createObjectURL(file);
+      const csv = isCsv(file);
+      const previewUrl = csv ? "" : URL.createObjectURL(file);
       setUploading((n) => n + 1);
       try {
-        const path = await uploadImage(file, session.host);
-        setDraft((d) => ({ ...d, images: [...d.images, { id, path, previewUrl }] }));
+        const path = await uploadFile(file, session.host);
+        setDraft((d) => csv
+          ? { ...d, files: [...d.files, { id, name: file.name, path }] }
+          : { ...d, images: [...d.images, { id, path, previewUrl }] });
       } catch (err) {
-        URL.revokeObjectURL(previewUrl);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
         setError(friendlyError(err));
       } finally {
         finish();
@@ -333,7 +336,7 @@ export function Composer({
           ))}
         </ul>
       )}
-      {(draft.skill || draft.images.length > 0) && (
+      {(draft.skill || draft.images.length > 0 || draft.files.length > 0) && (
         <div className="attachments">
           {draft.skill && (
             <span className="attachment-chip">
@@ -345,6 +348,14 @@ export function Composer({
           )}
           {draft.images.map((img) => (
             <Thumb key={img.id} image={img} host={session.host} onRemove={() => removeImage(img)} />
+          ))}
+          {draft.files.map((file) => (
+            <span className="attachment-chip file-attachment" key={file.id}>
+              <span className="file-attachment-name" title={file.name}>{file.name}</span>
+              <button type="button" aria-label={`Remove ${file.name}`} onClick={() => setDraft((d) => ({ ...d, files: d.files.filter((f) => f.id !== file.id) }))}>
+                ×
+              </button>
+            </span>
           ))}
         </div>
       )}
@@ -360,9 +371,9 @@ export function Composer({
           if (!(e.target instanceof Element) || !e.target.closest("button")) setFocused(true);
         }}
       >
-        <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => void attach(e.target.files)} />
+        <input ref={fileRef} type="file" accept="image/*,.csv,text/csv" multiple hidden onChange={(e) => void attach(e.target.files)} />
         {!expanded && (
-          <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
+          <button className="icon-btn" aria-label="Attach file" disabled={disabled} onClick={() => fileRef.current?.click()}>
             +
           </button>
         )}
@@ -400,7 +411,7 @@ export function Composer({
         {!expanded && <DictationButton dictation={dictation} disabled={disabled} text={draft.text} />}
         {expanded && (
         <div className="composer-tools">
-          <button className="icon-btn" aria-label="Attach image" disabled={disabled} onClick={() => fileRef.current?.click()}>
+          <button className="icon-btn" aria-label="Attach file" disabled={disabled} onClick={() => fileRef.current?.click()}>
             {uploading > 0 ? "…" : "+"}
           </button>
           <PermissionsButton session={session} disabled={disabled} />
