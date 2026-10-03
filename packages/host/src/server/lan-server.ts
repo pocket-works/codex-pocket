@@ -24,7 +24,7 @@ export interface LanServerOptions {
   host?: string;
   tls?: TlsMaterial | null;
   staticDir?: string | null;
-  /** Where phone image attachments are written so Codex can read them as `localImage`. */
+  /** Where phone attachments are written so Codex can read them. */
   uploadsDir?: string | null;
   deviceStore: DeviceStore;
   instanceId?: string;
@@ -62,16 +62,17 @@ const WS_TOKEN_PREFIX = "tok.";
 const MAX_BODY_BYTES = 16 * 1024;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-const IMAGE_EXT: Record<string, string> = {
+const UPLOAD_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
   "image/heic": "heic",
+  "text/csv": "csv",
 };
-const IMAGE_TYPE: Record<string, string> = Object.fromEntries(Object.entries(IMAGE_EXT).map(([type, ext]) => [ext, type]));
+const UPLOAD_TYPE: Record<string, string> = Object.fromEntries(Object.entries(UPLOAD_EXT).map(([type, ext]) => [ext, type]));
 /** Names the upload route hands out: 16 hex chars and a known extension, nothing that could walk the tree. */
-const UPLOAD_NAME = /^[0-9a-f]{16}\.(jpg|png|webp|gif|heic)$/;
+const UPLOAD_NAME = /^[0-9a-f]{16}\.(jpg|png|webp|gif|heic|csv)$/;
 
 export function createLanServer(opts: LanServerOptions): LanServer {
   const log = opts.log ?? (() => {});
@@ -243,8 +244,8 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     const device = await opts.deviceStore.verifyToken(bearerToken(req));
     if (!device) return sendJson(res, 401, { error: "unauthorized" });
     if (!opts.uploadsDir) return sendJson(res, 404, { error: "uploads disabled" });
-    const ext = IMAGE_EXT[(req.headers["content-type"] ?? "").split(";")[0].trim()];
-    if (!ext) return sendJson(res, 415, { error: "only image uploads are accepted" });
+    const ext = UPLOAD_EXT[(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase()];
+    if (!ext) return sendJson(res, 415, { error: "only image and CSV uploads are accepted" });
     let body: Buffer;
     try {
       body = await readRawBody(req, MAX_UPLOAD_BYTES);
@@ -257,7 +258,7 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     return sendJson(res, 200, { path: file });
   }
 
-  // Reads back an image the phone uploaded, so the transcript can show it.
+  // Reads back an attachment the phone uploaded.
   // Only files this route's own naming scheme produced are served: a
   // `localImage` attached from the desktop app points anywhere on the Mac.
   const upload = path.startsWith("/api/uploads/") && method === "GET" ? UPLOAD_NAME.exec(path.slice("/api/uploads/".length)) : null;
@@ -271,7 +272,7 @@ async function handleHttp(opts: LanServerOptions, req: IncomingMessage, res: Ser
     } catch {
       return sendJson(res, 404, { error: "not found" });
     }
-    res.writeHead(200, { "Content-Type": IMAGE_TYPE[upload[1]], "Content-Length": body.length, "Cache-Control": "private, max-age=31536000, immutable" });
+    res.writeHead(200, { "Content-Type": UPLOAD_TYPE[upload[1]], "Content-Length": body.length, "Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff" });
     res.end(body);
     return;
   }

@@ -22,15 +22,21 @@ async function shrink(file: File): Promise<Blob> {
   );
 }
 
-/** Uploads an image to the host and returns its path on the Mac. */
-export async function uploadImage(file: File, host?: HostClient): Promise<string> {
-  const blob = await shrink(file);
+export function isCsv(file: File): boolean {
+  return /\.csv$/i.test(file.name) || file.type.toLowerCase() === "text/csv";
+}
+
+/** Uploads an image or CSV to the host and returns its path on the Mac. */
+export async function uploadFile(file: File, host?: HostClient): Promise<string> {
+  const csv = isCsv(file);
+  if (!csv && !file.type.startsWith("image/")) throw new Error("Choose an image or CSV file");
+  const blob = csv ? file : await shrink(file);
   const request = {
     method: "POST",
-    headers: { Authorization: `Bearer ${getToken() ?? ""}`, "Content-Type": blob.type || file.type },
+    headers: { Authorization: `Bearer ${getToken() ?? ""}`, "Content-Type": csv ? "text/csv" : blob.type || file.type },
     body: blob,
   } satisfies RequestInit;
   const res = await (host ? host.fetch("/api/uploads", request) : fetch("/api/uploads", request));
-  if (!res.ok) throw new Error(res.status === 413 ? "Image is too large" : `Upload failed (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(res.status === 413 ? "File is too large (maximum 10 MB)" : `Upload failed (HTTP ${res.status})`);
   return ((await res.json()) as { path: string }).path;
 }

@@ -6,6 +6,7 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ### Added
 
+- Upload CSV attachments from the phone, with filename chips, removable attachments, draft recovery, and host file paths included in messages. Each upload supports up to 10 MB.
 - A Subagents panel inside parent chats, with active and completed agents, read-only details, and navigation back to the parent. Its compact entry sits beside the file-change summary and is hidden when the chat has no subagents.
 
 ### Fixed

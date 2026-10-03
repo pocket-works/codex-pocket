@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildUserInput, mentionQuery, sendBlocker, type Draft } from "../src/state/compose.js";
 
-const empty: Draft = { text: "", images: [], mentions: [], skill: null };
+const empty: Draft = { text: "", images: [], files: [], mentions: [], skill: null };
 
 describe("buildUserInput", () => {
   it("sends plain text as one text input", () => {
@@ -44,6 +44,17 @@ describe("buildUserInput", () => {
   it("drops an empty text input when only attachments are sent", () => {
     expect(buildUserInput({ ...empty, images: [{ id: "a", path: "/a.png", previewUrl: "" }] })).toEqual([{ type: "localImage", path: "/a.png" }]);
   });
+
+  it("includes CSV names and readable host paths even without a message", () => {
+    const files = [{ id: "csv", name: "sales.csv", path: "/uploads/abc.csv" }];
+    expect(buildUserInput({ ...empty, files })).toEqual([
+      { type: "text", text: 'Attached files:\n"sales.csv": "/uploads/abc.csv"', text_elements: [] },
+    ]);
+    expect(buildUserInput({ ...empty, text: "Analyze @a.ts", mentions: [{ name: "a.ts", path: "/a.ts" }], files })).toEqual([
+      { type: "text", text: 'Analyze @a.ts\n\nAttached files:\n"sales.csv": "/uploads/abc.csv"', text_elements: [{ byteRange: { start: 8, end: 13 }, placeholder: "a.ts" }] },
+      { type: "mention", name: "a.ts", path: "/a.ts" },
+    ]);
+  });
 });
 
 describe("mentionQuery", () => {
@@ -61,7 +72,7 @@ describe("mentionQuery", () => {
 
 describe("sendBlocker", () => {
   const img = { id: "i", path: "/p.png", previewUrl: "blob:x" };
-  const draft = (images = 0): Draft => ({ text: "hi", images: Array.from({ length: images }, () => img), mentions: [], skill: null });
+  const draft = (images = 0): Draft => ({ ...empty, text: "hi", images: Array.from({ length: images }, () => img) });
   const model = (name: string, modalities: ("text" | "image")[]) => ({ model: name, inputModalities: modalities }) as never;
 
   it("waits for uploads to finish", () => {
@@ -76,5 +87,9 @@ describe("sendBlocker", () => {
     expect(sendBlocker({ draft: draft(0), uploading: 0, model: "m", models: [model("m", ["text"])] })).toBeNull();
     expect(sendBlocker({ draft: draft(1), uploading: 0, model: "m", models: [model("m", ["text", "image"])] })).toBeNull();
     expect(sendBlocker({ draft: draft(1), uploading: 0, model: "other", models: [model("m", ["text"])] })).toBeNull();
+  });
+
+  it("allows CSV attachments on text-only models", () => {
+    expect(sendBlocker({ draft: { ...empty, files: [{ id: "csv", name: "a.csv", path: "/a.csv" }] }, uploading: 0, model: "m", models: [model("m", ["text"])] })).toBeNull();
   });
 });

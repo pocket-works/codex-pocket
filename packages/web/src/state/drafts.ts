@@ -13,6 +13,7 @@ interface StoredDraft {
   mentions: Draft["mentions"];
   skill: Draft["skill"];
   images: { id: string; path: string }[];
+  files: Draft["files"];
 }
 
 export function loadDraft(key: string, computerId?: string): Draft {
@@ -25,6 +26,7 @@ export function loadDraft(key: string, computerId?: string): Draft {
       mentions: Array.isArray(d.mentions) ? d.mentions : [],
       skill: d.skill ?? null,
       images: Array.isArray(d.images) ? d.images.map((i) => ({ ...i, previewUrl: "" })) : [],
+      files: Array.isArray(d.files) ? d.files : [],
     };
   } catch {
     return emptyDraft;
@@ -38,7 +40,7 @@ export function saveDraft(key: string, draft: Draft, computerId?: string): void 
       localStorage.removeItem(scopedKey(PREFIX + key, computerId));
       return;
     }
-    const stored: StoredDraft = { text: draft.text, mentions: draft.mentions, skill: draft.skill, images: draft.images.map(({ id, path }) => ({ id, path })) };
+    const stored: StoredDraft = { text: draft.text, mentions: draft.mentions, skill: draft.skill, images: draft.images.map(({ id, path }) => ({ id, path })), files: draft.files };
     localStorage.setItem(scopedKey(PREFIX + key, computerId), JSON.stringify(stored));
   } catch {
     // Private mode or a full store: the draft lives for this page only.
@@ -46,7 +48,7 @@ export function saveDraft(key: string, draft: Draft, computerId?: string): void 
 }
 
 export function isEmptyDraft(draft: Draft): boolean {
-  return draft.text === "" && draft.images.length === 0 && draft.skill === null;
+  return draft.text === "" && draft.images.length === 0 && draft.files.length === 0 && draft.skill === null;
 }
 
 export function hasUnconfirmedSend(key: string, computerId?: string): boolean {
