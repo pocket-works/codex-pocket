@@ -29,6 +29,10 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 | :---: | :---: |
 | <img src="./docs/screenshots/image-preview.png" width="240" alt="Full-screen image preview with download and close actions"> | <img src="./docs/screenshots/computer-settings.png" width="240" alt="Connected computer settings and this phone's notification preference"> |
 
+| Computer selection | New thread |
+| :---: | :---: |
+| <img src="./docs/screenshots/computers.png" width="240" alt="Computer switcher with two connected Macs and the add computer action"> | <img src="./docs/screenshots/new-thread.png" width="240" alt="New thread setup with project, work mode, branch and composer"> |
+
 These screens use fictional conversations, paths and computer details; no personal thread content or pairing credentials are shown.
 
 ## Requirements

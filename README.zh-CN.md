@@ -29,6 +29,10 @@
 | :---: | :---: |
 | <img src="./docs/screenshots/image-preview.png" width="240" alt="带下载和关闭操作的全屏图片预览"> | <img src="./docs/screenshots/computer-settings.png" width="240" alt="已连接电脑设置和此手机的通知偏好"> |
 
+| 电脑切换 | 新建会话 |
+| :---: | :---: |
+| <img src="./docs/screenshots/computers.png" width="240" alt="显示两台已连接 Mac 和添加电脑操作的电脑列表"> | <img src="./docs/screenshots/new-thread.png" width="240" alt="包含项目、工作方式、分支和输入框的新建会话页"> |
+
 截图由真实界面组件和虚构的对话、路径及电脑信息生成，不含个人线程内容或配对凭据。
 
 ## 环境要求
