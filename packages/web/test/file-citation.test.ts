@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Marked } from "marked";
-import { pdfCitation } from "../src/ui/file-citation.js";
+import { localImagePath, localPdfPath, pdfCitation } from "../src/ui/file-citation.js";
 
 const markdown = new Marked({ extensions: [pdfCitation] });
 
@@ -21,5 +21,19 @@ describe("PDF citations", () => {
     const html = markdown.parse(':codex-file-citation{path="/tmp/<img onerror=alert(1)>&.pdf" purpose="output"}');
     expect(html).toContain("&lt;img onerror=alert(1)&gt;&amp;.pdf");
     expect(html).not.toContain("<img");
+  });
+
+  it("resolves same-origin local PDF and image paths", () => {
+    const origin = "https://pocket.example/";
+    expect(localPdfPath("/Users/test/output/a%20report.pdf", origin)).toBe("/Users/test/output/a report.pdf");
+    expect(localImagePath("/Users/test/output/chart%20one.png", origin)).toBe("/Users/test/output/chart one.png");
+    expect(localImagePath("https://pocket.example/tmp/capture.webp", origin)).toBe("/tmp/capture.webp");
+  });
+
+  it("leaves website assets and other origins alone", () => {
+    const origin = "https://pocket.example/";
+    expect(localPdfPath("/manual.pdf", origin)).toBeNull();
+    expect(localImagePath("/logo.png", origin)).toBeNull();
+    expect(localImagePath("https://other.example/Users/test/image.png", origin)).toBeNull();
   });
 });
