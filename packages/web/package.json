@@ -1,6 +1,6 @@
 {
   "name": "@codex-pocket/web",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "Phone PWA for codex-pocket.",
   "license": "MIT",

@@ -4,14 +4,24 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
 ### Added
 
+- Manage multiple Macs from one installed PWA, with separate pairings, drafts, preferences, and notification subscriptions. Switch computers, inspect pairing details, and recover access from their settings.
+- Open the cached PWA while its entry Mac is unavailable, then connect to another paired computer.
+- Inspect active and completed subagents from their parent chat, with read-only child-thread views and navigation back to the parent.
 - Upload CSV attachments from the phone, with filename chips, removable attachments, draft recovery, and host file paths included in messages. Each upload supports up to 10 MB.
-- A Subagents panel inside parent chats, with active and completed agents, read-only details, and navigation back to the parent. Its compact entry sits beside the file-change summary and is hidden when the chat has no subagents.
+- Preview images in a full-screen viewer and read local Markdown images and multi-page PDFs on mobile.
+- Show the installed app version in About.
 
 ### Fixed
 
 - Keep subagent threads out of regular and archived chat lists, and respect Codex's direct-input capability when sending, editing, retrying, or resuming queued messages.
+- Preserve the PWA shell and reconnect flow when a Mac is offline; retain per-computer state when switching computers.
+- Keep transcript changes and unread completion markers current, preload recent conversation context, and align workspace change summaries with Git.
+- Read desktop-created images from the paired host and render every page in mobile PDF previews.
+- Respect mobile safe areas in the workspace changes sheet.
 
 ## [0.1.2] - 2026-09-30
 
