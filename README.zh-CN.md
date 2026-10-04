@@ -21,7 +21,15 @@
 | :---: | :---: | :---: |
 | <img src="./docs/screenshots/threads.jpg" width="240" alt="手机上的 Chat 和项目线程列表"> | <img src="./docs/screenshots/conversation.jpg" width="240" alt="包含推理、命令和最终回复的对话"> | <img src="./docs/screenshots/approval.jpg" width="240" alt="手机上的命令审批弹层"> |
 
-截图由真实界面组件和虚构的示例对话生成，不含个人线程内容或配对凭据。
+| 子代理入口 | 子代理列表 |
+| :---: | :---: |
+| <img src="./docs/screenshots/subagents-entry.png" width="240" alt="对话中的子代理状态入口"> | <img src="./docs/screenshots/subagents-panel.png" width="240" alt="对话中的进行中和已完成子代理列表"> |
+
+| 图片预览 | 电脑设置 |
+| :---: | :---: |
+| <img src="./docs/screenshots/image-preview.png" width="240" alt="带下载和关闭操作的全屏图片预览"> | <img src="./docs/screenshots/computer-settings.png" width="240" alt="已连接电脑设置和此手机的通知偏好"> |
+
+截图由真实界面组件和虚构的对话、路径及电脑信息生成，不含个人线程内容或配对凭据。
 
 ## 环境要求
 

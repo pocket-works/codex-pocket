@@ -21,7 +21,15 @@ A phone-sized PWA that talks straight to the Codex app-server on your Mac, over 
 | :---: | :---: | :---: |
 | <img src="./docs/screenshots/threads.jpg" width="240" alt="Chats and project threads on a phone"> | <img src="./docs/screenshots/conversation.jpg" width="240" alt="Conversation with reasoning, a command and a final answer"> | <img src="./docs/screenshots/approval.jpg" width="240" alt="Command approval sheet on a phone"> |
 
-These screens use sample conversations and paths; no personal thread content or pairing credentials are shown.
+| Subagent entry | Subagent list |
+| :---: | :---: |
+| <img src="./docs/screenshots/subagents-entry.png" width="240" alt="Subagent status entry in a conversation"> | <img src="./docs/screenshots/subagents-panel.png" width="240" alt="Active and completed subagents in a conversation"> |
+
+| Image preview | Computer settings |
+| :---: | :---: |
+| <img src="./docs/screenshots/image-preview.png" width="240" alt="Full-screen image preview with download and close actions"> | <img src="./docs/screenshots/computer-settings.png" width="240" alt="Connected computer settings and this phone's notification preference"> |
+
+These screens use fictional conversations, paths and computer details; no personal thread content or pairing credentials are shown.
 
 ## Requirements
 
