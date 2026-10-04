@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { pdfCitation } from "./file-citation.js";
+import { localImagePath, pdfCitation } from "./file-citation.js";
 
 marked.setOptions({ gfm: true, breaks: true });
 marked.use({ extensions: [pdfCitation] });
@@ -16,7 +16,21 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
 
 // Model output is untrusted HTML as far as the browser is concerned.
 export function renderMarkdown(text: string): string {
-  return withCopyButtons(DOMPurify.sanitize(marked.parse(text, { async: false }) as string));
+  const safeHtml = DOMPurify.sanitize(marked.parse(text, { async: false }) as string);
+  return withCopyButtons(markLocalImages(safeHtml));
+}
+
+function markLocalImages(html: string): string {
+  if (typeof document === "undefined" || typeof window === "undefined") return html;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  for (const image of template.content.querySelectorAll<HTMLImageElement>("img[src]")) {
+    const path = localImagePath(image.getAttribute("src") ?? "", window.location.href);
+    if (!path) continue;
+    image.setAttribute("data-local-image-path", path);
+    image.removeAttribute("src");
+  }
+  return template.innerHTML;
 }
 
 // Selecting text inside a code block on a phone is a chore, so each one

@@ -1,14 +1,16 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
 import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, splitMcpContent, stripDirectives, summarizeTools, tailLines, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
 import { diffStats } from "../state/diff.js";
 import { FileDiff } from "./DiffView.js";
-import { ChevronIcon } from "./icons.js";
+import { ChevronIcon, DownloadIcon, XIcon } from "./icons.js";
 import { handleCodeCopy, renderMarkdown } from "./markdown.js";
 import { friendlyError } from "../state/errors.js";
 import { navigate } from "./route.js";
+import { localPdfPath } from "./file-citation.js";
 import { useLocalImage, useUploadedImage } from "./uploaded-image.js";
+import { useDialog } from "./dialog.js";
 import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
@@ -274,32 +276,65 @@ function LocalImage({ session, path }: { session: Session; path: string }) {
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.
 function Markdown({ text, className, strip, session }: { text: string; className: string; strip?: boolean; session: Session }) {
   const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
+  const container = useRef<HTMLDivElement>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ name: string; url: string } | null>(null);
+  useEffect(() => {
+    const images = Array.from(container.current?.querySelectorAll<HTMLImageElement>("img[data-local-image-path]") ?? []);
+    let live = true;
+    for (const image of images) {
+      const path = image.dataset.localImagePath;
+      if (!path) continue;
+      void session.readImageFile(path).then((src) => {
+        if (!live || !image.isConnected) return;
+        image.removeAttribute("data-local-image-path");
+        if (src) image.src = src;
+        else image.alt ||= path.slice(path.lastIndexOf("/") + 1);
+      }).catch(() => {
+        if (live && image.isConnected) image.alt ||= path.slice(path.lastIndexOf("/") + 1);
+      });
+    }
+    return () => { live = false; };
+  }, [html, session]);
+  useEffect(() => () => {
+    if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
+  }, [pdfPreview]);
   function onClick(e: React.MouseEvent<HTMLDivElement>) {
     const button = (e.target as Element).closest<HTMLButtonElement>(".file-citation");
-    const path = button?.dataset.pdfPath;
-    if (!button || !path || button.disabled) {
+    const anchor = (e.target as Element).closest<HTMLAnchorElement>("a[href]");
+    const path = button?.dataset.pdfPath ?? (anchor ? localPdfPath(anchor.getAttribute("href") ?? "", window.location.href) : null);
+    if (!path || button?.disabled) {
       void handleCodeCopy(e);
       return;
     }
-    button.disabled = true;
-    const preview = window.open("", "_blank");
-    if (preview) preview.opener = null;
+    if (anchor && !button) e.preventDefault();
+    if (button) button.disabled = true;
     void session.readPdfFile(path).then((pdf) => {
       const url = URL.createObjectURL(pdf);
-      if (preview) preview.location.href = url;
-      else {
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = path.slice(path.lastIndexOf("/") + 1);
-        link.click();
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+      setPdfPreview({ name: path.slice(path.lastIndexOf("/") + 1), url });
     }).catch((err) => {
-      preview?.close();
       session.notify(friendlyError(err));
-    }).finally(() => { button.disabled = false; });
+    }).finally(() => { if (button) button.disabled = false; });
   }
-  return <div className={className} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />;
+  return <>
+    <div ref={container} className={className} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
+    {pdfPreview && <PdfViewer preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
+  </>;
+}
+
+function PdfViewer({ preview, onClose }: { preview: { name: string; url: string }; onClose: () => void }) {
+  const dialog = useDialog(preview.name, onClose);
+  return <div className="pdf-viewer-backdrop" onClick={onClose}>
+    <section ref={dialog.ref} {...dialog.props} className="pdf-viewer" onClick={(e) => e.stopPropagation()}>
+      <header className="pdf-viewer-header">
+        <strong title={preview.name}>{preview.name}</strong>
+        <div>
+          <a className="pdf-download" href={preview.url} download={preview.name} aria-label={`Download ${preview.name}`}><DownloadIcon />Download</a>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close PDF preview"><XIcon /></button>
+        </div>
+      </header>
+      <iframe className="pdf-viewer-frame" src={preview.url} title={preview.name} />
+    </section>
+  </div>;
 }
 
 // A test run or an install can print tens of thousands of lines; laying all

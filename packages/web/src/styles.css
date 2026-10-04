@@ -2766,6 +2766,73 @@ button.chat-btn {
 
 .file-citation:disabled { opacity: 0.5; }
 
+.pdf-viewer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  background: var(--bg);
+}
+
+.pdf-viewer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--safe-top) 0 var(--safe-bottom);
+  background: var(--bg);
+}
+
+.pdf-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 4px 8px 4px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pdf-viewer-header > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(15rem / 17);
+}
+
+.pdf-viewer-header > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.pdf-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--fg);
+  font: inherit;
+  font-size: calc(14rem / 17);
+  text-decoration: none;
+}
+
+.pdf-download svg { width: 18px; height: 18px; }
+
+.pdf-viewer-frame {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
 /* Fenced code with its copy button in the corner. */
 .code-block {
   position: relative;
