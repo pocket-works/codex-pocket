@@ -9,7 +9,7 @@ import { handleCodeCopy, renderMarkdown } from "./markdown.js";
 import { friendlyError } from "../state/errors.js";
 import { navigate } from "./route.js";
 import { localPdfPath } from "./file-citation.js";
-import { useLocalImage, useUploadedImage } from "./uploaded-image.js";
+import { useLocalImage } from "./uploaded-image.js";
 import { useDialog } from "./dialog.js";
 import type { v2 } from "@codex-pocket/protocol";
 
@@ -27,7 +27,7 @@ export function Transcript({ session, view, cwd, readOnly = false }: { session: 
         <TurnBlock key={g.key} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={!readOnly && i === groups.length - 1 && view.activeTurnId === null && g.meta !== null && g.key === g.turnId} progress={view.toolProgress} />
       ))}
       {view.pending.map((m) => (
-        <UserBubble key={m.id} content={m.input} pending />
+        <UserBubble key={m.id} session={session} content={m.input} pending />
       ))}
     </>
   );
@@ -44,7 +44,7 @@ function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { gr
   const hasWork = group.work.length > 0;
   return (
     <section className="turn">
-      {group.userMessages.map((m, i) => m.type === "userMessage" && <UserBubble key={m.id} content={m.content} onEdit={editable && i === 0 ? () => session.beginEdit(group.turnId, plainText(m.content)) : undefined} />)}
+      {group.userMessages.map((m, i) => m.type === "userMessage" && <UserBubble key={m.id} session={session} content={m.content} onEdit={editable && i === 0 ? () => session.beginEdit(group.turnId, plainText(m.content)) : undefined} />)}
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
@@ -65,7 +65,7 @@ function plainText(content: v2.UserInput[]): string {
   return content.map((c) => (c.type === "text" ? c.text : "")).join("");
 }
 
-function UserBubble({ content, pending, onEdit }: { content: v2.UserInput[]; pending?: boolean; onEdit?: () => void }) {
+function UserBubble({ session, content, pending, onEdit }: { session: Session; content: v2.UserInput[]; pending?: boolean; onEdit?: () => void }) {
   // A mention's `@name` is already written in the text part; the skill is
   // shown as the /command it was typed as.
   const text = content
@@ -79,7 +79,7 @@ function UserBubble({ content, pending, onEdit }: { content: v2.UserInput[]; pen
       {text}
       {images.length > 0 && (
         <div className="msg-images">
-          {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} path={c.path} /> : c.type === "image" ? <img key={i} src={c.url} alt="" /> : null))}
+          {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} session={session} path={c.path} /> : c.type === "image" ? <img key={i} src={c.url} alt="" /> : null))}
         </div>
       )}
       {onEdit && (
@@ -91,10 +91,8 @@ function UserBubble({ content, pending, onEdit }: { content: v2.UserInput[]; pen
   );
 }
 
-function UserImage({ path }: { path: string }) {
-  const url = useUploadedImage(path);
-  // An image attached from the desktop app lives somewhere on the Mac the
-  // host will not serve; name it rather than show nothing.
+function UserImage({ session, path }: { session: Session; path: string }) {
+  const url = useLocalImage(session, path);
   return url ? <img src={url} alt="" /> : <span className="msg-image-name">{path.slice(path.lastIndexOf("/") + 1)}</span>;
 }
 
