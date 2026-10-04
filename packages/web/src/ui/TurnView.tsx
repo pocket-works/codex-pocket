@@ -12,6 +12,7 @@ import { localPdfPath } from "./file-citation.js";
 import { useLocalImage } from "./uploaded-image.js";
 import { useDialog } from "./dialog.js";
 import { PdfPages } from "./PdfPages.js";
+import { ImageViewer, PreviewImage } from "./ImagePreview.js";
 import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
@@ -80,7 +81,7 @@ function UserBubble({ session, content, pending, onEdit }: { session: Session; c
       {text}
       {images.length > 0 && (
         <div className="msg-images">
-          {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} session={session} path={c.path} /> : c.type === "image" ? <img key={i} src={c.url} alt="" /> : null))}
+          {images.map((c, i) => (c.type === "localImage" ? <UserImage key={i} session={session} path={c.path} /> : c.type === "image" ? <PreviewImage key={i} src={c.url} alt="Image" /> : null))}
         </div>
       )}
       {onEdit && (
@@ -94,7 +95,7 @@ function UserBubble({ session, content, pending, onEdit }: { session: Session; c
 
 function UserImage({ session, path }: { session: Session; path: string }) {
   const url = useLocalImage(session, path);
-  return url ? <img src={url} alt="" /> : <span className="msg-image-name">{path.slice(path.lastIndexOf("/") + 1)}</span>;
+  return url ? <PreviewImage src={url} alt={path.slice(path.lastIndexOf("/") + 1)} /> : <span className="msg-image-name">{path.slice(path.lastIndexOf("/") + 1)}</span>;
 }
 
 function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded: boolean; onToggle: () => void }) {
@@ -229,7 +230,7 @@ function ToolDetail({ item, session, cwd }: { item: ThreadItem; session: Session
         <div className="tool-detail">
           <pre className="mono">{JSON.stringify(item.arguments, null, 2)}</pre>
           {images.map((src, i) => (
-            <img key={i} className="tool-image" src={src} alt="" />
+            <PreviewImage key={i} className="tool-image" src={src} alt="Image" />
           ))}
           {rest && <pre className="mono">{JSON.stringify(rest, null, 2)}</pre>}
           {item.error && <p className="error small">{JSON.stringify(item.error)}</p>}
@@ -244,7 +245,7 @@ function ToolDetail({ item, session, cwd }: { item: ThreadItem; session: Session
             c.type === "inputText" ? (
               <pre key={i} className="mono">{c.text}</pre>
             ) : c.type === "inputImage" ? (
-              <img key={i} className="tool-image" src={c.imageUrl} alt="" />
+              <PreviewImage key={i} className="tool-image" src={c.imageUrl} alt="Image" />
             ) : (
               <pre key={i} className="mono">{JSON.stringify(c, null, 2)}</pre>
             ),
@@ -269,7 +270,7 @@ function ToolDetail({ item, session, cwd }: { item: ThreadItem; session: Session
 function LocalImage({ session, path }: { session: Session; path: string }) {
   const url = useLocalImage(session, path);
   const name = path.slice(path.lastIndexOf("/") + 1);
-  return url ? <img className="tool-image" src={url} alt={name} /> : <p className="muted small">{name}</p>;
+  return url ? <PreviewImage className="tool-image" src={url} alt={name} /> : <p className="muted small">{name}</p>;
 }
 
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.
@@ -277,6 +278,7 @@ function Markdown({ text, className, strip, session }: { text: string; className
   const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
   const container = useRef<HTMLDivElement>(null);
   const [pdfPreview, setPdfPreview] = useState<{ name: string; url: string } | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ name: string; url: string } | null>(null);
   useEffect(() => {
     const images = Array.from(container.current?.querySelectorAll<HTMLImageElement>("img[data-local-image-path]") ?? []);
     let live = true;
@@ -298,6 +300,11 @@ function Markdown({ text, className, strip, session }: { text: string; className
     if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
   }, [pdfPreview]);
   function onClick(e: React.MouseEvent<HTMLDivElement>) {
+    const image = (e.target as Element).closest<HTMLImageElement>("img");
+    if (image?.src) {
+      setImagePreview({ name: image.alt || "Image", url: image.src });
+      return;
+    }
     const button = (e.target as Element).closest<HTMLButtonElement>(".file-citation");
     const anchor = (e.target as Element).closest<HTMLAnchorElement>("a[href]");
     const path = button?.dataset.pdfPath ?? (anchor ? localPdfPath(anchor.getAttribute("href") ?? "", window.location.href) : null);
@@ -317,6 +324,7 @@ function Markdown({ text, className, strip, session }: { text: string; className
   return <>
     <div ref={container} className={className} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
     {pdfPreview && <PdfViewer preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
+    {imagePreview && <ImageViewer src={imagePreview.url} alt={imagePreview.name} onClose={() => setImagePreview(null)} />}
   </>;
 }
 
