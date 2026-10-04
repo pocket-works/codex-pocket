@@ -2824,13 +2824,40 @@ button.chat-btn {
 
 .pdf-download svg { width: 18px; height: 18px; }
 
-.pdf-viewer-frame {
-  display: block;
+.pdf-pages {
   flex: 1;
   width: 100%;
   min-height: 0;
-  border: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+}
+
+.pdf-page {
+  width: 100%;
+  max-width: 900px;
+  flex: none;
+  overflow: hidden;
   background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+
+.pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pdf-message {
+  margin: auto;
+  padding: 16px;
+  color: var(--muted);
+  text-align: center;
 }
 
 /* Fenced code with its copy button in the corner. */

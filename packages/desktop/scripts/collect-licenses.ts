@@ -38,6 +38,9 @@ for (const group of Object.values(groups)) {
     // The published http_ece 1.2.0 tarball omits its upstream MIT license file.
     if (files.length === 0 && dependency.name === "http_ece" && dependency.versions[0] === "1.2.0") {
       files.push("LICENSE");
+    } else if (files.length === 0 && dependency.name.startsWith("@napi-rs/canvas-")) {
+      // These optional platform binaries are only for Node.js canvas, not the browser PDF viewer.
+      continue;
     } else if (files.length === 0) {
       throw new Error(`No license file found for ${dependency.name}@${dependency.versions[0]}`);
     }

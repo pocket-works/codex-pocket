@@ -11,6 +11,7 @@ import { navigate } from "./route.js";
 import { localPdfPath } from "./file-citation.js";
 import { useLocalImage } from "./uploaded-image.js";
 import { useDialog } from "./dialog.js";
+import { PdfPages } from "./PdfPages.js";
 import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
@@ -330,7 +331,7 @@ function PdfViewer({ preview, onClose }: { preview: { name: string; url: string 
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close PDF preview"><XIcon /></button>
         </div>
       </header>
-      <iframe className="pdf-viewer-frame" src={preview.url} title={preview.name} />
+      <PdfPages url={preview.url} />
     </section>
   </div>;
 }
