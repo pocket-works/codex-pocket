@@ -47,7 +47,8 @@ describe("appToolsDaemonEnv", () => {
     const shim = appToolsDaemonEnv([app], home).CODEX_MCP_NODE_PATH;
     const server = join(home, "server.mjs");
     writeFileSync(server, 'process.stdin.on("data", (d) => { process.stdout.write(`${process.argv[2]}:${process.ppid !== 1}:${d}`); process.exit(3); });');
-    const r = spawnSync(shim, [server, "arg"], { input: "hi", encoding: "utf8" });
+    const r = spawnSync(shim, [server, "arg"], { input: "hi", encoding: "utf8", timeout: 10_000 });
+    expect(r.error).toBeUndefined();
     expect(r.stdout).toBe("arg:true:hi");
     expect(r.status).toBe(3);
   });

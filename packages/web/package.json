@@ -15,7 +15,7 @@
     "splash": "node scripts/splash.ts"
   },
   "dependencies": {
-    "dompurify": "^3.2.6",
+    "dompurify": "^3.4.16",
     "jsqr": "^1.4.0",
     "marked": "^16.1.2",
     "pdfjs-dist": "4.10.38",
@@ -31,6 +31,6 @@
     "happy-dom": "^20.14.5",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   }
 }
