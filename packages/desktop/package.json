@@ -24,7 +24,7 @@
     "esbuild": "^0.28.2",
     "qrcode": "^1.5.4",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "com.codex-pocket.desktop",
