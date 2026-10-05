@@ -186,6 +186,10 @@ pnpm --filter @codex-pocket/protocol generate
 
 Versioned macOS builds are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI. Signed, notarized DMGs are built and verified on the maintainer's Mac before upload and publication. See the [release process](./docs/releasing.md).
 
+## Support
+
+If Codex Pocket is useful to you, consider [supporting its development through GitHub Sponsors](https://github.com/sponsors/jerryan999). You can choose your own amount for a monthly sponsorship or a one-time donation. Sponsorship is optional. The phone app also has a **Support the author** link under **Menu → About**.
+
 ## License
 
 MIT. The files under `packages/protocol/src/generated` are produced by `codex app-server generate-ts` from the OpenAI Codex CLI (Apache-2.0) and redistributed unchanged; see [packages/protocol/NOTICE](./packages/protocol/NOTICE).

@@ -8,6 +8,10 @@ export function AboutSheet({ onClose }: { onClose: () => void }) {
       <div className="computer-sheet-heading"><h2>About</h2><button className="icon-btn" aria-label="Close" title="Close" onClick={onClose}>×</button></div>
       <div className="about-identity"><img src="/icon.svg?v=2" alt="" width={48} height={48} /><h3>Codex Pocket</h3></div>
       <div className="setting-row"><span>Phone app version</span><span className="setting-value muted">{import.meta.env.VITE_APP_VERSION}</span></div>
+      <div className="about-support">
+        <p className="muted small">Support Codex Pocket with a monthly sponsorship or a one-time donation. Choose your amount on GitHub.</p>
+        <a className="about-support-link" href="https://github.com/sponsors/jerryan999" target="_blank" rel="noopener noreferrer">Support the author</a>
+      </div>
     </div>
   </div>;
 }
