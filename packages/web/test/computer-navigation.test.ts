@@ -248,7 +248,7 @@ describe("Computer navigation", () => {
 
   it("offers local removal when an unreachable computer cannot revoke access", async () => {
     await mount(); await details();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.stubGlobal("confirm", vi.fn(() => true));
     vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
     await click(named("Unpair computer"));
     expect(screen().querySelector('[role="alert"]')!.textContent).toContain("Local removal leaves its pairing");

@@ -19,12 +19,12 @@
     "@codex-pocket/host": "workspace:*",
     "@types/node": "^22.18.0",
     "@types/qrcode": "^1.5.6",
-    "electron": "^38.1.0",
+    "electron": "^41.10.6",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "qrcode": "^1.5.4",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "com.codex-pocket.desktop",

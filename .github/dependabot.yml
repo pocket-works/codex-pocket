@@ -19,14 +19,12 @@ updates:
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    # Security update PRs remain enabled through the repository settings,
+    # including fixes that require a major upgrade. Disable routine npm
+    # version-update PRs instead of ignoring major security fixes.
+    open-pull-requests-limit: 0
     groups:
-      minor-and-patch:
-        applies-to: version-updates
-        update-types:
-          - minor
-          - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"

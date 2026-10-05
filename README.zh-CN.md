@@ -39,7 +39,7 @@
 
 - **Apple 芯片的 Mac**：正式版 DMG 和本地构建的应用均面向 arm64。
 - **这台 Mac 上的 Codex 已登录**：安装 DMG 时先安装并登录 ChatGPT 桌面 app，Pocket 可使用它内置的 Codex CLI；源码构建也可使用单独安装的 `codex` CLI。host 沿用 Codex 的登录态，不自行登录。
-- **Node 22 和 pnpm 只用于源码构建**：DMG 已包含菜单栏应用、host 和 PWA，运行时不需要它们。
+- **Node 22.12+ 和 pnpm 只用于源码构建**：DMG 已包含菜单栏应用、host 和 PWA，运行时不需要它们。
 - **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
 
 ## 快速开始
@@ -57,7 +57,7 @@
 
 ### 从源码构建
 
-在 Apple 芯片的 Mac 上登录 Codex，并安装 Node 22+ 与 pnpm 后运行：
+在 Apple 芯片的 Mac 上登录 Codex，并安装 Node 22.12+ 与 pnpm 后运行：
 
 ```bash
 pnpm install --frozen-lockfile

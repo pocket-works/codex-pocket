@@ -39,7 +39,7 @@ These screens use fictional conversations, paths and computer details; no person
 
 - **A Mac with Apple silicon.** The published DMG and locally built app target arm64.
 - **Codex already signed in on that Mac.** For the DMG, install and sign in to the ChatGPT desktop app first; Pocket can use its bundled Codex CLI. A source build can also use an installed `codex` CLI. The host inherits Codex's login session rather than signing in itself.
-- **Node 22 and pnpm only for source builds.** The DMG contains the menu bar app, host and PWA; it needs neither at runtime.
+- **Node 22.12+ and pnpm only for source builds.** The DMG contains the menu bar app, host and PWA; it needs neither at runtime.
 - **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
 
 ## Quick start
@@ -57,7 +57,7 @@ To share active threads with the ChatGPT desktop app, choose **Desktop sharing >
 
 ### Build from source
 
-With Codex signed in, Node 22+ and pnpm installed on an Apple silicon Mac:
+With Codex signed in, Node 22.12+ and pnpm installed on an Apple silicon Mac:
 
 ```bash
 pnpm install --frozen-lockfile

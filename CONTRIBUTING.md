@@ -10,7 +10,7 @@ Thanks for helping improve Codex Pocket. Bug reports, documentation fixes, and f
 
 ## Development setup
 
-You need an Apple silicon Mac, Node.js 22 or newer, pnpm, and a signed-in Codex installation for end-to-end testing. Most type checks and unit tests also run on Linux.
+You need an Apple silicon Mac, Node.js 22.12 or newer, pnpm, and a signed-in Codex installation for end-to-end testing. Most type checks and unit tests also run on Linux.
 
 ```bash
 pnpm install --frozen-lockfile

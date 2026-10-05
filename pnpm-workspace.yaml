@@ -2,3 +2,5 @@ packages:
   - packages/*
 onlyBuiltDependencies:
   - electron
+overrides:
+  http-cache-semantics: ^4.3.0
