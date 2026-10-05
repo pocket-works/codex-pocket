@@ -186,6 +186,10 @@ pnpm --filter @codex-pocket/protocol generate
 
 带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 并通过 CI 后会创建 Release 草稿；维护者在本机完成 DMG 的签名、公证和验证，再上传并发布。具体步骤见[发版流程](./docs/releasing.md)。
 
+## 支持项目
+
+如果 Codex Pocket 对你有帮助，欢迎[通过 GitHub Sponsors 支持项目开发](https://github.com/sponsors/jerryan999)。你可以自定义金额，选择按月赞助或一次性打赏。赞助完全自愿。手机端也可从 **Menu → About → Support the author** 打开赞助页面。
+
 ## 许可
 
 MIT。`packages/protocol/src/generated` 由 OpenAI Codex CLI（Apache-2.0）的 `codex app-server generate-ts` 生成，原样收录，见 [packages/protocol/NOTICE](./packages/protocol/NOTICE)。
