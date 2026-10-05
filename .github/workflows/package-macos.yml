@@ -3,6 +3,9 @@ name: Build unsigned macOS app
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   package:
     runs-on: macos-15
