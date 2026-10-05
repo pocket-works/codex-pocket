@@ -15,7 +15,7 @@
     "splash": "node scripts/splash.ts"
   },
   "dependencies": {
-    "dompurify": "^3.2.6",
+    "dompurify": "^3.4.16",
     "jsqr": "^1.4.0",
     "marked": "^16.1.2",
     "pdfjs-dist": "4.10.38",
