@@ -4,6 +4,8 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-05
+
 ### Security
 
 - Update Electron, DOMPurify, Vitest, and the build tools' HTTP cache dependency to address dependency security advisories. Source builds now require Node.js 22.12 or newer.
