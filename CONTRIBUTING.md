@@ -10,19 +10,41 @@ Thanks for helping improve Codex Pocket. Bug reports, documentation fixes, and f
 
 ## Development setup
 
-You need an Apple silicon Mac, Node.js 22.12 or newer, pnpm, and a signed-in Codex installation for end-to-end testing. Most type checks and unit tests also run on Linux.
+Use Node.js 22.12 or newer and the pnpm version declared in the root `package.json`. Running the complete app and testing phone connections require an Apple silicon Mac with Codex signed in. Type checks, unit tests and separate host/PWA builds also run on Linux.
 
 ```bash
+git clone https://github.com/pocket-works/codex-pocket.git
+cd codex-pocket
 pnpm install --frozen-lockfile
+pnpm release:check
 pnpm typecheck
 pnpm test
-pnpm build
+pnpm --filter @codex-pocket/host build
+pnpm --filter @codex-pocket/web build
 ```
 
-`make app` builds the unsigned macOS menu bar app. See [README.md](./README.md#quick-start) for pairing and local use.
+On macOS, `pnpm build` also bundles the desktop app using macOS icon tools. `make app` builds the unsigned menu bar application. See [README.md](./README.md#quick-start) for pairing and local use.
+
+## Local development loop
+
+On the Mac, quit an existing Pocket menu bar app or source host before starting another host on port 7333. From the repository root, build the phone interface, then run the host in the foreground:
+
+```bash
+pnpm --filter @codex-pocket/web build
+pnpm dev:host serve
+```
+
+Pair from the displayed address and code. The host uses your existing Pocket network settings; follow the README's [Tailscale setup](./README.md#deploying-https-via-tailscale) when connecting from outside the LAN or testing HTTPS features.
+
+For phone UI changes, rebuild `@codex-pocket/web` in another terminal and reload the phone interface when the update banner appears. For host changes, stop and restart the foreground host. This uses the workspace's `packages/web/dist`; an installed release app serves its bundled interface instead.
+
+To work on the menu bar app on macOS, build the phone interface first, then run `pnpm --filter @codex-pocket/desktop dev`. Quit and rerun that command after changing desktop code. After host-only changes, run `pnpm --filter @codex-pocket/desktop bundle`, then choose **Restart host**. Phone UI changes still need a web rebuild and reload.
+
+For a focused check, run a package's test command, such as `pnpm --filter @codex-pocket/web test`. Before opening a PR, run the setup checks above; include phone or desktop checks relevant to your change and say which devices you actually tested.
 
 ## Working on the code
 
+- Start with the [architecture and code guide](./docs/architecture.md) to find package responsibilities, entry points and desktop-sharing implementation details.
 - Read [AGENTS.md](./AGENTS.md) for package boundaries, TypeScript conventions, and test locations.
 - Keep changes focused and add tests when behavior changes. Tests live in each package's `test/` directory.
 - Add a `CHANGELOG.md` entry for user-visible changes under `Unreleased`.
