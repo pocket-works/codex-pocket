@@ -2809,6 +2809,7 @@ button.chat-btn {
 .pdf-viewer-backdrop {
   position: fixed;
   inset: 0;
+  height: 100dvh;
   z-index: 30;
   display: flex;
   background: var(--bg);
@@ -2895,6 +2896,7 @@ button.chat-btn {
 
 .pdf-viewer-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
