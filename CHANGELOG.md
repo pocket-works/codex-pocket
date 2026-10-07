@@ -4,6 +4,16 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+### Changed
+
+- Load conversation history in pages of 20 user messages, retaining their replies and work records without counting those records toward the page size.
+- Identify development phone builds in About with a `dev` suffix and UTC build timestamp.
+
+### Fixed
+
+- Show the newest history page before preloading the remaining user messages, preserving live output and the reading position while older history arrives.
+- Fit Markdown screenshots to the phone's conversation width without cropping. Keep image previews outside the scrolling transcript and back-swipe transforms so their close controls stay visible.
+
 ## [0.2.1] - 2026-10-05
 
 ### Security

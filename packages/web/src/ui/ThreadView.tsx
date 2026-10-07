@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Session } from "../state/session.js";
 import { useStore } from "../state/store.js";
 import { ApprovalSheet } from "./ApprovalSheet.js";
@@ -31,42 +31,49 @@ export function ThreadView({ session }: { session: Session }) {
   const title = useStore(session.store, (s) => s.threads.find((t) => t.id === s.open?.view.threadId)?.title ?? null);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const scrollSnapshot = useRef<{ threadId: string; height: number; top: number; firstItemId: string | undefined } | null>(null);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const back = useSwipeBack(goBack);
 
   const items = open?.view.items ?? [];
+  const hasOlder = !!open?.olderCursor || !!open?.olderEntries?.length;
   const lastItem = items[items.length - 1];
   const lastText = lastItem && "text" in lastItem ? (lastItem as { text: string }).text.length : 0;
 
-  // Follow new output unless the user scrolled up to read history.
-  useEffect(() => {
+  // Follow new output, or anchor the visible content when history arrives.
+  useLayoutEffect(() => {
     const el = listRef.current;
-    if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [items.length, lastText, open?.state, open?.view.pending.length]);
+    if (!el || !open) return;
+    const previous = scrollSnapshot.current;
+    if (previous?.threadId !== open.view.threadId) {
+      stickToBottom.current = true;
+      setAwayFromBottom(false);
+    }
+    if (stickToBottom.current) el.scrollTop = el.scrollHeight;
+    else if (previous?.firstItemId && previous.firstItemId !== items[0]?.id && items.some((item) => item.id === previous.firstItemId)) {
+      el.scrollTop = previous.top + el.scrollHeight - previous.height;
+    }
+    scrollSnapshot.current = { threadId: open.view.threadId, height: el.scrollHeight, top: el.scrollTop, firstItemId: items[0]?.id };
+  }, [items, lastText, open?.view.threadId, open?.state, open?.view.pending.length, open?.loadingOlder]);
 
   // Older pages arrive on a scroll, so a transcript that does not overflow
   // the screen — a couple of short turns — would have no way to ask for the
   // rest of the thread. Pull pages until there is something to scroll.
   useEffect(() => {
     const el = listRef.current;
-    if (!el || !open || open.state === "loading" || !open.olderCursor || open.loadingOlder) return;
+    if (!el || !open || open.state === "loading" || !hasOlder || open.loadingOlder) return;
     if (el.scrollHeight - el.clientHeight >= 80) return;
     void session.loadOlder();
-  }, [session, open?.state, open?.olderCursor, open?.loadingOlder, items.length]);
+  }, [session, open?.state, open?.olderCursor, hasOlder, open?.loadingOlder, items.length]);
 
   function onScroll() {
     const el = listRef.current;
     if (!el) return;
+    if (scrollSnapshot.current) scrollSnapshot.current.top = el.scrollTop;
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     setAwayFromBottom(!stickToBottom.current);
-    if (el.scrollTop < 40 && open?.olderCursor && !open.loadingOlder) {
-      const before = el.scrollHeight;
-      void session.loadOlder().then(() => {
-        // Keep the viewport anchored on the same content after prepending.
-        requestAnimationFrame(() => {
-          if (listRef.current) listRef.current.scrollTop += listRef.current.scrollHeight - before;
-        });
-      });
+    if (el.scrollTop < 40 && open && hasOlder && !open.loadingOlder) {
+      void session.loadOlder();
     }
   }
 

@@ -75,6 +75,66 @@ async function mount(session: Session) {
 }
 
 describe("single workspace changes entry", () => {
+  it("anchors the visible content when background history is prepended", async () => {
+    const { session, store } = fixture();
+    await mount(session);
+    const items = container.querySelector<HTMLDivElement>(".items")!;
+    const message = (id: string): OpenThread["view"]["items"][number] => ({ type: "userMessage", id, clientId: null, content: [] });
+    let height = 1000;
+    Object.defineProperties(items, { scrollHeight: { get: () => height }, clientHeight: { value: 600 } });
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [message("newest")] } } })));
+    await act(async () => {
+      items.scrollTop = 150;
+      items.dispatchEvent(new Event("scroll"));
+    });
+    height = 1400;
+    // Browsers may anchor the scroll position during the DOM update too.
+    items.scrollTop = 550;
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [message("older"), ...s.open.view.items] } } })));
+    expect(items.scrollTop).toBe(550);
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [...s.open.view.items, message("live")] } } })));
+    expect(items.scrollTop).toBe(550);
+
+    await act(async () => {
+      items.scrollTop = 800;
+      items.dispatchEvent(new Event("scroll"));
+    });
+    height = 1800;
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [message("oldest"), ...s.open.view.items] } } })));
+    expect(items.scrollTop).toBe(1800);
+  });
+
+  it("opens the next thread at the bottom after reading older history", async () => {
+    const { session, store } = fixture();
+    await mount(session);
+    const items = container.querySelector<HTMLDivElement>(".items")!;
+    Object.defineProperties(items, { scrollHeight: { value: 2000 }, clientHeight: { value: 600 } });
+    await act(async () => {
+      items.scrollTop = 400;
+      items.dispatchEvent(new Event("scroll"));
+    });
+    expect(container.querySelector(".scroll-bottom-btn")).not.toBeNull();
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: initialThreadState("thread-2") } })));
+    expect(items.scrollTop).toBe(2000);
+    expect(container.querySelector(".scroll-bottom-btn")).toBeNull();
+  });
+
+  it("loads buffered history on an upward scroll after the server cursor is exhausted", async () => {
+    const { session, store } = fixture();
+    const loadOlder = vi.fn().mockResolvedValue(undefined);
+    session.loadOlder = loadOlder;
+    await mount(session);
+    const items = container.querySelector<HTMLDivElement>(".items")!;
+    Object.defineProperties(items, { scrollHeight: { value: 2000 }, clientHeight: { value: 600 } });
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, olderEntries: [{ turnId: "old", item: { type: "userMessage", id: "old-u", clientId: null, content: [] } }] } })));
+    expect(loadOlder).not.toHaveBeenCalled();
+    await act(async () => {
+      items.scrollTop = 0;
+      items.dispatchEvent(new Event("scroll"));
+    });
+    expect(loadOlder).toHaveBeenCalledOnce();
+  });
+
   it("does not leave a duplicate when the scroll-to-bottom button appears and disappears", async () => {
     const { session } = fixture();
     await mount(session);

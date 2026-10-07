@@ -120,6 +120,8 @@ export interface OpenThread extends ThreadAgentInfo {
   override: { model: string; effort: ReasoningEffort | null } | null;
   cwd: string;
   olderCursor: string | null;
+  /** Fetched items beyond the current user-message page, newest first. */
+  olderEntries?: v2.ThreadItemEntry[];
   loadingOlder: boolean;
   /** The app-server's follow-up queue for this thread, in order. */
   queue: QueuedMessage[];
@@ -152,16 +154,14 @@ export interface SessionState {
   followUp: FollowUpMode;
 }
 
-const HISTORY_PAGE = 40;
-const HISTORY_CONTEXT_TURNS = 3;
-/**
- * Codex pages items, not turns, and a tool-heavy turn runs well past one
- * page, so the newest page can hold nothing but its tool calls — the thread
- * then opens on a wall of commands with the question that started them
- * nowhere on screen. Preload recent turn context as well as that message,
- * with a page cap so opening a thread never fetches its entire history.
- */
-const HISTORY_MAX_PAGES = 4;
+const HISTORY_USER_MESSAGES = 20;
+const HISTORY_ITEMS_PER_REQUEST = 100;
+
+interface HistoryPage {
+  entries: v2.ThreadItemEntry[];
+  olderCursor: string | null;
+  olderEntries: v2.ThreadItemEntry[];
+}
 /** How long a sent message stays "pending" if Codex never echoes it. */
 const PENDING_ECHO_TIMEOUT_MS = 10_000;
 /** How long a "finished elsewhere" toast stays. */
@@ -663,6 +663,7 @@ export class Session {
         override: current?.view.threadId === threadId ? current.override : null,
         cwd: known?.cwd ?? (refreshing ? current.cwd : ""),
         olderCursor: null,
+        olderEntries: [],
         loadingOlder: false,
         queue: current?.view.threadId === threadId ? current.queue : [],
         permissions: current?.view.threadId === threadId ? current.permissions : null,
@@ -697,6 +698,7 @@ export class Session {
             effort: resumed.reasoningEffort,
             cwd: resumed.cwd,
             olderCursor: history.olderCursor,
+            olderEntries: history.olderEntries,
             permissions: { approval: resumed.approvalPolicy, sandbox: sandboxMode(resumed.sandbox), reviewer: resumed.approvalsReviewer },
             serviceTier: resumed.serviceTier,
           },
@@ -706,6 +708,7 @@ export class Session {
       this.replayPendingRequests(threadId);
       const opened = this.store.get().open;
       if (opened && canAcceptInput(opened)) void this.loadQueue(threadId);
+      this.preloadHistory(history.entries);
     } catch (err) {
       if (generation !== this.openGeneration) return;
       // The socket dropped mid-load (or was not open yet): the reconnect
@@ -722,6 +725,7 @@ export class Session {
             open: {
               ...s.open, ...threadAgentInfo(thread), canAcceptDirectInput: false, state: "ready", error: null,
               cwd: thread.cwd, model: thread.model ?? "", queue: [], olderCursor: history.olderCursor,
+              olderEntries: history.olderEntries,
               view: {
                 ...mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns),
                 approvals: s.open.view.approvals, activeTurnId: runningTurnId(thread.status, history.turns),
@@ -729,6 +733,7 @@ export class Session {
             },
           });
           this.replayPendingRequests(threadId);
+          this.preloadHistory(history.entries);
           return;
         } catch (readError) {
           err = readError;
@@ -746,12 +751,62 @@ export class Session {
         this.store.set((s) => {
           if (!s.open || s.open.view.threadId !== threadId) return s;
           const view = history ? mergeTurns(prependHistory(initialThreadState(threadId), history.entries), history.turns) : s.open.view;
-          return { ...s, open: { ...s.open, view, state: readOnly, error: null } };
+          return { ...s, open: {
+            ...s.open, view, state: readOnly, error: null,
+            olderCursor: history?.olderCursor ?? null, olderEntries: history?.olderEntries ?? [],
+          } };
         });
         if (history && this.isViewingThread(threadId)) this.readThread(threadId);
+        if (history) this.preloadHistory(history.entries);
         return;
       }
       this.store.set((s) => (s.open && s.open.view.threadId === threadId ? { ...s, open: { ...s.open, state: "error", error: friendlyError(err) } } : s));
+    }
+  }
+
+  // The first screen waits for one raw page; subsequent loads complete the
+  // user-message page and retain any excess for the next scroll.
+  private async loadHistoryPage(threadId: string, cursor: string | null = null, buffered: v2.ThreadItemEntry[] = [], knownIds: string[] = [], options: { userMessages?: number; maxRequests?: number } = {}): Promise<HistoryPage> {
+    const generation = this.openGeneration;
+    const entries: v2.ThreadItemEntry[] = [];
+    const seen = new Set(knownIds);
+    let users = 0;
+    let pending = buffered;
+    let needsFetch = pending.length === 0;
+    const requested = new Set<string | null>();
+    while (true) {
+      if (generation !== this.openGeneration) throw new Error("History load was superseded");
+      if (needsFetch) {
+        if (requested.size >= (options.maxRequests ?? Infinity)) {
+          return { entries: entries.reverse(), olderCursor: cursor, olderEntries: [] };
+        }
+        try {
+          if (requested.has(cursor)) throw new Error("History pagination cursor did not advance");
+          requested.add(cursor);
+          const page = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
+            threadId, cursor, limit: HISTORY_ITEMS_PER_REQUEST, sortDirection: "desc",
+          });
+          if (generation !== this.openGeneration) throw new Error("History load was superseded");
+          pending = page.data;
+          cursor = page.nextCursor;
+        } catch (err) {
+          // Keep successfully fetched history and leave the cursor for retry.
+          if (entries.length === 0) throw err;
+          return { entries: entries.reverse(), olderCursor: cursor, olderEntries: [] };
+        }
+      }
+      for (let i = 0; i < pending.length; i++) {
+        const entry = pending[i];
+        if (seen.has(entry.item.id)) continue;
+        seen.add(entry.item.id);
+        entries.push(entry);
+        if (entry.item.type === "userMessage") users++;
+        if (users === (options.userMessages ?? HISTORY_USER_MESSAGES)) {
+          return { entries: entries.reverse(), olderCursor: cursor, olderEntries: pending.slice(i + 1) };
+        }
+      }
+      if (cursor === null) return { entries: entries.reverse(), olderCursor: null, olderEntries: [] };
+      needsFetch = true;
     }
   }
 
@@ -759,38 +814,23 @@ export class Session {
   // been persisted Codex rejects the paginated endpoints ("not supported
   // yet"), so fall back to a full read, and failing that start empty: live
   // notifications fill the view in either case.
-  private async loadHistory(threadId: string): Promise<{ entries: v2.ThreadItemEntry[]; turns: v2.Turn[]; olderCursor: string | null }> {
+  private async loadHistory(threadId: string): Promise<HistoryPage & { turns: v2.Turn[] }> {
     try {
       const [page, turns] = await Promise.all([
-        this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", { threadId, limit: HISTORY_PAGE, sortDirection: "desc" }),
+        this.loadHistoryPage(threadId, null, [], [], { maxRequests: 1 }),
         this.loadTurnMeta(threadId),
       ]);
-      let entries = page.data.slice().reverse();
-      let cursor = page.nextCursor;
-      for (let more = 1; more < HISTORY_MAX_PAGES && cursor !== null && !initialHistoryContextComplete(entries); more++) {
-        try {
-          const older = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
-            threadId,
-            cursor,
-            limit: HISTORY_PAGE,
-            sortDirection: "desc",
-          });
-          entries = [...older.data.slice().reverse(), ...entries];
-          cursor = older.nextCursor;
-        } catch {
-          break;
-        }
-      }
-      return { entries, turns, olderCursor: cursor };
+      return { ...page, turns };
     } catch (err) {
       if (!/not supported/i.test(describe(err))) throw err;
     }
     try {
       const { thread } = await this.rpc.request<v2.ThreadReadResponse>("thread/read", { threadId, includeTurns: true });
       const entries = thread.turns.flatMap((t) => t.items.map((item) => ({ turnId: t.id, item })));
-      return { entries, turns: thread.turns, olderCursor: null };
+      const page = entries.length > 0 ? await this.loadHistoryPage(threadId, null, entries.reverse()) : { entries, olderCursor: null, olderEntries: [] };
+      return { ...page, turns: thread.turns };
     } catch {
-      return { entries: [], turns: [], olderCursor: null };
+      return { entries: [], turns: [], olderCursor: null, olderEntries: [] };
     }
   }
 
@@ -816,25 +856,33 @@ export class Session {
     return out;
   }
 
+  private preloadHistory(entries: v2.ThreadItemEntry[]): void {
+    const missing = HISTORY_USER_MESSAGES - entries.filter((entry) => entry.item.type === "userMessage").length;
+    if (missing > 0) void this.loadOlderPage(missing);
+  }
+
   async loadOlder(): Promise<void> {
+    await this.loadOlderPage(HISTORY_USER_MESSAGES);
+  }
+
+  private async loadOlderPage(userMessages: number): Promise<void> {
     const open = this.store.get().open;
-    if (!open || !open.olderCursor || open.loadingOlder) return;
+    if (!open || (!open.olderCursor && !open.olderEntries?.length) || open.loadingOlder) return;
     const threadId = open.view.threadId;
+    const generation = this.openGeneration;
     this.store.set((s) => (s.open ? { ...s, open: { ...s.open, loadingOlder: true } } : s));
     try {
-      const page = await this.rpc.request<v2.ThreadItemsListResponse>("thread/items/list", {
-        threadId,
-        cursor: open.olderCursor,
-        limit: HISTORY_PAGE,
-        sortDirection: "desc",
-      });
-      const turns = await this.loadTurnMeta(threadId, page.data.map((e) => e.turnId));
+      const page = await this.loadHistoryPage(threadId, open.olderCursor, open.olderEntries, open.view.items.map((item) => item.id), { userMessages });
+      if (generation !== this.openGeneration) return;
+      const turns = await this.loadTurnMeta(threadId, page.entries.map((e) => e.turnId));
+      if (generation !== this.openGeneration) return;
       this.store.set((s) =>
         s.open && s.open.view.threadId === threadId
-          ? { ...s, open: { ...s.open, view: mergeTurns(prependHistory(s.open.view, page.data.slice().reverse()), turns), olderCursor: page.nextCursor, loadingOlder: false } }
+          ? { ...s, open: { ...s.open, view: mergeTurns(prependHistory(s.open.view, page.entries), turns), olderCursor: page.olderCursor, olderEntries: page.olderEntries, loadingOlder: false } }
           : s,
       );
     } catch {
+      if (generation !== this.openGeneration) return;
       this.store.set((s) => (s.open ? { ...s, open: { ...s.open, loadingOlder: false } } : s));
     }
   }
@@ -1634,12 +1682,6 @@ export class Session {
     if (mine.length === 0) return;
     this.updateView(threadId, (v) => mine.reduce((view, req) => applyServerRequest(view, req), v));
   }
-}
-
-function initialHistoryContextComplete(entries: v2.ThreadItemEntry[]): boolean {
-  const newest = entries[entries.length - 1];
-  const startedTurns = new Set(entries.filter((entry) => entry.item.type === "userMessage").map((entry) => entry.turnId));
-  return newest !== undefined && startedTurns.has(newest.turnId) && startedTurns.size >= HISTORY_CONTEXT_TURNS;
 }
 
 /** The first user message's text, shortened to `max` characters, or null. */

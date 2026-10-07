@@ -702,6 +702,7 @@ code,
 .image-preview-trigger img {
   display: block;
   max-width: 100%;
+  height: auto;
 }
 
 .msg-images .image-preview-trigger img {
@@ -2763,6 +2764,16 @@ button.chat-btn {
   margin-bottom: 0;
 }
 
+/* Markdown screenshots use their natural aspect ratio within the phone column. */
+.final-text img,
+.work-note img,
+.tool-detail.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  cursor: zoom-in;
+}
+
 .file-citation {
   display: inline-flex;
   align-items: center;
@@ -2806,6 +2817,7 @@ button.chat-btn {
 .image-viewer-backdrop {
   position: fixed;
   inset: 0;
+  height: 100dvh;
   z-index: 30;
   display: flex;
   background: rgba(0, 0, 0, 0.94);
@@ -2823,6 +2835,7 @@ button.chat-btn {
 
 .image-viewer-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -2853,16 +2866,18 @@ button.chat-btn {
 
 .image-viewer-content {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   padding: 12px;
   touch-action: pinch-zoom;
 }
 
 .image-viewer-content img {
+  display: block;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
