@@ -108,7 +108,12 @@ describe("single workspace changes entry", () => {
     const { session, store } = fixture();
     await mount(session);
     const items = container.querySelector<HTMLDivElement>(".items")!;
+    const message = (id: string): OpenThread["view"]["items"][number] => ({ type: "userMessage", id, clientId: null, content: [] });
     Object.defineProperties(items, { scrollHeight: { value: 2000 }, clientHeight: { value: 600 } });
+    // Open on a transcript that is already pinned to the bottom, as a
+    // finished thread is, then scroll up into its history.
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [message("newest")] } } })));
+    expect(items.scrollTop).toBe(2000);
     await act(async () => {
       items.scrollTop = 400;
       items.dispatchEvent(new Event("scroll"));
@@ -116,6 +121,34 @@ describe("single workspace changes entry", () => {
     expect(container.querySelector(".scroll-bottom-btn")).not.toBeNull();
     await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: initialThreadState("thread-2") } })));
     expect(items.scrollTop).toBe(2000);
+    expect(container.querySelector(".scroll-bottom-btn")).toBeNull();
+  });
+
+  it("keeps following the newest output when the box shrinks for the keyboard", async () => {
+    const { session, store } = fixture();
+    await mount(session);
+    const items = container.querySelector<HTMLDivElement>(".items")!;
+    const message = (id: string): OpenThread["view"]["items"][number] => ({ type: "userMessage", id, clientId: null, content: [] });
+    let clientHeight = 600;
+    Object.defineProperties(items, { scrollHeight: { value: 1400 }, clientHeight: { get: () => clientHeight } });
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [message("newest")] } } })));
+    // A real browser clamps `scrollTop = scrollHeight` to the last screenful.
+    await act(async () => {
+      items.scrollTop = 800;
+      items.dispatchEvent(new Event("scroll"));
+    });
+    expect(container.querySelector(".scroll-bottom-btn")).toBeNull();
+    // A turn starts: the composer grows to show its tool row and the keyboard
+    // may come up, so the transcript shrinks under a reader who has not moved.
+    // Safari leaves the offset where it was, so the distance to the bottom
+    // grows without anyone scrolling anywhere.
+    clientHeight = 450;
+    await act(async () => {
+      items.dispatchEvent(new Event("scroll"));
+    });
+    expect(container.querySelector(".scroll-bottom-btn")).toBeNull();
+    await act(async () => store.set((s) => ({ ...s, open: { ...s.open, view: { ...s.open.view, items: [...s.open.view.items, message("live")] } } })));
+    expect(items.scrollTop).toBe(1400);
     expect(container.querySelector(".scroll-bottom-btn")).toBeNull();
   });
 

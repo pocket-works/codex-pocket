@@ -18,6 +18,9 @@ import { useComputers } from "./ComputerContext.js";
 import { canAcceptInput } from "../state/thread-list.js";
 import { SubagentsEntry, SubagentsSheet } from "./Subagents.js";
 
+/** How close to the bottom still counts as "following the latest output". */
+const BOTTOM_THRESHOLD_PX = 80;
+
 export function ThreadView({ session }: { session: Session }) {
   const computers = useComputers();
   const computerName = computers?.active?.name ?? session.host?.computer.name;
@@ -66,11 +69,43 @@ export function ThreadView({ session }: { session: Session }) {
     void session.loadOlder();
   }, [session, open?.state, open?.olderCursor, hasOlder, open?.loadingOlder, items.length]);
 
+  // The list also moves and grows outside React's commit: the keyboard and
+  // the composer resize it, and an image or a font loading inside an answer
+  // grows it. Left alone that pushes the newest text below the fold while the
+  // view still believes it is following, so re-pin on either event.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !open) return;
+    const pin = () => {
+      if (stickToBottom.current) el.scrollTop = el.scrollHeight;
+    };
+    let frame = 0;
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(pin);
+    resize?.observe(el);
+    const mutations = typeof MutationObserver === "undefined" ? null : new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(pin);
+    });
+    mutations?.observe(el, { childList: true, subtree: true, characterData: true, attributes: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      resize?.disconnect();
+      mutations?.disconnect();
+    };
+  }, [open?.view.threadId]);
+
   function onScroll() {
     const el = listRef.current;
     if (!el) return;
+    const previousTop = scrollSnapshot.current?.top ?? el.scrollTop;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Only pulling the transcript toward older output is the reader taking
+    // over. The box can also move under the finger — the keyboard or the
+    // composer resizes it, late output grows it — which changes the gap
+    // without any intent to stop following.
+    if (gap < BOTTOM_THRESHOLD_PX) stickToBottom.current = true;
+    else if (el.scrollTop < previousTop - 1) stickToBottom.current = false;
     if (scrollSnapshot.current) scrollSnapshot.current.top = el.scrollTop;
-    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     setAwayFromBottom(!stickToBottom.current);
     if (el.scrollTop < 40 && open && hasOlder && !open.loadingOlder) {
       void session.loadOlder();
