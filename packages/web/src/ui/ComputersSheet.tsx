@@ -42,7 +42,7 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onAdd, 
 
   function status(computer: Computer): string {
     const snapshot = statuses[computer.id];
-    if (computer.id === session?.host?.id && connection === "open" && snapshot !== "Pair again" && snapshot !== "Update Pocket on this Mac") return upstream ? "Connected" : "Waiting for Codex";
+    if (computer.id === session?.host?.id && connection === "open" && snapshot !== "Pair again" && snapshot !== "Update Pocket on this computer") return upstream ? "Connected" : "Waiting for Codex";
     return snapshot ?? "Checking…";
   }
 

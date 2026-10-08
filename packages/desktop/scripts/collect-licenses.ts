@@ -13,7 +13,10 @@ type Dependency = {
 
 const desktop = resolve(fileURLToPath(import.meta.url), "..", "..");
 const root = resolve(desktop, "..", "..");
-const legal = resolve(desktop, "build", "legal");
+const outputIndex = process.argv.indexOf("--output");
+if (outputIndex >= 0 && !process.argv[outputIndex + 1]) throw new Error("--output requires a directory");
+const includeElectron = !process.argv.includes("--no-electron");
+const legal = outputIndex >= 0 ? resolve(process.argv[outputIndex + 1]) : resolve(desktop, "build", "legal");
 const dependencies = resolve(legal, "dependencies");
 rmSync(legal, { recursive: true, force: true });
 mkdirSync(dependencies, { recursive: true });
@@ -21,9 +24,11 @@ copyFileSync(resolve(root, "LICENSE"), resolve(legal, "LICENSE"));
 copyFileSync(resolve(root, "packages", "protocol", "NOTICE"), resolve(legal, "PROTOCOL-NOTICE"));
 copyFileSync(resolve(root, "packages", "protocol", "LICENSE-APACHE-2.0"), resolve(legal, "PROTOCOL-LICENSE-APACHE-2.0"));
 
-const electron = resolve(desktop, "node_modules", "electron", "dist");
-copyFileSync(resolve(electron, "LICENSE"), resolve(legal, "ELECTRON-LICENSE"));
-copyFileSync(resolve(electron, "LICENSES.chromium.html"), resolve(legal, "LICENSES.chromium.html"));
+if (includeElectron) {
+  const electron = resolve(desktop, "node_modules", "electron", "dist");
+  copyFileSync(resolve(electron, "LICENSE"), resolve(legal, "ELECTRON-LICENSE"));
+  copyFileSync(resolve(electron, "LICENSES.chromium.html"), resolve(legal, "LICENSES.chromium.html"));
+}
 
 const output = execFileSync("pnpm", ["licenses", "list", "--prod", "--json"], { cwd: root, encoding: "utf8" });
 const groups = JSON.parse(output) as Record<string, Dependency[]>;
@@ -59,7 +64,7 @@ writeFileSync(resolve(legal, "THIRD-PARTY-NOTICES.txt"), [
   "Codex Pocket third-party notices",
   "",
   "The license files named below are included with this application.",
-  "Electron and Chromium notices are in ELECTRON-LICENSE and LICENSES.chromium.html.",
+  ...(includeElectron ? ["Electron and Chromium notices are in ELECTRON-LICENSE and LICENSES.chromium.html."] : []),
   "Codex protocol attribution and license are in PROTOCOL-NOTICE and PROTOCOL-LICENSE-APACHE-2.0.",
   "",
   ...entries,

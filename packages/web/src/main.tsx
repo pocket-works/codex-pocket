@@ -24,7 +24,7 @@ async function boot(): Promise<void> {
       <div className="app">
         <main className="screen center">
           <h1>Codex Pocket</h1>
-          <p role="status">Pairing with your Mac...</p>
+          <p role="status">Pairing with your computer...</p>
         </main>
       </div>,
     );

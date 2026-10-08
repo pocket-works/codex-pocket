@@ -54,6 +54,15 @@ describe("loginShellCommand", () => {
     });
   });
 
+  it("rejects shells whose argument syntax is incompatible", () => {
+    expect(() => loginShellCommand("codex", [], "/usr/bin/fish")).toThrow(/login shell/);
+  });
+
+  it("passes shell metacharacters as literal arguments", async () => {
+    const run = codexCliRunner("/bin/echo", "/bin/bash");
+    expect((await run(["$(false)", "a b", "; exit 1"])).trim()).toBe("$(false) a b ; exit 1");
+  });
+
   it("passes arguments through untouched", async () => {
     const run = codexCliRunner("/bin/echo", "/bin/sh");
     expect((await run(["app-server", "daemon", "start"])).trim()).toBe("app-server daemon start");
@@ -76,7 +85,8 @@ describe("daemon environment", () => {
     process.env.CODEX_POCKET_HOME = mkdtempSync(join(tmpdir(), "pocket-"));
     const run = codexCliRunner("/usr/bin/env", "/bin/sh");
     const lines = (await run([])).split("\n");
-    expect(Object.keys(daemonEnv())).toContain("CODEX_APP_TOOLS_PIPE_PATH");
+    expect(Object.keys(daemonEnv("darwin"))).toContain("CODEX_APP_TOOLS_PIPE_PATH");
+    expect(daemonEnv("linux")).toEqual({});
     for (const [key, value] of Object.entries(daemonEnv())) expect(lines).toContain(`${key}=${value}`);
     delete process.env.CODEX_POCKET_HOME;
   });

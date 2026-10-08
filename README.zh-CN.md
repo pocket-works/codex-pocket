@@ -2,7 +2,7 @@
 
 离开电脑之后，用手机接着在 Codex 上工作。
 
-手机上的 PWA，经 Tailscale 或局域网连接 Mac 上的 Codex。扫码配对，就能在手机上继续已有对话或发起新任务。
+手机上的 PWA，经 Tailscale 或局域网连接 Mac 或 Linux 服务器上的 Codex。扫码配对，就能在手机上继续已有对话或发起新任务。
 
 [English](./README.md)
 
@@ -10,31 +10,31 @@
 
 ## 为什么选择 Codex Pocket
 
-- **手机连接 Mac，由 Mac 访问 OpenAI。** 如果手机上的 ChatGPT 需要翻墙代理，或访问较慢，可以通过 Tailscale 或局域网使用 Pocket。手机只需能连到 Mac，由 Mac 使用已经配置好的网络访问模型服务。
-- **复用已经配置好的开发环境。** 任务在 Mac 上执行，使用它的代码仓库、文件、命令行工具、Codex 配置和技能。Pocket 沿用 Mac 上的 Codex 登录态，手机无需另行登录 Codex。
-- **接着桌面上的同一段对话工作。** 开启桌面共享后，可以在手机上继续 ChatGPT 桌面 app 的 Codex 线程，共享对话历史和正在执行的任务。回到电脑前，再从桌面继续。
+- **手机连接电脑，由电脑访问 OpenAI。** 如果手机上的 ChatGPT 需要翻墙代理，或访问较慢，可以通过 Tailscale 或局域网使用 Pocket。手机只需能连到电脑，由电脑使用已经配置好的网络访问模型服务。
+- **复用已经配置好的开发环境。** 任务在电脑上执行，使用它的代码仓库、文件、命令行工具、Codex 配置和技能。Pocket 沿用电脑上的 Codex 登录态，手机无需另行登录 Codex。
+- **在 macOS 上接着桌面的同一段对话工作。** 开启桌面共享后，可以在手机上继续 ChatGPT 桌面 app 的 Codex 线程，共享对话历史和正在执行的任务。回到电脑前，再从桌面继续。
 - **在手机上完成开发操作。** 在项目或新 worktree 中发起任务、选择分支、查看 diff 和子代理进度、追加指令调整正在执行的任务，或发起代码审查。也能发送图片和 CSV、引用文件、调用技能，或用语音输入指令。
-- **一个手机界面管理多台 Mac。** 在同一个主屏幕 PWA 中切换电脑，各自保留草稿和凭据。切换不会停止任务；完成、审批和提问通知让你知道什么时候需要回来处理。
+- **一个手机界面管理多台电脑。** 在同一个主屏幕 PWA 中切换电脑，各自保留草稿和凭据。切换不会停止任务；完成、审批和提问通知让你知道什么时候需要回来处理。
 - **浏览器直接使用，也能自行修改。** 手机用浏览器打开，或添加到主屏幕。项目采用 MIT 协议，可以查看源码并按自己的需要定制。
 
-手机无需为访问 ChatGPT 单独配置翻墙代理。Mac 仍需要能访问模型服务，实际响应速度取决于两段网络连接和模型服务。
+手机无需为访问 ChatGPT 单独配置翻墙代理。电脑仍需要能访问模型服务，实际响应速度取决于两段网络连接和模型服务。
 
 ## 适合谁使用
 
-如果 Mac 上的 Codex 已经用得顺手，希望离开工位后用手机继续开发、查看长任务进度、审阅产出，或管理多台 Mac，Pocket 就适合这个场景。尤其适合手机直接访问 ChatGPT 不方便，但 Mac 上访问 OpenAI 的网络已经配置好的用户。
+如果电脑上的 Codex 已经用得顺手，希望离开工位后用手机继续开发、查看长任务进度、审阅产出，或管理多台电脑，Pocket 就适合这个场景。尤其适合手机直接访问 ChatGPT 不方便，但电脑上访问 OpenAI 的网络已经配置好的用户。
 
-Pocket 是基于官方 Codex app-server 的社区项目。你提供 Mac 和网络连接，任务所在的 Mac 需要保持唤醒并在线。Pocket 本身采用 MIT 协议，模型访问和用量仍由你原有的 Codex 账号及模型服务配置决定。
+Pocket 是基于官方 Codex app-server 的社区项目。你提供电脑和网络连接，任务所在的电脑需要保持唤醒并在线。Pocket 本身采用 MIT 协议，模型访问和用量仍由你原有的 Codex 账号及模型服务配置决定。
 
 ## 功能
 
-- **项目与对话：** 项目与桌面保持同步，回复流式输出，推理和工具调用可折叠。支持对话改名、左滑归档和 fork。
+- **项目与对话：** macOS 开启桌面共享时项目与桌面保持同步，回复流式输出，推理和工具调用可折叠。支持对话改名、左滑归档和 fork。
 - **任务控制：** 批准命令、切换审批策略、中断任务、追加指令调整执行方向，或使用与桌面共享的消息队列。支持选择模型、推理强度和 Fast 档。
 - **开发流程：** 发起项目或无项目对话，选择本地工作或新 worktree、切换分支、查看 diff、请求代码审查。支持查看子代理状态和只读对话。
-- **输入与上下文：** 添加图片和 CSV 附件，通过 `@file` 引用文件、`/skills` 调用技能，或经 Mac 进行语音听写。支持回答 Codex 的提问、查看计划和用量。
-- **产出预览：** 在对话中查看 Mac 上生成的图片和本地多页 PDF。
-- **桌面接力：** 开启桌面共享后，手机和 ChatGPT 桌面 app 使用同一份 Codex 线程和正在执行的任务。
+- **输入与上下文：** 添加图片和 CSV 附件，通过 `@file` 引用文件、`/skills` 调用技能，或经电脑进行语音听写。支持回答 Codex 的提问、查看计划和用量。
+- **产出预览：** 在对话中查看电脑上生成的图片和本地多页 PDF。
+- **桌面接力（macOS）：** 开启桌面共享后，手机和 ChatGPT 桌面 app 使用同一份 Codex 线程和正在执行的任务。
 - **通知：** 轮次完成、审批、提问和错误通过 Web Push 通知。iOS 需先把 PWA 添加到主屏幕。
-- **多台 Mac：** 一个主屏幕 PWA 管理多台电脑，各自保存凭据、草稿、置顶和通知订阅。
+- **多台电脑：** 一个主屏幕 PWA 管理多台电脑，各自保存凭据、草稿、置顶和通知订阅。
 
 ## 产品截图
 
@@ -46,37 +46,42 @@ Pocket 是基于官方 Codex app-server 的社区项目。你提供 Mac 和网�
 | :---: | :---: |
 | <img src="./docs/screenshots/subagents-entry.png" width="240" alt="对话中的子代理状态入口"> | <img src="./docs/screenshots/subagents-panel.png" width="240" alt="对话中的进行中和已完成子代理列表"> |
 
-| 图片预览 | 电脑设置 |
+| 图片预览 |电脑设置 |
 | :---: | :---: |
 | <img src="./docs/screenshots/image-preview.png" width="240" alt="带下载和关闭操作的全屏图片预览"> | <img src="./docs/screenshots/computer-settings.png" width="240" alt="已连接电脑设置和此手机的通知偏好"> |
 
-| 电脑切换 | 新建会话 |
+|电脑切换 | 新建会话 |
 | :---: | :---: |
-| <img src="./docs/screenshots/computers.png" width="240" alt="显示两台已连接 Mac 和添加电脑操作的电脑列表"> | <img src="./docs/screenshots/new-thread.png" width="240" alt="包含项目、工作方式、分支和输入框的新建会话页"> |
+| <img src="./docs/screenshots/computers.png" width="240" alt="显示两台已连接电脑和添加电脑操作的电脑列表"> | <img src="./docs/screenshots/new-thread.png" width="240" alt="包含项目、工作方式、分支和输入框的新建会话页"> |
 
 截图由真实界面组件和虚构的对话、路径及电脑信息生成，不含个人线程内容或配对凭据。
 
 ## 环境要求
 
-- **Apple 芯片的 Mac**：正式版 DMG 和本地构建的应用均面向 arm64。
+- **Apple 芯片的 Mac，或 Linux x86_64 服务器**：DMG 面向 macOS arm64；Linux 使用独立的实验性 host 压缩包，见 [Linux 部署](./docs/linux.zh-CN.md)。
 - **这台 Mac 上的 Codex 已登录**：安装 DMG 时先安装并登录 ChatGPT 桌面 app，Pocket 可使用它内置的 Codex CLI；源码构建也可使用单独安装的 `codex` CLI。host 沿用 Codex 的登录态，不自行登录。
-- **Node 22.12+ 和 pnpm 只用于源码构建**：DMG 已包含菜单栏应用、host 和 PWA，运行时不需要它们。
-- **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
+- **Linux 需要 Node 22.12+ 和已安装、登录的 Codex CLI**（已测 0.161.0），运行压缩包不需要 pnpm。源码构建需要 Node 和 pnpm；Mac DMG 自带运行时。
+- **一台能连到这台电脑的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
 
 ### 兼容性与当前限制
 
 | 组件 | 当前范围 |
 | :--- | :--- |
-| Mac host | 正式版和本地应用构建面向 Apple 芯片（arm64）。当前应用分发范围不包含 Intel Mac、Windows 和 Linux host。 |
+| Mac host | 正式版和本地应用构建面向 Apple 芯片（arm64）。当前应用分发范围不包含 Intel Mac 和 Windows host。 |
+| Linux host（实验性） | 独立 x86_64 压缩包。已在 Debian 13 / Codex CLI 0.161.0 上用真实 iPhone PWA 验证聊天、推送与听写。ARM64、其他发行版和 systemd 开机恢复尚未验证。 |
 | iPhone / Safari | 文档中的手机安装路径为 Safari 和主屏幕 PWA。通知需要 HTTPS，并添加到主屏幕。 |
 | Android / 其他浏览器 | 界面使用浏览器 API，但仓库尚未记录这些组合的实机验证结果。请视为未验证，反馈时附上系统和浏览器版本。 |
-| 桌面共享 | daemon 的 `account/read` 响应需要包含 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）。关联操作会检查实际能力。 |
+| 桌面共享（macOS） | daemon 的 `account/read` 响应需要包含 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）。关联操作会检查实际能力。 |
 | 浏览器能力 | 基本聊天使用 WebSocket；通知和离线启动需要 HTTPS 及 service worker；听写还需要麦克风权限和浏览器音频 API。 |
 | 自动检查 | CI 在 Linux 上执行类型检查、单元测试及 host/PWA 构建，不能据此认定 macOS 或手机兼容性。 |
 
 仓库尚未发布完整的 macOS、iOS 和浏览器版本验证表。听写使用未文档化的 ChatGPT 接口，多台 Mac 同时向主屏幕 iPhone PWA 推送仍需实机验证。
 
 ## 快速开始
+
+### 部署 Linux 服务器
+
+从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载 Linux x86_64 压缩包，按 [Linux 部署文档](./docs/linux.zh-CN.md)校验文件、配置 Node/Codex、Tailscale HTTPS、手机配对及可选的 systemd 用户服务。Linux 提供无界面 host；菜单栏应用和桌面关联仍是 macOS 功能。
 
 ### 安装 DMG
 
@@ -105,36 +110,36 @@ make open-app
 
 ## 多台电脑
 
-1. 在每台 Mac 上运行更新后的 Codex Pocket，并分别配置自己的 [Tailscale HTTPS](#部署tailscale-https) 地址。
-2. 手机保留一个主屏幕 PWA，打开 **Menu → Computers**，选择 **Add computer**，在这个 PWA 内扫描另一台 Mac 的配对二维码。手动配对需要另一台 Mac 的 HTTPS 地址和配对码。
+1. 在每台电脑上运行更新后的 Codex Pocket，并分别配置自己的 [Tailscale HTTPS](#部署tailscale-https) 地址。
+2. 手机保留一个主屏幕 PWA，打开 **Menu → Computers**，选择 **Add computer**，在这个 PWA 内扫描另一台电脑的配对二维码。手动配对需要另一台电脑的 HTTPS 地址和配对码。
 3. 在 **Computers** 中选择电脑即可切换。线程、项目、文件和任务属于各自的电脑。切换会保存草稿，不会停止正在运行的轮次；发送或上传过程中，要等待操作完成后才能切换。
 4. 点击电脑旁的信息按钮，可以修改名称和地址、管理通知，或查看 **Pairing details**。需要恢复访问时，用新配对码执行 **Pair again**。
-5. 要移除电脑，在该 Mac 可达时选择 **Unpair computer**，撤销手机权限并保留 Mac 上的聊天。**Remove locally** 只删除手机上的凭据，需要稍后在 Mac 上撤销旧配对。
+5. 要移除电脑，在该电脑可达时选择 **Unpair computer**，撤销手机权限并保留电脑上的聊天。**Remove locally** 只删除手机上的凭据，需要稍后在电脑上撤销旧配对。
 
-主屏幕 PWA 保持原来的安装地址。应用资源缓存完成后，即使入口 Mac 暂时不可达，也能打开应用并连接其他 Mac。首次安装、更新和注册新的通知 worker 仍需要入口地址可达。每台电脑使用独立作用域的 Web Push 订阅，点击通知会选择对应电脑和线程。多台电脑同时向主屏幕 iPhone PWA 推送，仍需实机验证。
+主屏幕 PWA 保持原来的安装地址。应用资源缓存完成后，即使入口电脑暂时不可达，也能打开应用并连接其他电脑。首次安装、更新和注册新的通知 worker 仍需要入口地址可达。每台电脑使用独立作用域的 Web Push 订阅，点击通知会选择对应电脑和线程。多台电脑同时向主屏幕 iPhone PWA 推送，仍需实机验证。
 
-升级会迁移当前 PWA 地址下已有的配对和本地数据。不同浏览器地址或主屏幕应用的存储无法自动导入，需要在保留的 PWA 中重新添加那些 Mac。电脑地址变更需要重新配对，旧 token 不会发送到修改后的地址。
+升级会迁移当前 PWA 地址下已有的配对和本地数据。不同浏览器地址或主屏幕应用的存储无法自动导入，需要在保留的 PWA 中重新添加那些电脑。电脑地址变更需要重新配对，旧 token 不会发送到修改后的地址。
 
 ## 连接与数据流向
 
 ```mermaid
 flowchart LR
-    Phone["手机 PWA"] <-->|"Tailscale 或局域网"| Host["Mac 上的 Pocket host"]
-    Host <-->|"本地 WebSocket"| Codex["Mac 上的官方 Codex daemon"]
+    Phone["手机 PWA"] <-->|"Tailscale 或局域网"| Host["Mac 或 Linux 上的 Pocket host"]
+    Host <-->|"本地 WebSocket"| Codex["电脑上的官方 Codex daemon"]
     Codex <-->|"模型请求"| Model["OpenAI 或配置的模型服务"]
     Host <-->|"听写音频与转写文本"| Speech["OpenAI 听写服务"]
     Host -->|"加密 Web Push"| Push["浏览器推送服务"]
     Push -->|"通知"| Phone
 ```
 
-- **聊天和文件：** 指令与审批发送给 Mac 上的 Codex，命令和文件操作也在那里执行；Codex 会把任务上下文发送给配置的模型服务。手机上传的文件保存在 Mac 的 `~/.codex-pocket/uploads/`。
-- **登录和本地存储：** Codex 凭据留在 Mac 上。手机在浏览器存储中保存自己的 Pocket 配对 token、草稿和偏好；host 保存 token 哈希和推送订阅。对话历史由 Codex 管理。
-- **听写：** 麦克风音频经 Mac 转发给 OpenAI，转写文本流式返回手机，Pocket 不在 host 上保存音频。
+- **聊天和文件：** 指令与审批发送给 电脑上的 Codex，命令和文件操作也在那里执行；Codex 会把任务上下文发送给配置的模型服务。手机上传的文件保存在 Mac 的 `~/.codex-pocket/uploads/`。
+- **登录和本地存储：** Codex 凭据留在 电脑上。手机在浏览器存储中保存自己的 Pocket 配对 token、草稿和偏好；host 保存 token 哈希和推送订阅。对话历史由 Codex 管理。
+- **听写：** 麦克风音频经电脑 转发给 OpenAI，转写文本流式返回手机，Pocket 不在 host 上保存音频。
 - **通知：** Mac 通过浏览器推送服务发送加密载荷。显示的通知可能包含对话标题或预览、命令审批片段或错误信息。即使聊天走局域网，推送通知仍需要互联网连接。
 
 ## 安全模型
 
-host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 Mac 上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
+host 是一个**透明代理**：手机配对后拿到的是 Codex app-server 的全部能力，包括在 电脑上执行命令和读写文件。安全边界只有两道——网络可达性和配对码——所以：
 
 - 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
@@ -220,6 +225,8 @@ pnpm dev:host unlink-desktop # 解除关联后退出并重新打开 ChatGPT
 
 ## 升级与卸载
 
+Linux 的升级、回退与卸载见 [Linux 部署文档](./docs/linux.zh-CN.md#升级回退与卸载)，以下步骤适用于 Mac 应用。
+
 ### 升级
 
 1. 等当前任务完成，退出 Codex Pocket，从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载应用并替换 Applications 中的旧版。源码用户可更新工作区，运行 `pnpm install --frozen-lockfile`，再用 `make app` 重新构建并打开应用。
@@ -276,7 +283,7 @@ pnpm dev:host revoke DEVICE_ID # 替换为 devices 列出的设备 ID
 
 ## 版本发布
 
-带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。维护者操作见[发版流程](./docs/releasing.md)。
+带版本号的 macOS 应用和实验性 Linux x86_64 host 可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。维护者操作见[发版流程](./docs/releasing.md)。
 
 ## 帮助与反馈
 

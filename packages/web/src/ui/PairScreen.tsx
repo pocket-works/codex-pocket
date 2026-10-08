@@ -55,7 +55,7 @@ export function PairScreen({ error, computer, embedded = false, disabled = false
   return (
     <main className={embedded ? "pair pair-inline" : "screen center pair"}>
       <div className="pair-card">
-        {!embedded && <><img className="pair-logo" src="/icon.svg?v=2" alt="" width={72} height={72} /><h1>Codex Pocket</h1><p className="muted pair-sub">Pair this phone with your Mac to control Codex from anywhere.</p></>}
+        {!embedded && <><img className="pair-logo" src="/icon.svg?v=2" alt="" width={72} height={72} /><h1>Codex Pocket</h1><p className="muted pair-sub">Pair this phone with your computer to control Codex from anywhere.</p></>}
 
         {canScan && !manual && (
           <button type="button" className="primary pair-scan" onClick={() => setScanning(true)} disabled={busy || disabled}>
@@ -98,7 +98,7 @@ export function PairScreen({ error, computer, embedded = false, disabled = false
       </div>
 
       {!embedded && <p className="muted small pair-hint">
-        On your Mac: <code>make pair</code>
+        On your computer: <code>codex-pocket pair</code> (or use Pair a phone in the Mac app)
       </p>}
 
       {scanning && (

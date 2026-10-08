@@ -16,7 +16,7 @@ const PRESETS: { value: PermissionPreset; title: string; hint: string; icon: str
 ];
 
 const FULL_ACCESS_WARNING =
-  "Turn on Full access?\n\nCodex will be able to run commands, use the internet, and create and edit files anywhere on this Mac without asking. This comes with risks like loss or exposure of sensitive data and prompt injection.";
+  "Turn on Full access?\n\nCodex will be able to run commands, use the internet, and create and edit files anywhere on this computer without asking. This comes with risks like loss or exposure of sensitive data and prompt injection.";
 
 const APPROVALS: { value: "untrusted" | "on-request" | "never"; label: string }[] = [
   { value: "untrusted", label: "Ask" },

@@ -18,7 +18,7 @@ import { DEFAULT_PORT, serve } from "./serve.js";
 const USAGE = `Usage: codex-pocket <command> [options]
 
 Commands:
-  serve             Serve the PWA on the LAN and proxy to the Codex desktop app-server
+  serve             Serve the PWA on the LAN and proxy to the official Codex daemon
     --port <n>        Port to listen on (default ${DEFAULT_PORT})
     --host <addr>     Address to bind (default: bindHost setting, else 0.0.0.0)
     --public-url <u>  Origin for the pairing URL (default: publicUrl setting, else http://<LAN IP>:<port>)
@@ -26,7 +26,7 @@ Commands:
     --static <dir>    Directory with the built web app
   config            Show ~/.codex-pocket/config.json
   config set <key> <value>    publicUrl: origin phones use when a proxy such as
-                              \`tailscale serve\` fronts the host (https://mac.tailnet.ts.net)
+                              \`tailscale serve\` fronts the host (https://computer.tailnet.ts.net)
                               bindHost:  address serve binds; 127.0.0.1 keeps it off the LAN
                               outboundProxy: HTTP proxy for the dictation stream to chatgpt.com
                               (http://127.0.0.1:1082); off by default, HTTPS_PROXY is not read
@@ -34,7 +34,7 @@ Commands:
   pair              Print a QR code to pair a new phone (needs a running serve)
   devices           List paired phones
   revoke <id>       Remove a paired phone
-  threads           List recent threads from the Codex desktop app-server
+  threads           List recent threads from the official Codex daemon
   info              Show app-server connection details
   link-desktop      Make the ChatGPT desktop app share the Codex daemon (restart ChatGPT after)
     --force           Link even if the daemon's codex lacks what the desktop app needs
@@ -78,7 +78,10 @@ async function main(argv: string[]): Promise<number> {
   const command = flags.positional[0];
   if (!command || flags.values.has("help")) {
     process.stdout.write(USAGE);
-    return command ? 0 : 1;
+    return flags.values.has("help") ? 0 : 1;
+  }
+  if (process.platform !== "darwin" && ["link-desktop", "unlink-desktop", "desktop", "desktop-bridge"].includes(command)) {
+    throw new Error(`${command} requires the ChatGPT desktop app on macOS. Linux supports the headless Codex host.`);
   }
   switch (command) {
     case "serve": {

@@ -94,7 +94,7 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
       } catch (err) {
         if (host.disposed) return;
         const pairing = (err instanceof HostHttpError && err.status === 401) || /identity changed/.test(String(err));
-        const message = pairing || err instanceof HostHttpError ? friendlyError(err) : `Can't reach ${active.name}. Check this Mac's connection and Tailscale.`;
+        const message = pairing || err instanceof HostHttpError ? friendlyError(err) : `Can't reach ${active.name}. Check this computer's connection and Tailscale.`;
         setProblem({ message, pairing });
         if (!pairing) {
           timer = setTimeout(() => void connect(), 6000);

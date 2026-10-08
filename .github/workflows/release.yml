@@ -38,6 +38,8 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @codex-pocket/host build
       - run: pnpm --filter @codex-pocket/web build
+      - run: node scripts/package-linux.ts
+      - run: pnpm package:linux:check
 
   publish-draft:
     needs: check
@@ -51,6 +53,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: pnpm package:linux
+      - run: pnpm package:linux:check
       - name: Create draft release
         shell: bash
         env:
@@ -62,3 +70,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --draft --verify-tag --title "Codex Pocket $GITHUB_REF_NAME" \
             --notes-file release-notes.md "${flags[@]}"
+          gh release upload "$GITHUB_REF_NAME" release/linux/*.tar.gz release/linux/*.sha256

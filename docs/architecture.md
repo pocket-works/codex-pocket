@@ -7,7 +7,7 @@ This guide is for contributors. For installation, pairing and troubleshooting, s
 | Package | Responsibility | Useful entry points |
 | :--- | :--- | :--- |
 | `packages/web` | React PWA that speaks the Codex protocol and presents threads, files, approvals and per-computer state. | [UI](../packages/web/src/ui/), [session](../packages/web/src/state/session.ts), [computer registry](../packages/web/src/state/computers.ts), [RPC client](../packages/web/src/rpc/client.ts) |
-| `packages/host` | Mac-side authenticated proxy, phone pairing, uploads, push notifications and dictation forwarding. | [server](../packages/host/src/server/lan-server.ts), [proxy](../packages/host/src/proxy/codex-proxy.ts), [Codex connection](../packages/host/src/codex/), [CLI](../packages/host/src/cli.ts) |
+| `packages/host` | macOS/Linux authenticated proxy, phone pairing, uploads, push notifications and dictation forwarding. | [server](../packages/host/src/server/lan-server.ts), [proxy](../packages/host/src/proxy/codex-proxy.ts), [Codex connection](../packages/host/src/codex/), [CLI](../packages/host/src/cli.ts) |
 | `packages/desktop` | Electron menu bar app that starts and stops the Pocket host, exposes pairing and desktop sharing, and packages the PWA. | [main](../packages/desktop/src/main.ts), [menu](../packages/desktop/src/menu.ts), [supervisor](../packages/desktop/src/supervisor.ts), [packaging scripts](../packages/desktop/scripts/) |
 | `packages/protocol` | Types generated from the Codex CLI and exported for the other packages. Contains no runtime code. | [generator](../packages/protocol/scripts/generate.sh), [exports](../packages/protocol/src/index.ts) |
 
@@ -51,3 +51,7 @@ pnpm --filter @codex-pocket/protocol generate
 The generator invokes `codex` from `PATH`, while the host can prefer the CLI bundled in ChatGPT or one selected with `CODEX_BIN`. Use the intended CLI version when regenerating; `packages/protocol/src/generated/CODEX_VERSION` records the generator's version.
 
 Never edit `packages/protocol/src/generated` by hand or add runtime code to this package. Keep protocol changes and the behavior that uses them reviewable together.
+
+## Linux distribution
+
+`scripts/package-linux.ts` bundles the host as ESM and packages the built PWA, launcher, systemd user unit and licenses. It excludes Electron and requires an external Node 22.12+ runtime and signed-in Codex CLI. The launcher supplies the archive web directory explicitly. Linux uses the same official daemon socket and thin proxy, without the macOS desktop tools environment or LaunchAgents. See [deployment](./linux.md) and [Chinese deployment](./linux.zh-CN.md).

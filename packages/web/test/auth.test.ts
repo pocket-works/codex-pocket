@@ -13,7 +13,7 @@ describe("redeemPairingCode", () => {
   it("explains how to recover when the host is unreachable", async () => {
     mockBrowser();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-    await expect(redeemPairingCode("ABCD-EFGH")).rejects.toThrow("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+    await expect(redeemPairingCode("ABCD-EFGH")).rejects.toThrow("Can't reach your computer. Make sure Codex Pocket is running and try pairing again.");
   });
 
   it("still identifies invalid pairing codes separately", async () => {
@@ -25,7 +25,7 @@ describe("redeemPairingCode", () => {
   it("explains how to recover when adding an unreachable computer", async () => {
     mockBrowser();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-    await expect(pairComputer("https://other-mac.test", "ABCD-EFGH")).rejects.toThrow("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+    await expect(pairComputer("https://other-mac.test", "ABCD-EFGH")).rejects.toThrow("Can't reach your computer. Make sure Codex Pocket is running and try pairing again.");
   });
 });
 
