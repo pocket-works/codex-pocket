@@ -2,7 +2,7 @@
   "name": "codex-pocket",
   "type": "module",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Phone-sized PWA that connects straight to the Codex desktop app-server on your Mac, over Tailscale or the LAN.",
   "repository": {
     "type": "git",

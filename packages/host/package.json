@@ -1,6 +1,6 @@
 {
   "name": "@codex-pocket/host",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Mac-side daemon: connects to the Codex desktop app-server and serves the PWA over the LAN.",
   "license": "MIT",
