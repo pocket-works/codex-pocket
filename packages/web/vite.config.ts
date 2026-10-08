@@ -32,9 +32,13 @@ function appShellWorker(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), appShellWorker()],
-  define: { "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.VITE_APP_VERSION || version) },
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.VITE_APP_VERSION || (mode === "development"
+      ? `${version}-dev.${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`
+      : version)),
+  },
   build: {
     outDir: "dist", sourcemap: true,
     rollupOptions: {
@@ -50,4 +54,4 @@ export default defineConfig({
     },
   },
   test: { include: ["test/**/*.test.ts"], environment: "node" },
-});
+}));

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 import { DownloadIcon, XIcon } from "./icons.js";
 import { useDialog } from "./dialog.js";
 
@@ -14,7 +15,17 @@ export function PreviewImage({ src, alt, className }: { src: string; alt: string
 
 export function ImageViewer({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   const dialog = useDialog(alt || "Image preview", onClose);
-  return <div className="image-viewer-backdrop" onClick={onClose}>
+  const stopTouch = (event: TouchEvent) => event.stopPropagation();
+  // Escape transcript clipping and the containing block created by a back swipe.
+  // Portal events still bubble through React, so keep touches out of that gesture.
+  return createPortal(<div
+    className="image-viewer-backdrop"
+    onClick={(event) => { event.stopPropagation(); onClose(); }}
+    onTouchStart={stopTouch}
+    onTouchMove={stopTouch}
+    onTouchEnd={stopTouch}
+    onTouchCancel={stopTouch}
+  >
     <section ref={dialog.ref} {...dialog.props} className="image-viewer" onClick={(e) => e.stopPropagation()}>
       <header className="image-viewer-header">
         <strong title={alt}>{alt || "Image"}</strong>
@@ -25,5 +36,5 @@ export function ImageViewer({ src, alt, onClose }: { src: string; alt: string; o
       </header>
       <div className="image-viewer-content" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}><img src={src} alt={alt} /></div>
     </section>
-  </div>;
+  </div>, document.body);
 }

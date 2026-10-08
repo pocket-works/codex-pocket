@@ -30,13 +30,13 @@ On macOS, `pnpm build` also bundles the desktop app using macOS icon tools. `mak
 On the Mac, quit an existing Pocket menu bar app or source host before starting another host on port 7333. From the repository root, build the phone interface, then run the host in the foreground:
 
 ```bash
-pnpm --filter @codex-pocket/web build
+pnpm --filter @codex-pocket/web build:dev
 pnpm dev:host serve
 ```
 
 Pair from the displayed address and code. The host uses your existing Pocket network settings; follow the README's [Tailscale setup](./README.md#deploying-https-via-tailscale) when connecting from outside the LAN or testing HTTPS features.
 
-For phone UI changes, rebuild `@codex-pocket/web` in another terminal and reload the phone interface when the update banner appears. For host changes, stop and restart the foreground host. This uses the workspace's `packages/web/dist`; an installed release app serves its bundled interface instead.
+For phone UI changes, run `pnpm --filter @codex-pocket/web build:dev` in another terminal and reload the phone interface when the update banner appears. Development builds show a `dev` suffix and UTC build timestamp in the phone's **About** page; the regular `build` command uses the release version. For host changes, stop and restart the foreground host. This uses the workspace's `packages/web/dist`; an installed release app serves its bundled interface instead.
 
 To work on the menu bar app on macOS, build the phone interface first, then run `pnpm --filter @codex-pocket/desktop dev`. Quit and rerun that command after changing desktop code. After host-only changes, run `pnpm --filter @codex-pocket/desktop bundle`, then choose **Restart host**. Phone UI changes still need a web rebuild and reload.
 

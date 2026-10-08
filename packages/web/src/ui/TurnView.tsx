@@ -1,4 +1,5 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 import type { Session } from "../state/session.js";
 import type { ThreadItem, ThreadViewState } from "../state/thread-reducer.js";
 import { changeTotals, formatDuration, groupTurns, isToolItem, sameGroup, splitMcpContent, stripDirectives, summarizeTools, tailLines, toolFailed, toolLabel, turnDurationMs, type FileChange, type TurnGroup } from "../state/turns.js";
@@ -330,7 +331,11 @@ function Markdown({ text, className, strip, session }: { text: string; className
 
 function PdfViewer({ preview, onClose }: { preview: { name: string; url: string }; onClose: () => void }) {
   const dialog = useDialog(preview.name, onClose);
-  return <div className="pdf-viewer-backdrop" onClick={onClose}>
+  const stopTouch = (event: TouchEvent) => event.stopPropagation();
+  // Keep the header outside transcript clipping and back-swipe transforms.
+  return createPortal(<div className="pdf-viewer-backdrop"
+    onClick={(event) => { event.stopPropagation(); onClose(); }}
+    onTouchStart={stopTouch} onTouchMove={stopTouch} onTouchEnd={stopTouch} onTouchCancel={stopTouch}>
     <section ref={dialog.ref} {...dialog.props} className="pdf-viewer" onClick={(e) => e.stopPropagation()}>
       <header className="pdf-viewer-header">
         <strong title={preview.name}>{preview.name}</strong>
@@ -341,7 +346,7 @@ function PdfViewer({ preview, onClose }: { preview: { name: string; url: string 
       </header>
       <PdfPages url={preview.url} />
     </section>
-  </div>;
+  </div>, document.body);
 }
 
 // A test run or an install can print tens of thousands of lines; laying all
