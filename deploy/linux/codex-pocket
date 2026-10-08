@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
+  echo 'This release supports Linux x86_64 only.' >&2
+  exit 1
+fi
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 22 || (major === 22 && minor < 12)) { console.error("Node.js 22.12 or newer is required."); process.exit(1); }'
+launcher=$(readlink -f -- "$0")
+bundle_dir=$(CDPATH= cd -- "$(dirname -- "$launcher")/.." && pwd)
+if [ "${1:-}" = serve ]; then
+  shift
+  exec node "$bundle_dir/host/cli.js" serve --static "$bundle_dir/web" "$@"
+fi
+exec node "$bundle_dir/host/cli.js" "$@"

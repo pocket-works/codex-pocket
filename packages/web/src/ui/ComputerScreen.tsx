@@ -62,7 +62,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
       onRemove(computer);
     } catch {
       setLocalRemoval(true);
-      setFailure(`Could not revoke access on ${computer.name}. Local removal leaves its pairing on the Mac; revoke it there later.`);
+      setFailure(`Could not revoke access on ${computer.name}. Local removal leaves its pairing on the computer; revoke it there later.`);
     } finally { removalHost.dispose(); setBusy(false); }
   }
 
@@ -73,7 +73,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
     finally { removalHost.dispose(); onRemove(computer); setBusy(false); }
   }
 
-  const liveStatus = current && session?.host?.id === computer.id && connection === "open" && status !== "Pair again" && status !== "Update Pocket on this Mac" ? upstream ? "Connected" : "Waiting for Codex" : status;
+  const liveStatus = current && session?.host?.id === computer.id && connection === "open" && status !== "Pair again" && status !== "Update Pocket on this computer" ? upstream ? "Connected" : "Waiting for Codex" : status;
   const fallback = status === "Checking…" ? status : "Unavailable";
   return <div className={`screen computer-screen computer-settings-screen ${back.dragging ? "dragging" : ""}`} ref={dialog.ref} {...dialog.props} style={back.style} {...back.handlers}>
     <header className="topbar plain">
@@ -81,7 +81,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
       <div className="topbar-title"><h1>{showPairingDetails ? "Pairing details" : computer.name}</h1><div className="muted small">{showPairingDetails ? computer.name : <>{current && "Current computer · "}{liveStatus}</>}</div></div>
     </header>
     <div className="computer-content">
-      {liveStatus === "Unreachable" && <div className="computer-recovery" role="status"><span>Check this Mac's connection and Tailscale.</span><button className="icon-btn" aria-label="Refresh connection" title="Refresh connection" onClick={() => setAttempt((n) => n + 1)}><RefreshIcon /></button></div>}
+      {liveStatus === "Unreachable" && <div className="computer-recovery" role="status"><span>Check this computer's connection and Tailscale.</span><button className="icon-btn" aria-label="Refresh connection" title="Refresh connection" onClick={() => setAttempt((n) => n + 1)}><RefreshIcon /></button></div>}
       {showPairingDetails ? <>
         <section className="computer-settings-group" aria-labelledby="pairing-info-title">
           <h2 id="pairing-info-title">This phone</h2>

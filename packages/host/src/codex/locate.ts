@@ -31,14 +31,15 @@ export interface DaemonRunner {
 // be a launchd job with almost none. Run codex through an interactive login
 // shell, exactly as the desktop app does over SSH, so the daemon sees what
 // the user's rc files export (PATH, proxies, provider API keys).
-export function loginShellCommand(codexBin: string, args: string[], shell = process.env.SHELL || "/bin/zsh"): { file: string; args: string[] } {
+export function loginShellCommand(codexBin: string, args: string[], shell = process.env.SHELL || (process.platform === "darwin" ? "/bin/zsh" : "/bin/bash")): { file: string; args: string[] } {
+  if (!/\/(?:ba|z|da)?sh$/.test(shell)) throw new Error("Codex Pocket requires a bash, zsh, dash or sh login shell; set SHELL accordingly.");
   return { file: shell, args: ["-lic", 'exec "$0" "$@"', codexBin, ...args] };
 }
 
 // Environment the host adds for the daemon: what the ChatGPT desktop app's
 // tools need (see app-tools-pipe.ts). Only a fresh daemon picks it up.
-export function daemonEnv(): Record<string, string> {
-  return appToolsDaemonEnv();
+export function daemonEnv(platform: NodeJS.Platform = process.platform): Record<string, string> {
+  return platform === "darwin" ? appToolsDaemonEnv() : {};
 }
 
 export function bundledCodexBin(apps = ["/Applications/ChatGPT.app", join(homedir(), "Applications", "ChatGPT.app")]): string | null {

@@ -10,7 +10,7 @@ Thanks for helping improve Codex Pocket. Bug reports, documentation fixes, and f
 
 ## Development setup
 
-Use Node.js 22.12 or newer and the pnpm version declared in the root `package.json`. Running the complete app and testing phone connections require an Apple silicon Mac with Codex signed in. Type checks, unit tests and separate host/PWA builds also run on Linux.
+Use Node.js 22.12 or newer and the pnpm version declared in the root `package.json`. Running the desktop app requires an Apple silicon Mac with Codex signed in. A Linux x86_64 host can also serve real phone connections; see [Linux deployment](./docs/linux.md). Type checks, unit tests and separate host/PWA builds also run on Linux.
 
 ```bash
 git clone https://github.com/pocket-works/codex-pocket.git
@@ -27,7 +27,7 @@ On macOS, `pnpm build` also bundles the desktop app using macOS icon tools. `mak
 
 ## Local development loop
 
-On the Mac, quit an existing Pocket menu bar app or source host before starting another host on port 7333. From the repository root, build the phone interface, then run the host in the foreground:
+On the computer, quit an existing Pocket menu bar app or source host before starting another host on port 7333. From the repository root, build the phone interface, then run the host in the foreground:
 
 ```bash
 pnpm --filter @codex-pocket/web build:dev
@@ -54,6 +54,6 @@ For a focused check, run a package's test command, such as `pnpm --filter @codex
 
 ## Pull requests
 
-Describe the user-visible change, how you tested it, and any macOS or phone behavior you could not verify. Include screenshots for visual changes, with thread content, account details, pairing codes, and local paths removed. Keep unrelated changes in separate pull requests.
+Describe the user-visible change, how you tested it, and any platform or phone behavior you could not verify. Include screenshots for visual changes, with thread content, account details, pairing codes, and local paths removed. Keep unrelated changes in separate pull requests.
 
 Contributions are submitted under the repository's [MIT license](./LICENSE). Generated Codex protocol declarations retain their [Apache-2.0 notice](./packages/protocol/NOTICE).

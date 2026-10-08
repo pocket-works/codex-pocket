@@ -1,0 +1,18 @@
+[Unit]
+Description=Codex Pocket phone host
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="SHELL=/bin/bash"
+ExecStart=%h/.local/share/codex-pocket/current/bin/codex-pocket serve
+Restart=on-failure
+RestartSec=5
+# Codex owns its daemon and updater. Stop only the Pocket host.
+KillMode=process
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

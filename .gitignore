@@ -16,3 +16,4 @@ dist/
 .claude/settings.local.json
 packages/desktop/build/
 packages/desktop/release/
+release/

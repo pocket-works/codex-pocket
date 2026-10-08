@@ -47,7 +47,7 @@ export async function pairComputer(origin: string, code: string): Promise<PairRe
       body: JSON.stringify({ code, deviceName: deviceName(navigator.userAgent, isStandalone()) }),
     });
   } catch {
-    throw new Error("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+    throw new Error("Can't reach your computer. Make sure Codex Pocket is running and try pairing again.");
   }
   if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Generate a new code on this computer." : `Pairing failed (HTTP ${res.status}).`);
   const pair = await res.json() as PairResult;
@@ -66,7 +66,7 @@ export async function redeemPairingCode(code: string): Promise<string> {
       signal: AbortSignal.timeout(8000),
     });
   } catch {
-    throw new Error("Can't reach your Mac. Make sure Codex Pocket is running and try pairing again.");
+    throw new Error("Can't reach your computer. Make sure Codex Pocket is running and try pairing again.");
   }
   if (!res.ok) throw new Error(res.status === 403 ? "Pairing code is invalid or expired. Run `codex-pocket pair` again." : `Pairing failed (HTTP ${res.status})`);
   const { token } = (await res.json()) as { token: string };

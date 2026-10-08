@@ -85,7 +85,7 @@ export async function serve(opts: ServeOptions): Promise<void> {
 
   const addr = await server.listen();
   // An older host LaunchAgent may still own the phone port on restart.
-  for (const label of retireLegacyLaunchAgents()) log(`removed retired ${label} LaunchAgent`);
+  for (const label of process.platform === "darwin" ? retireLegacyLaunchAgents() : []) log(`removed retired ${label} LaunchAgent`);
   writeRuntimeInfo({ pid: process.pid, port: addr.port, tls: !!tls, publicUrl });
   const note = tls ? "" : fixedUrl ? "  (TLS terminated by the proxy in front)" : "  (plain HTTP: no certificate in ~/.codex-pocket/certs)";
   log(`listening on ${publicUrl}${note}`);

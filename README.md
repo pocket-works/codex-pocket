@@ -1,8 +1,8 @@
 # codex-pocket
 
-Keep working with Codex after you step away from your Mac.
+Keep working with Codex after you step away from your computer.
 
-A phone-sized PWA that connects to Codex on your Mac over Tailscale or the LAN. Scan a QR code to pair, then continue a conversation or start a new task from your phone.
+A phone-sized PWA that connects to Codex on your Mac or Linux server over Tailscale or the LAN. Scan a QR code to pair, then continue a conversation or start a new task from your phone.
 
 [中文说明](./README.zh-CN.md)
 
@@ -10,31 +10,31 @@ A phone-sized PWA that connects to Codex on your Mac over Tailscale or the LAN. 
 
 ## Why Codex Pocket
 
-- **Your phone connects to your Mac; your Mac connects to OpenAI.** If ChatGPT on your phone requires a proxy or is slow to reach, use Pocket through Tailscale or the LAN. Your phone only needs to reach the Mac; the Mac handles model access using its existing network setup.
-- **Use the development environment you already have.** Tasks run on your Mac with its repositories, files, command-line tools, Codex configuration and skills. Pocket reuses the Mac's Codex login, so there is no separate Codex sign-in on the phone.
-- **Pick up the same desktop conversation.** Enable desktop sharing to continue the ChatGPT desktop app's Codex threads on your phone, with shared history and the same running task. Return to the desktop and keep going there.
+- **Your phone connects to your computer; your computer connects to OpenAI.** If ChatGPT on your phone requires a proxy or is slow to reach, use Pocket through Tailscale or the LAN. Your phone only needs to reach the computer; the computer handles model access using its existing network setup.
+- **Use the development environment you already have.** Tasks run on your computer with its repositories, files, command-line tools, Codex configuration and skills. Pocket reuses the computer's Codex login, so there is no separate Codex sign-in on the phone.
+- **Pick up the same desktop conversation on macOS.** Enable desktop sharing to continue the ChatGPT desktop app's Codex threads on your phone, with shared history and the same running task. Return to the desktop and keep going there.
 - **Do development work from your phone.** Start a task in a project or a new worktree, choose a branch, inspect diffs and subagent progress, steer a running task, or request a code review. Send images and CSV files, mention files, invoke skills, or dictate your instructions.
-- **Keep several Macs in your pocket.** Switch computers in one installed PWA, with separate drafts and credentials. Switching keeps tasks running; completion, approval and question notifications help you know when to return.
+- **Keep several computers in your pocket.** Switch computers in one installed PWA, with separate drafts and credentials. Switching keeps tasks running; completion, approval and question notifications help you know when to return.
 - **Use it in your browser and make it your own.** Open the phone interface in a browser or add it to the Home Screen. The project is MIT licensed, so you can inspect and customize it.
 
-Your phone does not need a separate proxy for ChatGPT. The Mac still needs access to the model service; responsiveness depends on both network connections and the model service.
+Your phone does not need a separate proxy for ChatGPT. The computer still needs access to the model service; responsiveness depends on both network connections and the model service.
 
 ## Who it is for
 
-Pocket is useful when Codex already works well on your Mac and you want to keep working from your phone: continue a coding task while away from your desk, check a long run, review its output, or manage several Macs. It is especially useful when reaching ChatGPT directly from your phone is inconvenient but your Mac's OpenAI connection is already configured.
+Pocket is useful when Codex already works well on your computer and you want to keep working from your phone: continue a coding task while away from your desk, check a long run, review its output, or manage several computers. It is especially useful when reaching ChatGPT directly from your phone is inconvenient but your computer's OpenAI connection is already configured.
 
-Pocket is a community project built on the official Codex app-server. You provide the Mac and its network connection; the Mac must stay awake and online for tasks on it. Pocket itself is MIT licensed, and model access and usage remain governed by your existing Codex account and provider configuration.
+Pocket is a community project built on the official Codex app-server. You provide the computer and its network connection; the computer must stay awake and online for tasks on it. Pocket itself is MIT licensed, and model access and usage remain governed by your existing Codex account and provider configuration.
 
 ## Features
 
-- **Projects and conversations:** projects stay in sync with the desktop; replies stream with collapsible reasoning and tool calls. Rename, swipe to archive, or fork a conversation.
+- **Projects and conversations:** on macOS with desktop sharing, projects stay in sync with the desktop; replies stream with collapsible reasoning and tool calls. Rename, swipe to archive, or fork a conversation.
 - **Task control:** approve commands, switch approval policies, interrupt a task, steer it with follow-up instructions, or queue messages shared with the desktop. Choose the model, reasoning effort and Fast tier.
 - **Development workflow:** start project or project-less chats, work locally or in a new worktree, choose a branch, inspect diffs, and request code reviews. View subagent status and read-only child conversations.
-- **Input and context:** attach images and CSV files, mention files with `@file`, invoke `/skills`, and dictate instructions through the Mac. Answer Codex's questions and view plans and usage.
-- **Output previews:** view images created on the Mac and local multi-page PDFs from the conversation.
-- **Desktop continuity:** enable desktop sharing to use the same Codex threads and running tasks from the phone and ChatGPT desktop app.
+- **Input and context:** attach images and CSV files, mention files with `@file`, invoke `/skills`, and dictate instructions through the computer. Answer Codex's questions and view plans and usage.
+- **Output previews:** view images created on the computer and local multi-page PDFs from the conversation.
+- **Desktop continuity (macOS):** enable desktop sharing to use the same Codex threads and running tasks from the phone and ChatGPT desktop app.
 - **Notifications:** Web Push for completed turns, approvals, questions and errors. On iOS, install the PWA on the Home Screen first.
-- **Multiple Macs:** one installed PWA, with separate credentials, drafts, pins and notification subscriptions for each computer.
+- **Multiple computers:** one installed PWA, with separate credentials, drafts, pins and notification subscriptions for each computer.
 
 ## Screenshots
 
@@ -58,25 +58,30 @@ These screens use fictional conversations, paths and computer details; no person
 
 ## Requirements
 
-- **A Mac with Apple silicon.** The published DMG and locally built app target arm64.
+- **An Apple silicon Mac, or a Linux x86_64 server.** The DMG targets macOS arm64. Linux uses the separate experimental host archive; see [Linux deployment](./docs/linux.md).
 - **Codex already signed in on that Mac.** For the DMG, install and sign in to the ChatGPT desktop app first; Pocket can use its bundled Codex CLI. A source build can also use an installed `codex` CLI. The host inherits Codex's login session rather than signing in itself.
-- **Node 22.12+ and pnpm only for source builds.** The DMG contains the menu bar app, host and PWA; it needs neither at runtime.
-- **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
+- **Linux requires Node 22.12+ and an installed, signed-in Codex CLI** (tested with 0.161.0). No pnpm is needed for the Linux archive. Source builds need Node and pnpm. The Mac DMG includes its runtime.
+- **A phone that can reach the computer**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
 
 ### Compatibility and current limits
 
 | Component | Current scope |
 | :--- | :--- |
-| Mac host | Published and local app builds target Apple silicon (arm64). Intel Macs, Windows and Linux hosts are outside the current app distribution. |
+| Mac host | Published and local app builds target Apple silicon (arm64). Intel Macs and Windows hosts are outside the current app distribution. |
+| Linux host (experimental) | Separate x86_64 archive. Debian 13 / Codex CLI 0.161.0 validated with a real iPhone PWA, including chat, push and dictation. ARM64, other distributions and systemd boot recovery are unverified. |
 | iPhone / Safari | The documented phone setup uses Safari and a Home Screen PWA. Notifications require HTTPS and installation on the Home Screen. |
 | Android / other browsers | The interface uses browser APIs, but the repository does not yet record real-device validation for these combinations. Treat them as unverified and include OS and browser versions when reporting results. |
-| Desktop sharing | Requires the daemon's `account/read` response to include `workspaceRouting` (Codex CLI 0.156.0 or newer). The link operation checks the actual capability. |
+| Desktop sharing (macOS) | Requires the daemon's `account/read` response to include `workspaceRouting` (Codex CLI 0.156.0 or newer). The link operation checks the actual capability. |
 | Browser features | Basic chat uses WebSocket. Notifications and offline startup require HTTPS and service workers; dictation also requires microphone permission and browser audio APIs. |
 | Automated checks | CI runs type checks, unit tests and host/PWA builds on Linux. It does not establish macOS or phone compatibility. |
 
 The repository does not yet publish a complete macOS/iOS/browser version validation matrix. Dictation uses an undocumented ChatGPT endpoint, and simultaneous notifications from multiple Macs still need verification on an installed iPhone PWA.
 
 ## Quick start
+
+### Deploy a Linux server
+
+Download the Linux x86_64 archive from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest), then follow [Linux deployment](./docs/linux.md) for checksum verification, Node/Codex setup, Tailscale HTTPS, pairing and the optional systemd user service. This is a headless host; the menu bar app and desktop linking remain macOS features.
 
 ### Install the DMG
 
@@ -105,36 +110,36 @@ Pair the phone from the menu as above. `make app` produces an unsigned developme
 
 ## Multiple computers
 
-1. Run an updated Codex Pocket on each Mac and configure a separate [Tailscale HTTPS](#deploying-https-via-tailscale) address for each one.
-2. Keep one installed phone PWA. Open **Menu → Computers**, choose **Add computer**, and scan the other Mac's pairing QR inside that PWA. Manual pairing takes the other Mac's HTTPS address and its code.
+1. Run an updated Codex Pocket on each computer and configure a separate [Tailscale HTTPS](#deploying-https-via-tailscale) address for each one.
+2. Keep one installed phone PWA. Open **Menu → Computers**, choose **Add computer**, and scan the other computer's pairing QR inside that PWA. Manual pairing takes the other computer's HTTPS address and its code.
 3. Select a computer from **Computers** to switch. Threads, projects, files and tasks belong to that computer. Switching saves drafts and does not stop running turns; an in-progress send or upload finishes before switching is available.
 4. Open a computer's information button to edit its name and address, manage notifications, or view **Pairing details**. Use **Pair again** with a fresh code to recover access.
-5. To remove a computer, use **Unpair computer** while that Mac is reachable. This revokes phone access and keeps chats on the Mac. **Remove locally** only forgets the phone's credentials; revoke the old pairing on the Mac afterward.
+5. To remove a computer, use **Unpair computer** while that computer is reachable. This revokes phone access and keeps chats on the computer. **Remove locally** only forgets the phone's credentials; revoke the old pairing on the computer afterward.
 
-The installed PWA keeps its original address. Once its resources have been cached, it can open and connect to another Mac while the entry Mac is unavailable. Initial installation, updates and registration of new notification workers require the entry address to be reachable. Each computer uses its own scoped Web Push subscription; notification clicks select that computer and thread. Concurrent notifications from multiple computers still require verification on an installed iPhone PWA.
+The installed PWA keeps its original address. Once its resources have been cached, it can open and connect to another computer while the entry computer is unavailable. Initial installation, updates and registration of new notification workers require the entry address to be reachable. Each computer uses its own scoped Web Push subscription; notification clicks select that computer and thread. Concurrent notifications from multiple computers still require verification on an installed iPhone PWA.
 
-An upgrade migrates the existing pairing and local data at this PWA's origin. Storage from separate browser origins or Home Screen apps cannot be imported automatically: add those Macs again from the PWA you keep. An address change requires a fresh pairing; existing tokens are never sent to an edited address.
+An upgrade migrates the existing pairing and local data at this PWA's origin. Storage from separate browser origins or Home Screen apps cannot be imported automatically: add those computers again from the PWA you keep. An address change requires a fresh pairing; existing tokens are never sent to an edited address.
 
 ## Connection and data flow
 
 ```mermaid
 flowchart LR
-    Phone["Phone PWA"] <-->|"Tailscale or LAN"| Host["Pocket host on Mac"]
-    Host <-->|"Local WebSocket"| Codex["Official Codex daemon on Mac"]
+    Phone["Phone PWA"] <-->|"Tailscale or LAN"| Host["Pocket host on Mac or Linux"]
+    Host <-->|"Local WebSocket"| Codex["Official Codex daemon on Mac or Linux"]
     Codex <-->|"Model requests"| Model["OpenAI or configured model provider"]
     Host <-->|"Dictation audio and transcript"| Speech["OpenAI dictation service"]
     Host -->|"Encrypted Web Push"| Push["Browser push service"]
     Push -->|"Notifications"| Phone
 ```
 
-- **Chat and files:** prompts and approvals go to Codex on your Mac. Commands and file operations run there; Codex sends task context to its configured model provider. Phone uploads are stored in `~/.codex-pocket/uploads/` on the Mac.
-- **Login and local storage:** Codex credentials stay on the Mac. The phone stores its own Pocket pairing tokens, drafts and preferences in browser storage; the host stores token hashes and push subscriptions. Chat history is managed by Codex.
-- **Dictation:** microphone audio travels through the Mac to OpenAI, with streamed transcripts returned to the phone. Pocket does not save the audio on the host.
-- **Notifications:** the Mac sends encrypted payloads through the browser's push service. The displayed notification can contain a conversation title or preview, a command approval snippet, or an error message. Push delivery needs internet access even when chat uses the LAN.
+- **Chat and files:** prompts and approvals go to Codex on your computer. Commands and file operations run there; Codex sends task context to its configured model provider. Phone uploads are stored in `~/.codex-pocket/uploads/` on the computer.
+- **Login and local storage:** Codex credentials stay on the computer. The phone stores its own Pocket pairing tokens, drafts and preferences in browser storage; the host stores token hashes and push subscriptions. Chat history is managed by Codex.
+- **Dictation:** microphone audio travels through the computer to OpenAI, with streamed transcripts returned to the phone. Pocket does not save the audio on the host.
+- **Notifications:** the computer sends encrypted payloads through the browser's push service. The displayed notification can contain a conversation title or preview, a command approval snippet, or an error message. Push delivery needs internet access even when chat uses the LAN.
 
 ## Security model
 
-The host is a **transparent proxy**: a paired phone gets everything the Codex app-server can do, including running commands and reading or writing files on the Mac. The only two boundaries are network reachability and the pairing code, so:
+The host is a **transparent proxy**: a paired phone gets everything the Codex app-server can do, including running commands and reading or writing files on the computer. The only two boundaries are network reachability and the pairing code, so:
 
 - Reach it over Tailscale (or the LAN) only. With `bindHost 127.0.0.1` the port is not exposed on the LAN at all. **Do not** put it on the public internet (Cloudflare Tunnel, port forwarding, …) without an extra layer of authentication.
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
@@ -220,6 +225,8 @@ The [architecture and code guide](./docs/architecture.md#daemon-connection-and-d
 
 ## Updating and uninstalling
 
+For Linux, follow the [upgrade, rollback and removal instructions](./docs/linux.md#upgrade-rollback-and-remove). The steps below describe the Mac app.
+
 ### Update
 
 1. Let active work finish, quit Codex Pocket, and replace the app in Applications with the version from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest). Source users can update the checkout, run `pnpm install --frozen-lockfile`, rebuild with `make app`, and reopen the app.
@@ -270,13 +277,13 @@ A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `mak
 The full `pnpm build` and menu bar app builds use macOS tools. Linux contributors can run type checks, unit tests, and separate host/PWA builds; see the [development setup](./CONTRIBUTING.md#development-setup) and [local development loop](./CONTRIBUTING.md#local-development-loop).
 
 To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md). The [architecture and code guide](./docs/architecture.md) maps the packages and explains desktop sharing; code conventions are in [AGENTS.md](./AGENTS.md).
-For maintainers, the manual macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
+For maintainers, the Linux and macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
 
 State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images and CSV files sent from the phone, up to 10 MB per upload), `host.log`, and `desktop-bridge.log` when desktop sharing is linked.
 
 ## Releases
 
-Versioned macOS builds are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). All workspace packages share one Semantic Versioning number; changes are recorded in [CHANGELOG.md](./CHANGELOG.md). Maintainer instructions are in the [release process](./docs/releasing.md).
+Versioned macOS apps and experimental Linux x86_64 hosts are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). All workspace packages share one Semantic Versioning number; changes are recorded in [CHANGELOG.md](./CHANGELOG.md). Maintainer instructions are in the [release process](./docs/releasing.md).
 
 ## Help and feedback
 

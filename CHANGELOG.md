@@ -4,6 +4,24 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
+### Added
+
+- Experimental Linux x86_64 server distribution: bundled host and PWA, launcher, systemd user unit, license notices and SHA-256 checksum. Node 22.12+ and a signed-in Codex CLI are installed separately.
+- English and Chinese Linux deployment guides covering HTTPS, iPhone pairing, background service setup, upgrades and rollback.
+- Linux archive smoke checks in CI and automatic Linux assets on draft releases.
+
+### Changed
+
+- Use a bash fallback when Linux has no SHELL, omit macOS desktop tools environment on Linux, and reject desktop-only commands clearly.
+- Use computer-neutral phone interface messages for Mac and Linux hosts.
+
+### Validation and limits
+
+- Debian 13 x86_64 with Codex CLI 0.161.0: host/PWA checks, daemon lifecycle, files, Git/worktrees, approvals, queue/history and reconnects; real iPhone PWA chat, push with notification navigation and dictation.
+- Linux ARM64, other distributions, Android and real systemd boot recovery remain unverified. iPhone dictation can take time to show text; this release does not include a latency fix.
+
 ## [0.2.2] - 2026-10-08
 
 ### Changed

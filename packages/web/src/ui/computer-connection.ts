@@ -13,7 +13,7 @@ export function useConnectionState(session: Session | null) {
 
 export function computerConnection(computer: Computer, info: HostInfo): string {
   if (computer.instanceId && info.instanceId !== computer.instanceId) return "Pair again";
-  if (computer.origin !== location.origin && info.apiVersion !== 2) return "Update Pocket on this Mac";
+  if (computer.origin !== location.origin && info.apiVersion !== 2) return "Update Pocket on this computer";
   return info.upstream ? "Connected" : "Waiting for Codex";
 }
 

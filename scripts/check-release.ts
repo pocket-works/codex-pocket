@@ -33,6 +33,6 @@ if (args.length === 0) {
   const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
   const notes = lines.slice(start + 1, end).join("\n").trim();
   if (!notes) throw new Error(`CHANGELOG.md has no notes for ${version}`);
-  writeFileSync(args[3], `${notes}\n\nThis macOS build targets Apple silicon. Open the DMG and drag Codex Pocket to Applications.\n`);
+  writeFileSync(args[3], `${notes}\n\nThe macOS DMG targets Apple silicon; drag Codex Pocket to Applications. The experimental Linux x86_64 archive requires Node.js 22.12+ and a signed-in Codex CLI (tested with 0.161.0). See [Linux deployment](https://github.com/pocket-works/codex-pocket/blob/${tag}/docs/linux.md) / [中文部署](https://github.com/pocket-works/codex-pocket/blob/${tag}/docs/linux.zh-CN.md).\n`);
   console.log(`Release ${tag} validated; notes written to ${args[3]}`);
 }

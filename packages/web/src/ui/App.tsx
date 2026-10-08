@@ -48,10 +48,10 @@ export function App({ session, connectionProblem, onRetry, onComputers, onPairAg
     ? null
     : connectionProblem ?? (connection !== "open"
       ? stuck
-        ? "Can't reach your Mac. Make sure Codex Pocket is running and Tailscale is on when away from home. Reconnecting..."
-        : "Connecting to your Mac…"
+        ? "Can't reach your computer. Make sure Codex Pocket is running and Tailscale is on when away from home. Reconnecting..."
+        : "Connecting to your computer…"
       : !upstream
-        ? "Mac reached, waiting for Codex app-server…"
+        ? "Computer reached, waiting for Codex app-server…"
         : null);
 
   // An iPad or a desktop window: the list stays on the left and the

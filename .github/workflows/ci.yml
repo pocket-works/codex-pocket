@@ -29,3 +29,5 @@ jobs:
       # The menu bar app is packaged by the manual and tag-triggered macOS workflows.
       - run: pnpm --filter @codex-pocket/host build
       - run: pnpm --filter @codex-pocket/web build
+      - run: node scripts/package-linux.ts
+      - run: pnpm package:linux:check

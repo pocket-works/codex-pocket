@@ -2,8 +2,8 @@
   "name": "codex-pocket",
   "type": "module",
   "private": true,
-  "version": "0.2.2",
-  "description": "Phone-sized PWA that connects straight to the Codex desktop app-server on your Mac, over Tailscale or the LAN.",
+  "version": "0.3.0",
+  "description": "Phone-sized PWA that connects to the official Codex daemon on macOS or Linux over Tailscale or the LAN.",
   "repository": {
     "type": "git",
     "url": "https://github.com/pocket-works/codex-pocket.git"
@@ -25,9 +25,12 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "release:check": "node scripts/check-release.ts",
-    "dev:host": "pnpm --filter @codex-pocket/host dev"
+    "dev:host": "pnpm --filter @codex-pocket/host dev",
+    "package:linux": "pnpm --filter @codex-pocket/web build && node scripts/package-linux.ts",
+    "package:linux:check": "pnpm --filter @codex-pocket/host exec tsx ../../scripts/check-linux-package.ts"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "esbuild": "^0.28.2"
   }
 }
