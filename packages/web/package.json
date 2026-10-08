@@ -1,6 +1,6 @@
 {
   "name": "@codex-pocket/web",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Phone PWA for codex-pocket.",
   "license": "MIT",
@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:dev": "tsc --noEmit && vite build --mode development",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

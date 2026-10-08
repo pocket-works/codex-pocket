@@ -1,19 +1,40 @@
 # codex-pocket
 
-A phone-sized PWA that talks straight to the Codex app-server on your Mac, over Tailscale or the LAN. Scan a QR code to pair; reconnects in a second.
+Keep working with Codex after you step away from your Mac.
+
+A phone-sized PWA that connects to Codex on your Mac over Tailscale or the LAN. Scan a QR code to pair, then continue a conversation or start a new task from your phone.
 
 [中文说明](./README.zh-CN.md)
 
+[Download](https://github.com/pocket-works/codex-pocket/releases/latest) · [Quick start](#quick-start) · [Tailscale setup](#deploying-https-via-tailscale) · [Troubleshooting](#faq-and-troubleshooting) · [Contributing](./CONTRIBUTING.md)
+
+## Why Codex Pocket
+
+- **Your phone connects to your Mac; your Mac connects to OpenAI.** If ChatGPT on your phone requires a proxy or is slow to reach, use Pocket through Tailscale or the LAN. Your phone only needs to reach the Mac; the Mac handles model access using its existing network setup.
+- **Use the development environment you already have.** Tasks run on your Mac with its repositories, files, command-line tools, Codex configuration and skills. Pocket reuses the Mac's Codex login, so there is no separate Codex sign-in on the phone.
+- **Pick up the same desktop conversation.** Enable desktop sharing to continue the ChatGPT desktop app's Codex threads on your phone, with shared history and the same running task. Return to the desktop and keep going there.
+- **Do development work from your phone.** Start a task in a project or a new worktree, choose a branch, inspect diffs and subagent progress, steer a running task, or request a code review. Send images and CSV files, mention files, invoke skills, or dictate your instructions.
+- **Keep several Macs in your pocket.** Switch computers in one installed PWA, with separate drafts and credentials. Switching keeps tasks running; completion, approval and question notifications help you know when to return.
+- **Use it in your browser and make it your own.** Open the phone interface in a browser or add it to the Home Screen. The project is MIT licensed, so you can inspect and customize it.
+
+Your phone does not need a separate proxy for ChatGPT. The Mac still needs access to the model service; responsiveness depends on both network connections and the model service.
+
+## Who it is for
+
+Pocket is useful when Codex already works well on your Mac and you want to keep working from your phone: continue a coding task while away from your desk, check a long run, review its output, or manage several Macs. It is especially useful when reaching ChatGPT directly from your phone is inconvenient but your Mac's OpenAI connection is already configured.
+
+Pocket is a community project built on the official Codex app-server. You provide the Mac and its network connection; the Mac must stay awake and online for tasks on it. Pocket itself is MIT licensed, and model access and usage remain governed by your existing Codex account and provider configuration.
+
 ## Features
 
-- Thread list grouped by the desktop app's real projects (`project/list`), so adding or deleting a project on the Mac shows up here immediately instead of leaving a stale folder behind; streamed replies with collapsible reasoning and tool calls; diff view
-- Approvals (with policy switching), interrupt, `turn/steer`, the server-side follow-up queue (`thread/queue/*`, shared with the desktop app), model and reasoning effort, Fast tier
-- New thread: project or project-less chat, work locally or in a new worktree, pick a branch
-- Image and CSV attachments, `@file` mentions, `/skills`, dictation (streamed through the host to the same ChatGPT speech backend the desktop app's dictation uses, so identifiers and mixed-language speech come out right), model questions, plan and usage display
-- Rename, archive (swipe), fork and review threads
-- Shares one app-server with the ChatGPT desktop app, so phone and desktop see the same threads
-- Web Push notifications for finished turns, approvals, questions and errors (iOS: add to Home Screen first)
-- Multiple computers in one installed PWA, with separate credentials, drafts, pins and notification subscriptions
+- **Projects and conversations:** projects stay in sync with the desktop; replies stream with collapsible reasoning and tool calls. Rename, swipe to archive, or fork a conversation.
+- **Task control:** approve commands, switch approval policies, interrupt a task, steer it with follow-up instructions, or queue messages shared with the desktop. Choose the model, reasoning effort and Fast tier.
+- **Development workflow:** start project or project-less chats, work locally or in a new worktree, choose a branch, inspect diffs, and request code reviews. View subagent status and read-only child conversations.
+- **Input and context:** attach images and CSV files, mention files with `@file`, invoke `/skills`, and dictate instructions through the Mac. Answer Codex's questions and view plans and usage.
+- **Output previews:** view images created on the Mac and local multi-page PDFs from the conversation.
+- **Desktop continuity:** enable desktop sharing to use the same Codex threads and running tasks from the phone and ChatGPT desktop app.
+- **Notifications:** Web Push for completed turns, approvals, questions and errors. On iOS, install the PWA on the Home Screen first.
+- **Multiple Macs:** one installed PWA, with separate credentials, drafts, pins and notification subscriptions for each computer.
 
 ## Screenshots
 
@@ -42,16 +63,29 @@ These screens use fictional conversations, paths and computer details; no person
 - **Node 22.12+ and pnpm only for source builds.** The DMG contains the menu bar app, host and PWA; it needs neither at runtime.
 - **A phone that can reach the Mac**, over Tailscale or the LAN. On iOS, add the PWA to the Home Screen: web push does not arrive in a Safari tab.
 
+### Compatibility and current limits
+
+| Component | Current scope |
+| :--- | :--- |
+| Mac host | Published and local app builds target Apple silicon (arm64). Intel Macs, Windows and Linux hosts are outside the current app distribution. |
+| iPhone / Safari | The documented phone setup uses Safari and a Home Screen PWA. Notifications require HTTPS and installation on the Home Screen. |
+| Android / other browsers | The interface uses browser APIs, but the repository does not yet record real-device validation for these combinations. Treat them as unverified and include OS and browser versions when reporting results. |
+| Desktop sharing | Requires the daemon's `account/read` response to include `workspaceRouting` (Codex CLI 0.156.0 or newer). The link operation checks the actual capability. |
+| Browser features | Basic chat uses WebSocket. Notifications and offline startup require HTTPS and service workers; dictation also requires microphone permission and browser audio APIs. |
+| Automated checks | CI runs type checks, unit tests and host/PWA builds on Linux. It does not establish macOS or phone compatibility. |
+
+The repository does not yet publish a complete macOS/iOS/browser version validation matrix. Dictation uses an undocumented ChatGPT endpoint, and simultaneous notifications from multiple Macs still need verification on an installed iPhone PWA.
+
 ## Quick start
 
 ### Install the DMG
 
 1. On an Apple silicon Mac, install and sign in to the ChatGPT desktop app.
 2. Download the signed and notarized Apple silicon DMG from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest). Open it, drag **Codex Pocket** to **Applications**, then launch it from Applications. The app appears in the menu bar.
-3. For notifications on iPhone, set up [Tailscale HTTPS](#deploying-https-via-tailscale) before pairing. Otherwise, connect the phone and Mac to the same LAN. Choose **Pair a phone…** from the Pocket menu and scan the QR code, or open the displayed address and enter the code manually. The code expires after 10 minutes.
+3. Choose the connection: for access away from home, follow [Tailscale HTTPS setup](#deploying-https-via-tailscale) before pairing; for basic chat on the LAN, connect the phone and Mac to the same network. HTTPS is needed for notifications and dictation. Choose **Pair a phone…** from the Pocket menu and scan the QR code, or open the displayed address and enter the code manually. The code expires after 10 minutes.
 4. In Safari, open the PWA at the address you intend to keep (the HTTPS address if you want notifications), then choose **Add to Home Screen**. Open the installed PWA and pair again from the Pocket menu: iOS keeps its storage separate from Safari. For Web Push, open **Menu → Computers**, open your Mac's details using its information button, and enable **Notifications**.
 
-To share active threads with the ChatGPT desktop app, choose **Desktop sharing > Link desktop…** in the Pocket menu, then quit and reopen ChatGPT. If the existing Codex daemon lacks the desktop tools environment, linking restarts it once and interrupts active turns. You can use Pocket without linking, but a thread held by a separate desktop app-server cannot be opened for writing from the phone.
+To continue threads from the ChatGPT desktop app, follow [desktop sharing](#sharing-threads-with-the-desktop-app-recommended). Let active work finish before linking, then quit and reopen ChatGPT. Pocket also works without desktop sharing.
 
 ![Codex Pocket pairing screen on a phone](./docs/screenshots/pairing.jpg)
 
@@ -60,25 +94,43 @@ To share active threads with the ChatGPT desktop app, choose **Desktop sharing >
 With Codex signed in, Node 22.12+ and pnpm installed on an Apple silicon Mac:
 
 ```bash
+git clone https://github.com/pocket-works/codex-pocket.git
+cd codex-pocket
 pnpm install --frozen-lockfile
 make app
 make open-app
 ```
 
-Pair the phone from the menu as above. `make app` produces an unsigned development build; use the release DMG for a signed, notarized installation. The older v0.1.0 zip was unsigned; v0.1.1 and later releases use a DMG.
-
-This is an Apple silicon build. Desktop app sharing through `link-desktop` additionally requires a Codex daemon whose `account/read` response includes `workspaceRouting` (Codex CLI 0.156.0 or newer); `codex-pocket desktop` checks that capability. Dictation depends on an undocumented ChatGPT endpoint and may stop working when that endpoint changes.
+Pair the phone from the menu as above. `make app` produces an unsigned development build; use the release DMG for normal installation. See [compatibility and current limits](#compatibility-and-current-limits) for Codex and browser requirements.
 
 ## Multiple computers
 
 1. Run an updated Codex Pocket on each Mac and configure a separate [Tailscale HTTPS](#deploying-https-via-tailscale) address for each one.
 2. Keep one installed phone PWA. Open **Menu → Computers**, choose **Add computer**, and scan the other Mac's pairing QR inside that PWA. Manual pairing takes the other Mac's HTTPS address and its code.
 3. Select a computer from **Computers** to switch. Threads, projects, files and tasks belong to that computer. Switching saves drafts and does not stop running turns; an in-progress send or upload finishes before switching is available.
-4. Open a computer's information button to manage it. **Computer** contains its editable name and address; **This phone** contains the notification preference and **Pairing details**. Pairing details opens a separate page with the phone's name, pairing date, pairing ID and **Pair again**. When access needs recovery, **Pair again** also appears on the main computer page. **Unpair computer** is a separate action at the end of that page. Returning from either page restores your chat or draft. Unpairing revokes this phone's access when the Mac is reachable and does not delete chats on the Mac. **Remove locally** only forgets the phone's credentials; revoke the old pairing on the Mac afterward. **Menu → About** shows the phone app version.
+4. Open a computer's information button to edit its name and address, manage notifications, or view **Pairing details**. Use **Pair again** with a fresh code to recover access.
+5. To remove a computer, use **Unpair computer** while that Mac is reachable. This revokes phone access and keeps chats on the Mac. **Remove locally** only forgets the phone's credentials; revoke the old pairing on the Mac afterward.
 
 The installed PWA keeps its original address. Once its resources have been cached, it can open and connect to another Mac while the entry Mac is unavailable. Initial installation, updates and registration of new notification workers require the entry address to be reachable. Each computer uses its own scoped Web Push subscription; notification clicks select that computer and thread. Concurrent notifications from multiple computers still require verification on an installed iPhone PWA.
 
 An upgrade migrates the existing pairing and local data at this PWA's origin. Storage from separate browser origins or Home Screen apps cannot be imported automatically: add those Macs again from the PWA you keep. An address change requires a fresh pairing; existing tokens are never sent to an edited address.
+
+## Connection and data flow
+
+```mermaid
+flowchart LR
+    Phone["Phone PWA"] <-->|"Tailscale or LAN"| Host["Pocket host on Mac"]
+    Host <-->|"Local WebSocket"| Codex["Official Codex daemon on Mac"]
+    Codex <-->|"Model requests"| Model["OpenAI or configured model provider"]
+    Host <-->|"Dictation audio and transcript"| Speech["OpenAI dictation service"]
+    Host -->|"Encrypted Web Push"| Push["Browser push service"]
+    Push -->|"Notifications"| Phone
+```
+
+- **Chat and files:** prompts and approvals go to Codex on your Mac. Commands and file operations run there; Codex sends task context to its configured model provider. Phone uploads are stored in `~/.codex-pocket/uploads/` on the Mac.
+- **Login and local storage:** Codex credentials stay on the Mac. The phone stores its own Pocket pairing tokens, drafts and preferences in browser storage; the host stores token hashes and push subscriptions. Chat history is managed by Codex.
+- **Dictation:** microphone audio travels through the Mac to OpenAI, with streamed transcripts returned to the phone. Pocket does not save the audio on the host.
+- **Notifications:** the Mac sends encrypted payloads through the browser's push service. The displayed notification can contain a conversation title or preview, a command approval snippet, or an error message. Push delivery needs internet access even when chat uses the LAN.
 
 ## Security model
 
@@ -87,37 +139,20 @@ The host is a **transparent proxy**: a paired phone gets everything the Codex ap
 - Reach it over Tailscale (or the LAN) only. With `bindHost 127.0.0.1` the port is not exposed on the LAN at all. **Do not** put it on the public internet (Cloudflare Tunnel, port forwarding, …) without an extra layer of authentication.
 - Pairing codes are 8 characters, valid for 10 minutes, and voided after 5 wrong guesses. Device tokens are stored hashed and can be revoked at any time; the admin endpoints accept loopback plus an admin token only.
 - Browser pairings are bound to the PWA origin. Cross-origin phone APIs require that pairing's token and origin; admin APIs have no cross-origin access. The phone retains a separate token for each computer.
-- Dictation reuses the ChatGPT login in `~/.codex/auth.json` against an undocumented backend (`backend-api/dictation/stream`, the one the Codex desktop app's own dictation button talks to). Audio from the phone goes to OpenAI; nothing is stored on the host. If OpenAI changes that endpoint, dictation stops working until this project catches up. The host dials chatgpt.com directly and does not read `HTTPS_PROXY`; if your Mac needs a proxy for that, set `config set outboundProxy http://127.0.0.1:1082`. Dictation start errors such as "did not answer session.start in time" usually mean exactly that.
+- Dictation reuses the ChatGPT login in `~/.codex/auth.json` and sends audio to OpenAI through an undocumented endpoint. Pocket does not save the audio on the host. See [data flow](#connection-and-data-flow) and [troubleshooting](#faq-and-troubleshooting) for storage and connection details.
 
 ## Running it: the menu bar app
 
-The host runs inside **Codex Pocket**, a small macOS menu bar app in `packages/desktop`. Opening the app starts the host and quitting it stops the host. If desktop sharing is linked, its separate local bridge stays running until `unlink-desktop`. The dot in the menu bar shows the state (grey stopped, yellow starting, green running, red error) and the menu shows the address, whether the Codex daemon is connected, the paired phones (with revoke), and **Pair a phone…**, which shows the QR code and the typed code. **Keep this Mac awake** holds off idle sleep while the host runs, so a phone can start a turn and a running turn is not cut short (the display still sleeps; closing the lid on battery still sleeps the Mac). The choice is kept in `~/.codex-pocket/desktop.json`.
+Opening **Codex Pocket** starts the phone host; quitting it stops phone access. Codex manages its own daemon. If desktop sharing is linked, its separate bridge keeps running until you choose **Unlink desktop…**.
 
-`make app` builds `packages/desktop/release/mac-arm64/Codex Pocket.app`; you can also drag it to `/Applications`. The app bundles the host and the PWA, so it does not need a system Node. The Codex app-server itself is the official daemon (`codex app-server daemon start`) and belongs to Codex, so the app only reports its connection state and never stops it.
-
-## Development
-
-```bash
-pnpm install
-pnpm test
-pnpm dev:host info      # app-server connection details
-pnpm dev:host threads   # recent threads from the desktop Codex
-pnpm dev:host serve     # serve; prints a pairing QR on first start
-pnpm dev:host pair      # pair another phone
-pnpm dev:host devices   # paired phones
-pnpm dev:host revoke <id>
-```
-
-A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `make status`, …); run `make help` for the list. `pnpm --filter @codex-pocket/desktop dev` runs the menu bar app from the workspace (it bundles the host from source first); after changing host code, run it again or pick **Restart host** in the menu after `pnpm --filter @codex-pocket/desktop bundle`.
-
-To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md); package boundaries and code conventions are in [AGENTS.md](./AGENTS.md).
-For maintainers, the manual macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
-
-State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images and CSV files sent from the phone, up to 10 MB per upload), `host.log`, and `desktop-bridge.log` when desktop sharing is linked.
+- **Status:** grey means stopped, yellow means starting or waiting for Codex, green means ready, and red means an error. The menu shows the address and daemon connection status.
+- **Pairing:** **Pair a phone…** shows the QR code and pairing code. Open a paired phone's submenu to revoke its access.
+- **Keep this Mac awake:** prevents idle sleep while the host runs and remembers your choice. The display can still sleep; closing the lid on battery still puts the Mac to sleep.
+- **Diagnostics:** use **Restart host** or **Open log** when troubleshooting.
 
 ## Deploying: HTTPS via Tailscale
 
-The host itself speaks plain HTTP; `tailscale serve` terminates TLS in front of it, so one URL works at home and away (on the same LAN, Tailscale takes the direct path):
+Use Tailscale HTTPS for one address that works at home and away, with support for notifications and dictation. `tailscale serve` provides HTTPS in front of the Pocket host; Tailscale can connect directly on the same LAN.
 
 1. Install Tailscale on the Mac and the phone with the same account, and enable **HTTPS Certificates** in the [admin console](https://login.tailscale.com/admin/dns) (the first `tailscale serve` prints the link).
 2. On the Mac, proxy the tailnet name to the host:
@@ -163,28 +198,97 @@ pnpm dev:host serve
 
 ## Sharing threads with the desktop app (recommended)
 
-Codex's writer lock is a cross-process file lock: the ChatGPT desktop app spawns a private `app-server` by default, so a phone connected to a different process cannot open threads the desktop has open. The fix is to put both in the same process:
+Desktop sharing lets the phone and ChatGPT desktop app continue the same Codex threads through one daemon. A desktop app using a separate app-server may hold a thread that the phone cannot open for writing.
+
+1. Let active turns finish, then choose **Desktop sharing → Link desktop…** in the Pocket menu.
+2. The operation checks daemon compatibility. If the daemon lacks the desktop tools environment, linking restarts it once and interrupts active turns.
+3. Quit and reopen ChatGPT, then open the desktop thread on your phone.
+
+To return ChatGPT to its own app-server, choose **Desktop sharing → Unlink desktop…**, then quit and reopen ChatGPT. Quitting Pocket alone keeps the independent desktop bridge running.
+
+Source users can run these commands from the repository:
 
 ```bash
-codex-pocket link-desktop   # starts a persistent local bridge, then links ChatGPT to it
-# quit and reopen ChatGPT
-codex-pocket desktop        # show the link status, and whether the daemon is ready to be linked
+pnpm dev:host desktop        # check link status and daemon compatibility
+pnpm dev:host link-desktop   # link, then quit and reopen ChatGPT
+pnpm dev:host unlink-desktop # unlink, then quit and reopen ChatGPT
 ```
 
-`serve` connects to the official Codex daemon (`codex app-server daemon start`, reachable on `~/.codex/app-server-control/app-server-control.sock`). Pocket uses the CLI bundled in ChatGPT when `CODEX_BIN` is unset and that app is installed; otherwise it uses the CLI on your shell's `PATH`. `link-desktop` installs a user LaunchAgent for a small bridge from `ws://127.0.0.1:7355` to that socket. The bridge uses Pocket's bundled Electron runtime, checks an app-server connection before setting `CODEX_APP_SERVER_WS_URL` for the desktop app, and `link-desktop` waits for it to be ready. It works on first link even if Pocket is closed. The bridge keeps running after Pocket quits and is removed by `unlink-desktop`; the daemon remains owned by Codex. Both clients end up in that one daemon, so desktop threads continue on the phone and stay in sync. The bridge starts Codex through your interactive login shell, so the daemon sees the same `PATH`, proxy variables and provider API keys as your terminal. `link-desktop` first checks that the daemon's `account/read` reports `workspaceRouting`: the desktop app routes every backend call (sign-in lookup, dictation) through it and silently loses both when it is missing, which is the case with standalone codex 0.155.1 while the copy bundled in ChatGPT.app already has it. The field ships in codex 0.156.0 (openai/codex#45529); until the daemon runs that, the command refuses (`--force` overrides) and the desktop keeps its private app-server. `codex-pocket desktop` runs the same check, so after a Codex update it says whether linking will work. The desktop app's own tools for Codex (create or hand off threads, automations; the bundled `codex_app` MCP server) reach it through a unix socket the app opens at each launch. The bridge keeps `~/.codex-pocket/app-tools.sock` pointed at that socket and has the MCP server run under the app's own signed node, which the socket requires; a daemon started before this may be restarted once by `link-desktop` (running turns are interrupted). `codex-pocket unlink-desktop` restores the desktop's private app-server after restarting ChatGPT. `"codex": {"port": N}` in `~/.codex-pocket/config.json` changes the bridge port; run `link-desktop` again after changing it.
+When upgrading from a version that ran its own `com.codex-pocket.shared-app-server` LaunchAgent, linking removes that old agent before installing the bridge. When upgrading from a version where the host owned the bridge, restart Pocket and link the desktop again before quitting Pocket. Let active desktop work finish before either migration.
 
-When upgrading from a version that ran its own `com.codex-pocket.shared-app-server` LaunchAgent, `link-desktop` removes it before installing the bridge; finish active desktop turns first.
-After upgrading from a version where the host owned the desktop bridge, restart Pocket and run `link-desktop` again to install the independent bridge before quitting Pocket.
+The [architecture and code guide](./docs/architecture.md#daemon-connection-and-desktop-sharing) explains the bridge, daemon environment, desktop tools and custom port configuration.
 
-After upgrading Codex, regenerate the protocol types:
+## Updating and uninstalling
+
+### Update
+
+1. Let active work finish, quit Codex Pocket, and replace the app in Applications with the version from the [latest release](https://github.com/pocket-works/codex-pocket/releases/latest). Source users can update the checkout, run `pnpm install --frozen-lockfile`, rebuild with `make app`, and reopen the app.
+2. Launch Pocket and keep the Mac at the PWA's original installation address reachable. Open the phone PWA, tap **Codex Pocket was updated — tap to reload** if shown, or close and reopen it to load the new interface. In a multi-Mac setup, switching to another computer does not update the PWA served by the original Mac.
+3. Check the phone version under **Menu → About**. Pairings and local data migrate at the same browser origin. A new address or cleared browser storage requires pairing again.
+
+See [CHANGELOG.md](./CHANGELOG.md) for release-specific steps. If upgrading from an older desktop-sharing setup, follow the migration notes in [Sharing threads with the desktop app](#sharing-threads-with-the-desktop-app-recommended).
+
+### Uninstall
+
+1. While Pocket is running, revoke each phone from the Mac's **paired phones → device → Revoke** menu, or use **Unpair computer** on a connected phone.
+2. If desktop sharing is linked, choose **Desktop sharing → Unlink desktop…** and quit and reopen ChatGPT. Do this before deleting Pocket: its independent bridge continues running after Pocket quits.
+3. Quit Pocket and remove **Codex Pocket.app** from Applications. Remove the Home Screen PWA and, if configured, Pocket's Tailscale Serve mapping.
+4. Pocket's local settings, logs and uploaded files remain in `~/.codex-pocket/`. You can delete that directory after unlinking if you no longer need them; uploaded files referenced by conversations will then be unavailable. Codex manages its own login and history separately in `~/.codex/`.
+
+## FAQ and troubleshooting
+
+### Does the Mac need to stay on?
+
+Yes. To send messages or access a Mac's files, Pocket and the Codex daemon must be running on an awake, reachable Mac. **Keep this Mac awake** prevents idle sleep while Pocket runs; closing the lid on battery still puts the Mac to sleep. A cached phone interface can open offline, but sending messages and reading live results require a connection to the Mac.
+
+| Symptom | What to check |
+| :--- | :--- |
+| Phone cannot connect | Check the menu bar host status and **Codex daemon: connected**. On LAN, use the current Mac address; with Tailscale, check both devices are connected to the same tailnet. With `bindHost: 127.0.0.1`, use the configured Tailscale HTTPS address. If access needs recovery, use **Pair again** with a fresh code. |
+| No notifications | Use HTTPS, install the PWA on the iPhone Home Screen, and enable **Notifications** in that computer's details. Check system notification permission and the Mac's access to the push service. No push is sent while the app is visible on the same thread. Multi-Mac simultaneous delivery on iPhone is still unverified. |
+| Cannot continue a desktop thread | Enable **Desktop sharing → Link desktop…**, then quit and reopen ChatGPT. If linking reports an incompatible daemon, update Codex and check again. A separate desktop app-server may hold the thread's writer lock. See [desktop sharing](#sharing-threads-with-the-desktop-app-recommended). |
+| Dictation fails or is unavailable | Use HTTPS and allow microphone access. If the Mac needs a proxy, set `outboundProxy` in `~/.codex-pocket/config.json` to its HTTP proxy URL (for example, `http://127.0.0.1:1082`) and restart the host. Dictation does not read `HTTPS_PROXY`; this setting is separate from Codex's model connection. The undocumented dictation endpoint may also have changed. |
+| Old interface after an update | Keep the Mac at the PWA's original address online, then use the update banner or close and reopen the PWA. Compare **Menu → About** with the installed release. Clearing site data loses local pairings and drafts, so copy drafts and be ready to pair again if you use that recovery step. |
+
+Use **Open log** in the Mac menu for diagnostics. Host logs are in `~/.codex-pocket/host.log`; desktop-sharing logs are in `~/.codex-pocket/desktop-bridge.log`. Include Pocket and Codex versions, Mac/phone OS and browser versions, connection type, and reproduction steps in a [bug report](https://github.com/pocket-works/codex-pocket/issues/new?template=bug_report.md). Remove credentials, pairing codes and private conversation content from shared logs.
+
+## Development
 
 ```bash
-pnpm --filter @codex-pocket/protocol generate
+pnpm install --frozen-lockfile
+pnpm test
+pnpm --filter @codex-pocket/web build # build the phone interface before serving
+pnpm dev:host info      # app-server connection details
+pnpm dev:host threads   # recent threads from the desktop Codex
+pnpm dev:host serve     # serve; prints a pairing QR on first start
+pnpm dev:host pair      # pair another phone
+pnpm dev:host devices   # paired phones
+pnpm dev:host revoke DEVICE_ID # replace with an ID from devices
 ```
+
+A `Makefile` wraps the common tasks (`make app`, `make start`, `make pair`, `make status`, …); run `make help` for the list. `pnpm --filter @codex-pocket/desktop dev` runs the menu bar app from the workspace (it bundles the host from source first); after changing host code, run it again or pick **Restart host** in the menu after `pnpm --filter @codex-pocket/desktop bundle`.
+
+The full `pnpm build` and menu bar app builds use macOS tools. Linux contributors can run type checks, unit tests, and separate host/PWA builds; see the [development setup](./CONTRIBUTING.md#development-setup) and [local development loop](./CONTRIBUTING.md#local-development-loop).
+
+To contribute, start with [CONTRIBUTING.md](./CONTRIBUTING.md). The [architecture and code guide](./docs/architecture.md) maps the packages and explains desktop sharing; code conventions are in [AGENTS.md](./AGENTS.md).
+For maintainers, the manual macOS packaging and release checks are in [docs/releasing.md](./docs/releasing.md).
+
+State lives in `~/.codex-pocket/` (override with `CODEX_POCKET_HOME`): `devices.json` (token hashes and push subscriptions), `admin.token`, `vapid.json` (Web Push key pair), `runtime.json`, `config.json`, `certs/`, `uploads/` (images and CSV files sent from the phone, up to 10 MB per upload), `host.log`, and `desktop-bridge.log` when desktop sharing is linked.
 
 ## Releases
 
-Versioned macOS builds are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). Versions follow Semantic Versioning across all workspace packages; changes are tracked in [CHANGELOG.md](./CHANGELOG.md). A `v<version>` tag creates a draft Release after CI. Signed, notarized DMGs are built and verified on the maintainer's Mac before upload and publication. See the [release process](./docs/releasing.md).
+Versioned macOS builds are available from [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases). All workspace packages share one Semantic Versioning number; changes are recorded in [CHANGELOG.md](./CHANGELOG.md). Maintainer instructions are in the [release process](./docs/releasing.md).
+
+## Help and feedback
+
+- [Report a bug](https://github.com/pocket-works/codex-pocket/issues/new?template=bug_report.md) or [request a feature](https://github.com/pocket-works/codex-pocket/issues/new?template=feature_request.md); search [existing issues](https://github.com/pocket-works/codex-pocket/issues) first.
+- Report security issues privately using [SECURITY.md](./SECURITY.md).
+- Documentation fixes and focused pull requests are welcome; see [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+This is a personal side project, so reviews and releases may take time. Android and browser compatibility reports are useful even when a combination has not been verified yet.
+
+## Support
+
+If Codex Pocket is useful to you, consider [supporting its development through GitHub Sponsors](https://github.com/sponsors/jerryan999). You can choose your own amount for a monthly sponsorship or a one-time donation. Sponsorship is optional. The phone app also has a **Support the author** link under **Menu → About**.
 
 ## License
 

@@ -219,6 +219,9 @@ button.computer-setting {
 .about-sheet { max-width: 440px; }
 .about-identity { display: flex; align-items: center; gap: 14px; padding: 24px 0 16px; }
 .about-identity h3 { margin: 0; font-size: calc(20rem / 17); }
+.about-support { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+.about-support p { margin: 0 0 12px; }
+.about-support-link { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg); text-decoration: none; }
 .connection-banner { display: flex; align-items: center; gap: 8px; text-align: left; }
 .connection-banner > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .connection-banner > button { flex-shrink: 0; background: none; border: none; padding: 8px 0; min-height: 44px; }
@@ -699,6 +702,7 @@ code,
 .image-preview-trigger img {
   display: block;
   max-width: 100%;
+  height: auto;
 }
 
 .msg-images .image-preview-trigger img {
@@ -2760,6 +2764,16 @@ button.chat-btn {
   margin-bottom: 0;
 }
 
+/* Markdown screenshots use their natural aspect ratio within the phone column. */
+.final-text img,
+.work-note img,
+.tool-detail.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  cursor: zoom-in;
+}
+
 .file-citation {
   display: inline-flex;
   align-items: center;
@@ -2795,6 +2809,7 @@ button.chat-btn {
 .pdf-viewer-backdrop {
   position: fixed;
   inset: 0;
+  height: 100dvh;
   z-index: 30;
   display: flex;
   background: var(--bg);
@@ -2803,6 +2818,7 @@ button.chat-btn {
 .image-viewer-backdrop {
   position: fixed;
   inset: 0;
+  height: 100dvh;
   z-index: 30;
   display: flex;
   background: rgba(0, 0, 0, 0.94);
@@ -2820,6 +2836,7 @@ button.chat-btn {
 
 .image-viewer-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -2850,16 +2867,18 @@ button.chat-btn {
 
 .image-viewer-content {
   display: flex;
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 0;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   padding: 12px;
   touch-action: pinch-zoom;
 }
 
 .image-viewer-content img {
+  display: block;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -2877,6 +2896,7 @@ button.chat-btn {
 
 .pdf-viewer-header {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: 8px;

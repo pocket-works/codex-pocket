@@ -1,19 +1,40 @@
 # codex-pocket
 
-手机上的 PWA，经 Tailscale（或局域网）直连 Mac 上桌面 Codex 的 app-server。扫码即登录，秒级重连。
+离开电脑之后，用手机接着在 Codex 上工作。
+
+手机上的 PWA，经 Tailscale 或局域网连接 Mac 上的 Codex。扫码配对，就能在手机上继续已有对话或发起新任务。
 
 [English](./README.md)
 
+[下载](https://github.com/pocket-works/codex-pocket/releases/latest) · [快速开始](#快速开始) · [Tailscale 配置](#部署tailscale-https) · [排障](#faq-与排障) · [参与贡献](./CONTRIBUTING.md)
+
+## 为什么选择 Codex Pocket
+
+- **手机连接 Mac，由 Mac 访问 OpenAI。** 如果手机上的 ChatGPT 需要翻墙代理，或访问较慢，可以通过 Tailscale 或局域网使用 Pocket。手机只需能连到 Mac，由 Mac 使用已经配置好的网络访问模型服务。
+- **复用已经配置好的开发环境。** 任务在 Mac 上执行，使用它的代码仓库、文件、命令行工具、Codex 配置和技能。Pocket 沿用 Mac 上的 Codex 登录态，手机无需另行登录 Codex。
+- **接着桌面上的同一段对话工作。** 开启桌面共享后，可以在手机上继续 ChatGPT 桌面 app 的 Codex 线程，共享对话历史和正在执行的任务。回到电脑前，再从桌面继续。
+- **在手机上完成开发操作。** 在项目或新 worktree 中发起任务、选择分支、查看 diff 和子代理进度、追加指令调整正在执行的任务，或发起代码审查。也能发送图片和 CSV、引用文件、调用技能，或用语音输入指令。
+- **一个手机界面管理多台 Mac。** 在同一个主屏幕 PWA 中切换电脑，各自保留草稿和凭据。切换不会停止任务；完成、审批和提问通知让你知道什么时候需要回来处理。
+- **浏览器直接使用，也能自行修改。** 手机用浏览器打开，或添加到主屏幕。项目采用 MIT 协议，可以查看源码并按自己的需要定制。
+
+手机无需为访问 ChatGPT 单独配置翻墙代理。Mac 仍需要能访问模型服务，实际响应速度取决于两段网络连接和模型服务。
+
+## 适合谁使用
+
+如果 Mac 上的 Codex 已经用得顺手，希望离开工位后用手机继续开发、查看长任务进度、审阅产出，或管理多台 Mac，Pocket 就适合这个场景。尤其适合手机直接访问 ChatGPT 不方便，但 Mac 上访问 OpenAI 的网络已经配置好的用户。
+
+Pocket 是基于官方 Codex app-server 的社区项目。你提供 Mac 和网络连接，任务所在的 Mac 需要保持唤醒并在线。Pocket 本身采用 MIT 协议，模型访问和用量仍由你原有的 Codex 账号及模型服务配置决定。
+
 ## 功能
 
-- 线程列表按桌面端真实项目分组（走 `project/list`）：在 Mac 上新建或删除项目，手机上立刻跟着变，不会残留一个旧文件夹冒充项目；对话流式输出、推理/工具调用折叠、Diff 视图
-- 审批（含审批策略切换）、中断、`turn/steer`、服务端消息队列（`thread/queue/*`，与桌面端共享）、模型与推理强度、Fast 档
-- 新建线程：项目 / 无项目 Chat、Work locally / New worktree、切换分支
-- 图片和 CSV 附件、`@文件`、`/技能`、语音听写（经 host 流式转发到桌面端听写用的同一个 ChatGPT 语音后端，标识符和中英混说都能识别对）、模型提问弹层、计划与用量显示
-- 线程改名 / 归档（左滑）/ fork / review
-- 与 ChatGPT 桌面 app 共用同一个 app-server，手机和桌面看到同一份线程
-- Web Push 通知：轮次完成、审批、提问、出错（iOS 需先添加到主屏幕）
-- 一个主屏幕 PWA 管理多台电脑，凭据、草稿、置顶和通知订阅分别保存
+- **项目与对话：** 项目与桌面保持同步，回复流式输出，推理和工具调用可折叠。支持对话改名、左滑归档和 fork。
+- **任务控制：** 批准命令、切换审批策略、中断任务、追加指令调整执行方向，或使用与桌面共享的消息队列。支持选择模型、推理强度和 Fast 档。
+- **开发流程：** 发起项目或无项目对话，选择本地工作或新 worktree、切换分支、查看 diff、请求代码审查。支持查看子代理状态和只读对话。
+- **输入与上下文：** 添加图片和 CSV 附件，通过 `@file` 引用文件、`/skills` 调用技能，或经 Mac 进行语音听写。支持回答 Codex 的提问、查看计划和用量。
+- **产出预览：** 在对话中查看 Mac 上生成的图片和本地多页 PDF。
+- **桌面接力：** 开启桌面共享后，手机和 ChatGPT 桌面 app 使用同一份 Codex 线程和正在执行的任务。
+- **通知：** 轮次完成、审批、提问和错误通过 Web Push 通知。iOS 需先把 PWA 添加到主屏幕。
+- **多台 Mac：** 一个主屏幕 PWA 管理多台电脑，各自保存凭据、草稿、置顶和通知订阅。
 
 ## 产品截图
 
@@ -42,16 +63,29 @@
 - **Node 22.12+ 和 pnpm 只用于源码构建**：DMG 已包含菜单栏应用、host 和 PWA，运行时不需要它们。
 - **一台能连到这台 Mac 的手机**：走 Tailscale 或局域网。iOS 需要把 PWA 添加到主屏幕，Safari 标签页里收不到 Web Push。
 
+### 兼容性与当前限制
+
+| 组件 | 当前范围 |
+| :--- | :--- |
+| Mac host | 正式版和本地应用构建面向 Apple 芯片（arm64）。当前应用分发范围不包含 Intel Mac、Windows 和 Linux host。 |
+| iPhone / Safari | 文档中的手机安装路径为 Safari 和主屏幕 PWA。通知需要 HTTPS，并添加到主屏幕。 |
+| Android / 其他浏览器 | 界面使用浏览器 API，但仓库尚未记录这些组合的实机验证结果。请视为未验证，反馈时附上系统和浏览器版本。 |
+| 桌面共享 | daemon 的 `account/read` 响应需要包含 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）。关联操作会检查实际能力。 |
+| 浏览器能力 | 基本聊天使用 WebSocket；通知和离线启动需要 HTTPS 及 service worker；听写还需要麦克风权限和浏览器音频 API。 |
+| 自动检查 | CI 在 Linux 上执行类型检查、单元测试及 host/PWA 构建，不能据此认定 macOS 或手机兼容性。 |
+
+仓库尚未发布完整的 macOS、iOS 和浏览器版本验证表。听写使用未文档化的 ChatGPT 接口，多台 Mac 同时向主屏幕 iPhone PWA 推送仍需实机验证。
+
 ## 快速开始
 
 ### 安装 DMG
 
 1. 在 Apple 芯片的 Mac 上安装并登录 ChatGPT 桌面 app。
 2. 从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载已签名并公证的 Apple 芯片 DMG，打开后把 **Codex Pocket** 拖入 **Applications（应用程序）**，再从应用程序中启动。应用图标会出现在菜单栏。
-3. 如果希望 iPhone 收到通知，先配置下文的 [Tailscale HTTPS](#部署tailscale-https)，再配对手机；否则让手机与 Mac 连接同一局域网即可。在 Pocket 菜单里选 **Pair a phone…**，用手机扫描二维码，或打开弹窗里的地址手动输入配对码。配对码 10 分钟后失效。
+3. 选择连接方式：需要在外访问时，先按下文配置 [Tailscale HTTPS](#部署tailscale-https)，再配对手机；只需局域网基本聊天时，让手机与 Mac 连接同一网络即可。通知和听写需要 HTTPS。在 Pocket 菜单里选 **Pair a phone…**，用手机扫描二维码，或打开弹窗里的地址手动输入配对码。配对码 10 分钟后失效。
 4. 在 Safari 中打开准备长期使用的 PWA 地址（需要通知时用 HTTPS 地址），选择**添加到主屏幕**。打开主屏幕 PWA 后，需要再次在 Pocket 菜单中配对，因为 iOS 为它使用独立的存储。需要 Web Push 时，打开 **Menu → Computers**，点击 Mac 旁的信息按钮进入详情，开启 **Notifications**。
 
-要与 ChatGPT 桌面 app 共享正在使用的线程，在 Pocket 菜单中选 **Desktop sharing > Link desktop…**，然后退出并重新打开 ChatGPT。如果现有 Codex daemon 缺少桌面工具环境，关联时会重启它一次并中断正在进行的轮次。无需关联也能使用 Pocket，但由独立桌面 app-server 占用的线程无法在手机上取得写入权。
+要继续 ChatGPT 桌面 app 的线程，请按[桌面共享](#与桌面-codex-共享线程推荐)操作。先等待当前任务完成，再关联并退出、重新打开 ChatGPT。无需开启桌面共享也能使用 Pocket。
 
 ![Codex Pocket 手机配对页](./docs/screenshots/pairing.jpg)
 
@@ -60,25 +94,43 @@
 在 Apple 芯片的 Mac 上登录 Codex，并安装 Node 22.12+ 与 pnpm 后运行：
 
 ```bash
+git clone https://github.com/pocket-works/codex-pocket.git
+cd codex-pocket
 pnpm install --frozen-lockfile
 make app
 make open-app
 ```
 
-随后按上面的菜单步骤配对手机。`make app` 产出的是未签名的开发构建；正常安装请使用已签名、公证的正式版 DMG。旧版 v0.1.0 zip 未签名，v0.1.1 起的正式版改用 DMG。
-
-当前构建面向 Apple 芯片 Mac。通过 `link-desktop` 与桌面 App 共享线程还要求 Codex daemon 的 `account/read` 响应带有 `workspaceRouting`（Codex CLI 0.156.0 或更新版本）；`codex-pocket desktop` 会检查这项能力。听写依赖未文档化的 ChatGPT 接口，接口变更后可能失效。
+随后按上面的菜单步骤配对手机。`make app` 产出的是未签名的开发构建，正常安装请使用正式版 DMG。Codex 和浏览器要求见[兼容性与当前限制](#兼容性与当前限制)。
 
 ## 多台电脑
 
 1. 在每台 Mac 上运行更新后的 Codex Pocket，并分别配置自己的 [Tailscale HTTPS](#部署tailscale-https) 地址。
 2. 手机保留一个主屏幕 PWA，打开 **Menu → Computers**，选择 **Add computer**，在这个 PWA 内扫描另一台 Mac 的配对二维码。手动配对需要另一台 Mac 的 HTTPS 地址和配对码。
 3. 在 **Computers** 中选择电脑即可切换。线程、项目、文件和任务属于各自的电脑。切换会保存草稿，不会停止正在运行的轮次；发送或上传过程中，要等待操作完成后才能切换。
-4. 点击电脑旁的信息按钮进入管理页。**Computer** 包含可编辑的名称和地址，**This phone** 包含通知偏好和 **Pairing details** 入口。配对详情是独立页面，显示手机名称、配对时间、配对 ID 和 **Pair again**；需要恢复访问时，电脑管理主页也会显示 **Pair again**。**Unpair computer** 单独放在主页内容末尾。从这两个页面返回都会恢复聊天或草稿。电脑可达时，解除配对会撤销这部手机的权限，不会删除 Mac 上的聊天；**Remove locally** 只删除手机上的凭据，需要稍后在 Mac 上撤销旧配对。**Menu → About** 显示手机应用版本。
+4. 点击电脑旁的信息按钮，可以修改名称和地址、管理通知，或查看 **Pairing details**。需要恢复访问时，用新配对码执行 **Pair again**。
+5. 要移除电脑，在该 Mac 可达时选择 **Unpair computer**，撤销手机权限并保留 Mac 上的聊天。**Remove locally** 只删除手机上的凭据，需要稍后在 Mac 上撤销旧配对。
 
 主屏幕 PWA 保持原来的安装地址。应用资源缓存完成后，即使入口 Mac 暂时不可达，也能打开应用并连接其他 Mac。首次安装、更新和注册新的通知 worker 仍需要入口地址可达。每台电脑使用独立作用域的 Web Push 订阅，点击通知会选择对应电脑和线程。多台电脑同时向主屏幕 iPhone PWA 推送，仍需实机验证。
 
 升级会迁移当前 PWA 地址下已有的配对和本地数据。不同浏览器地址或主屏幕应用的存储无法自动导入，需要在保留的 PWA 中重新添加那些 Mac。电脑地址变更需要重新配对，旧 token 不会发送到修改后的地址。
+
+## 连接与数据流向
+
+```mermaid
+flowchart LR
+    Phone["手机 PWA"] <-->|"Tailscale 或局域网"| Host["Mac 上的 Pocket host"]
+    Host <-->|"本地 WebSocket"| Codex["Mac 上的官方 Codex daemon"]
+    Codex <-->|"模型请求"| Model["OpenAI 或配置的模型服务"]
+    Host <-->|"听写音频与转写文本"| Speech["OpenAI 听写服务"]
+    Host -->|"加密 Web Push"| Push["浏览器推送服务"]
+    Push -->|"通知"| Phone
+```
+
+- **聊天和文件：** 指令与审批发送给 Mac 上的 Codex，命令和文件操作也在那里执行；Codex 会把任务上下文发送给配置的模型服务。手机上传的文件保存在 Mac 的 `~/.codex-pocket/uploads/`。
+- **登录和本地存储：** Codex 凭据留在 Mac 上。手机在浏览器存储中保存自己的 Pocket 配对 token、草稿和偏好；host 保存 token 哈希和推送订阅。对话历史由 Codex 管理。
+- **听写：** 麦克风音频经 Mac 转发给 OpenAI，转写文本流式返回手机，Pocket 不在 host 上保存音频。
+- **通知：** Mac 通过浏览器推送服务发送加密载荷。显示的通知可能包含对话标题或预览、命令审批片段或错误信息。即使聊天走局域网，推送通知仍需要互联网连接。
 
 ## 安全模型
 
@@ -87,37 +139,20 @@ host 是一个**透明代理**：手机配对后拿到的是 Codex app-server �
 - 只通过 Tailscale（或局域网）访问，设置 `bindHost 127.0.0.1` 后端口不会暴露在局域网上；**不要**把它直接挂到公网（Cloudflare Tunnel、端口转发等）而不加额外认证。
 - 配对码 8 位、10 分钟有效、猜错 5 次作废；设备 token 只存哈希，`revoke` 可随时吊销；管理接口只接受本机回环 + admin token。
 - 浏览器配对绑定 PWA 来源地址。手机 API 的跨域访问同时校验对应配对的 token 和来源，管理接口不开放跨域访问；手机为每台电脑分别保存 token。
-- 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，调的是未文档化的后端（`backend-api/dictation/stream`，即 Codex 桌面端听写按钮用的那个）。手机音频会发往 OpenAI，host 不落盘。OpenAI 一旦改动该接口，听写会失效，直到本项目跟进。host 是直连 chatgpt.com 的，不读 `HTTPS_PROXY`；如果这台 Mac 访问它需要代理，用 `config set outboundProxy http://127.0.0.1:1082` 指定。听写启动报 "did not answer session.start in time" 之类的错，多半就是这个原因。
+- 听写复用 `~/.codex/auth.json` 里的 ChatGPT 登录，通过未文档化的接口把音频发送给 OpenAI，Pocket 不在 host 上保存音频。存储和连接细节见[数据流向](#连接与数据流向)和[排障](#faq-与排障)。
 
 ## 运行：菜单栏应用
 
-host 跑在 **Codex Pocket** 这个 macOS 菜单栏小应用里（`packages/desktop`）。打开应用就启动 host，退出应用就停掉 host；如果已关联桌面应用，独立的本地转发服务会继续运行，直到执行 `unlink-desktop`。菜单栏的圆点表示状态（灰=停止、黄=启动中、绿=运行、红=出错），菜单里能看到地址、Codex daemon 是否已连接、已配对的手机（可撤销），以及 **Pair a phone…**——弹窗显示二维码和手输码。勾选 **Keep this Mac awake** 后，host 运行期间 Mac 不会因闲置而睡眠，手机随时能发起任务、跑着的任务也不会被打断（屏幕照常熄灭；电池供电时合盖仍会睡眠）。这个选项保存在 `~/.codex-pocket/desktop.json`。
+打开 **Codex Pocket** 会启动手机连接所需的 host，退出后手机访问停止。Codex 管理自己的 daemon。如果已关联桌面应用，独立转发服务会继续运行，直到选择 **Unlink desktop…**。
 
-`make app` 会生成 `packages/desktop/release/mac-arm64/Codex Pocket.app`，也可以把它拖到 `/Applications`。应用内置了 host 和 PWA，不依赖系统 Node。Codex app-server 本身是官方 daemon（`codex app-server daemon start`），归 Codex 管，应用只显示它的连接状态，不会去停它。
-
-## 开发
-
-```bash
-pnpm install
-pnpm test
-pnpm dev:host info      # 连接信息
-pnpm dev:host threads   # 桌面 Codex 的最近线程
-pnpm dev:host serve     # 局域网服务，首次启动打印配对二维码
-pnpm dev:host pair      # 再配一台手机
-pnpm dev:host devices   # 已配对设备
-pnpm dev:host revoke <id>
-```
-
-常用操作都包在 `Makefile` 里（`make app`、`make start`、`make pair`、`make status`…），`make help` 查看列表。`pnpm --filter @codex-pocket/desktop dev` 从工作区直接跑菜单栏应用（会先把 host 从源码打包）；改了 host 代码后重新跑一次，或者 `pnpm --filter @codex-pocket/desktop bundle` 之后在菜单里点 **Restart host**。
-
-参与贡献请先看 [CONTRIBUTING.md](./CONTRIBUTING.md)；各包职责与代码约定见 [AGENTS.md](./AGENTS.md)。
-维护者的 macOS 手动打包与发版检查见 [docs/releasing.md](./docs/releasing.md)。
-
-状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片和 CSV 附件，每次上传最大 10 MB）、`host.log`；关联桌面后还有 `desktop-bridge.log`。
+- **状态：** 灰色表示停止，黄色表示启动中或等待 Codex，绿色表示就绪，红色表示错误。菜单会显示访问地址和 daemon 连接状态。
+- **配对：** **Pair a phone…** 显示二维码和配对码；打开已配对手机的子菜单可以撤销权限。
+- **Keep this Mac awake：** host 运行时阻止闲置睡眠，并记住你的选择。屏幕仍可熄灭，电池供电时合盖仍会睡眠。
+- **诊断：** 排障时可使用 **Restart host** 或 **Open log**。
 
 ## 部署：Tailscale HTTPS
 
-host 本身只提供明文 HTTP；HTTPS 交给 `tailscale serve` 在前面终止，一个地址在家和在外都能用（同一局域网时 Tailscale 会走内网直连）：
+使用 Tailscale HTTPS，可以通过同一个地址在家和在外访问，并使用通知和听写。`tailscale serve` 在 Pocket host 前提供 HTTPS，同一局域网中 Tailscale 可以直接连接。
 
 1. Mac 和手机都安装 Tailscale 并登录同一账号；在 [管理控制台](https://login.tailscale.com/admin/dns) 打开 **HTTPS Certificates**（第一次跑 `tailscale serve` 时会给出启用链接）。
 2. 在 Mac 上把 tailnet 名反代到 host：
@@ -163,28 +198,97 @@ pnpm dev:host serve
 
 ## 与桌面 Codex 共享线程（推荐）
 
-Codex 的 writer 锁是跨进程的文件锁：桌面 ChatGPT App 默认自己 spawn 一个私有 `app-server`，手机连别的进程就打不开桌面正开着的线程。解决办法是让两边进同一个进程：
+桌面共享让手机和 ChatGPT 桌面 app 通过同一个 daemon 继续同一份 Codex 线程。如果桌面使用独立的 app-server，它占用的线程可能无法在手机上取得写入权。
+
+1. 等当前轮次完成，在 Pocket 菜单中选择 **Desktop sharing → Link desktop…**。
+2. 关联操作会检查 daemon 兼容性。如果缺少桌面工具环境，会重启 daemon 一次，中断正在进行的轮次。
+3. 退出并重新打开 ChatGPT，再从手机打开桌面线程。
+
+要恢复 ChatGPT 自己的 app-server，选择 **Desktop sharing → Unlink desktop…**，然后退出并重新打开 ChatGPT。仅退出 Pocket 不会停止独立的桌面转发服务。
+
+源码用户可在仓库目录中运行：
 
 ```bash
-codex-pocket link-desktop   # 启动独立的本地转发服务，再让 ChatGPT 连接它
-# 退出并重新打开 ChatGPT
-codex-pocket desktop        # 查看链接状态，以及 daemon 是否已经可以 link
+pnpm dev:host desktop        # 检查关联状态和 daemon 兼容性
+pnpm dev:host link-desktop   # 关联后退出并重新打开 ChatGPT
+pnpm dev:host unlink-desktop # 解除关联后退出并重新打开 ChatGPT
 ```
 
-`serve` 连接 Codex 官方 daemon（`codex app-server daemon start`，socket 在 `~/.codex/app-server-control/app-server-control.sock`）。未设置 `CODEX_BIN` 且已安装 ChatGPT 时，Pocket 使用 ChatGPT 内置的 CLI；否则使用 shell 的 `PATH` 中的 CLI。`link-desktop` 会安装用户级 LaunchAgent，把 `ws://127.0.0.1:7355` 转发到该 socket。转发服务使用 Pocket 内置的 Electron 运行时，先验证能通过入口连接 app-server，再设置桌面 App 的 `CODEX_APP_SERVER_WS_URL`；`link-desktop` 会等待服务就绪。首次关联时不必先打开 Pocket。退出 Pocket 后转发服务仍在；执行 `unlink-desktop` 才移除它。daemon 进程始终由 Codex 自己管理。桌面和手机最终在同一个 daemon 中，桌面打开的线程在手机上可以直接继续，双方实时同步。转发服务通过交互式登录 shell 启动 Codex，因此 daemon 拿到的 `PATH`、代理变量和模型服务 API key 与终端里一致。`link-desktop` 会先检查 daemon 的 `account/read` 是否带 `workspaceRouting`：桌面 App 的所有后端请求（登录信息、听写）都要经过这个字段，缺了会静默失效——standalone 版 codex 0.155.1 就没有，而 ChatGPT.app 自带的那份已经有了。这个字段随 codex 0.156.0 发布（openai/codex#45529）；在 daemon 升到该版本之前该命令会拒绝执行（`--force` 可强制），桌面 App 继续用自己的私有 app-server。`codex-pocket desktop` 会做同样的检查，Codex 升级后跑一下就知道能不能 link。桌面 App 提供给 Codex 的工具（新建或转交线程、自动化等，即内置的 `codex_app` MCP）要通过一个 unix socket 连到 App：App 每次启动都会新开这个 socket。转发服务让 `~/.codex-pocket/app-tools.sock` 始终指向正在运行的 App 的 socket；该 socket 要求对端是 OpenAI 签名的进程，所以 MCP 通过 App 自带的 node 运行。此前已启动的 daemon 可能由 `link-desktop` 重启一次（正在跑的对话会被打断）。执行 `codex-pocket unlink-desktop` 后，重启 ChatGPT 即可恢复它的私有 app-server。`~/.codex-pocket/config.json` 里 `"codex": {"port": N}` 可改转发端口，改后须重新执行 `link-desktop`。
+从曾自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，关联操作会先移除旧 agent，再安装转发服务。从 host 托管转发入口的版本升级时，重启 Pocket 并重新关联桌面，然后再退出 Pocket。两种迁移都应先等待桌面当前任务完成。
 
-从曾经自带 `com.codex-pocket.shared-app-server` LaunchAgent 的旧版升级时，`link-desktop` 会先移除旧 agent，再安装转发服务；请先等桌面上正在进行的轮次结束。
-从 host 托管转发入口的版本升级时，请重启 Pocket，并重新运行 `link-desktop` 安装独立转发服务，然后再退出 Pocket。
+[架构与代码导览](./docs/architecture.md#daemon-connection-and-desktop-sharing)说明了转发服务、daemon 环境、桌面工具和自定义端口配置。
 
-升级 Codex 后重新生成协议类型：
+## 升级与卸载
+
+### 升级
+
+1. 等当前任务完成，退出 Codex Pocket，从[最新版本](https://github.com/pocket-works/codex-pocket/releases/latest)下载应用并替换 Applications 中的旧版。源码用户可更新工作区，运行 `pnpm install --frozen-lockfile`，再用 `make app` 重新构建并打开应用。
+2. 启动 Pocket，保持 PWA 原安装地址对应的 Mac 可达。打开手机 PWA，出现 **Codex Pocket was updated — tap to reload** 时点击更新，或关闭后重新打开以加载新界面。多 Mac 场景中，切换电脑不会更新由原安装 Mac 提供的 PWA 资源。
+3. 在手机 **Menu → About** 中检查版本。同一浏览器来源地址下，配对和本地数据会迁移；地址变更或清除浏览器存储后，需要重新配对。
+
+各版本的特别说明见 [CHANGELOG.md](./CHANGELOG.md)。从旧的桌面共享方案升级时，请参考[与桌面 Codex 共享线程](#与桌面-codex-共享线程推荐)中的迁移说明。
+
+### 卸载
+
+1. 在 Pocket 运行时，从 Mac 的 **paired phones → 设备 → Revoke** 菜单撤销各手机的权限，或在已连接手机上选择 **Unpair computer**。
+2. 如果已关联桌面应用，先选择 **Desktop sharing → Unlink desktop…**，再退出并重新打开 ChatGPT。删除 Pocket 前需要完成这一步：独立转发服务在 Pocket 退出后仍会运行。
+3. 退出 Pocket，从 Applications 删除 **Codex Pocket.app**，移除手机主屏幕 PWA；如果配置过 Pocket 的 Tailscale Serve 映射，也可移除该映射。
+4. Pocket 的本地配置、日志和上传文件仍保存在 `~/.codex-pocket/`。解除桌面关联后，如果不再需要这些数据，可以删除该目录；对话中引用的上传文件将无法再访问。Codex 的登录和历史由它自己管理，位于独立的 `~/.codex/` 中。
+
+## FAQ 与排障
+
+### Mac 必须一直开着吗？
+
+是的。向某台 Mac 发送消息或访问文件时，Pocket 和 Codex daemon 需要运行，Mac 需要保持唤醒并可达。**Keep this Mac awake** 会在 Pocket 运行期间阻止闲置睡眠，但电池供电时合盖仍会睡眠。缓存后的手机界面可以离线打开，发送消息和读取实时结果则需要连接到 Mac。
+
+| 问题 | 检查方法 |
+| :--- | :--- |
+| 手机连不上 | 检查菜单栏 host 状态及 **Codex daemon: connected**。局域网下使用 Mac 当前地址；Tailscale 下确认两端连接到同一 tailnet。配置 `bindHost: 127.0.0.1` 时，需要使用已配置的 Tailscale HTTPS 地址。需要恢复访问时，用新配对码执行 **Pair again**。 |
+| 收不到通知 | 使用 HTTPS，在 iPhone 上添加到主屏幕，并在该电脑详情中开启 **Notifications**。检查系统通知权限及 Mac 到推送服务的网络。手机界面正显示同一线程时不会推送。多 Mac 同时向 iPhone 推送仍未完成实机验证。 |
+| 无法继续桌面线程 | 开启 **Desktop sharing → Link desktop…**，退出并重新打开 ChatGPT。如果提示 daemon 不兼容，更新 Codex 后再检查。独立的桌面 app-server 可能占用线程写入锁，详见[桌面共享](#与桌面-codex-共享线程推荐)。 |
+| 听写失败或不可用 | 使用 HTTPS 并授予麦克风权限。如果 Mac 需要代理，在 `~/.codex-pocket/config.json` 中把 `outboundProxy` 设为 HTTP 代理地址（如 `http://127.0.0.1:1082`），再重启 host。听写不读取 `HTTPS_PROXY`，该设置与 Codex 的模型连接配置相互独立。未文档化的听写接口也可能已发生变化。 |
+| 升级后仍是旧界面 | 保持 PWA 原地址对应的 Mac 在线，点击更新提示，或关闭后重新打开 PWA。在 **Menu → About** 中与安装版本对照。清除站点数据会丢失本地配对和草稿；若采用此恢复方法，先复制草稿，并准备重新配对。 |
+
+可从 Mac 菜单的 **Open log** 查看诊断信息。host 日志位于 `~/.codex-pocket/host.log`，桌面共享日志位于 `~/.codex-pocket/desktop-bridge.log`。[报告问题](https://github.com/pocket-works/codex-pocket/issues/new?template=bug_report.md)时，请附上 Pocket 和 Codex 版本、Mac/手机系统与浏览器版本、连接方式及复现步骤；分享日志前移除凭据、配对码和私人对话内容。
+
+## 开发
 
 ```bash
-pnpm --filter @codex-pocket/protocol generate
+pnpm install --frozen-lockfile
+pnpm test
+pnpm --filter @codex-pocket/web build # 启动服务前构建手机界面
+pnpm dev:host info      # 连接信息
+pnpm dev:host threads   # 桌面 Codex 的最近线程
+pnpm dev:host serve     # 局域网服务，首次启动打印配对二维码
+pnpm dev:host pair      # 再配一台手机
+pnpm dev:host devices   # 已配对设备
+pnpm dev:host revoke DEVICE_ID # 替换为 devices 列出的设备 ID
 ```
+
+常用操作都包在 `Makefile` 里（`make app`、`make start`、`make pair`、`make status`…），`make help` 查看列表。`pnpm --filter @codex-pocket/desktop dev` 从工作区直接跑菜单栏应用（会先把 host 从源码打包）；改了 host 代码后重新跑一次，或者 `pnpm --filter @codex-pocket/desktop bundle` 之后在菜单里点 **Restart host**。
+
+完整的 `pnpm build` 和菜单栏应用构建需要 macOS 工具。Linux 贡献者可以运行类型检查、单元测试，以及单独的 host/PWA 构建，详见[开发环境配置](./CONTRIBUTING.md#development-setup)和[本地开发流程](./CONTRIBUTING.md#local-development-loop)。
+
+参与贡献请先看 [CONTRIBUTING.md](./CONTRIBUTING.md)；[架构与代码导览](./docs/architecture.md)介绍各包职责和桌面共享实现，代码约定见 [AGENTS.md](./AGENTS.md)。
+维护者的 macOS 手动打包与发版检查见 [docs/releasing.md](./docs/releasing.md)。
+
+状态目录 `~/.codex-pocket/`（`CODEX_POCKET_HOME` 可覆盖）：`devices.json`（token 哈希和推送订阅）、`admin.token`、`vapid.json`（Web Push 密钥对）、`runtime.json`、`config.json`、`certs/`、`uploads/`（手机发来的图片和 CSV 附件，每次上传最大 10 MB）、`host.log`；关联桌面后还有 `desktop-bridge.log`。
 
 ## 版本发布
 
-带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。推送 `v<版本号>` tag 并通过 CI 后会创建 Release 草稿；维护者在本机完成 DMG 的签名、公证和验证，再上传并发布。具体步骤见[发版流程](./docs/releasing.md)。
+带版本号的 macOS 构建可从 [GitHub Releases](https://github.com/pocket-works/codex-pocket/releases) 下载。所有工作区包共用同一个语义化版本号，变更记录见 [CHANGELOG.md](./CHANGELOG.md)。维护者操作见[发版流程](./docs/releasing.md)。
+
+## 帮助与反馈
+
+- [报告问题](https://github.com/pocket-works/codex-pocket/issues/new?template=bug_report.md)或[提出需求](https://github.com/pocket-works/codex-pocket/issues/new?template=feature_request.md)，提交前先搜索[已有 Issue](https://github.com/pocket-works/codex-pocket/issues)。
+- 安全问题请按 [SECURITY.md](./SECURITY.md) 私下报告。
+- 欢迎修正文档和提交范围明确的 PR，参与方式见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
+这是个人业余项目，评审和发版可能需要一些时间。尚未验证的 Android 和浏览器组合，也欢迎反馈兼容性结果。
+
+## 支持项目
+
+如果 Codex Pocket 对你有帮助，欢迎[通过 GitHub Sponsors 支持项目开发](https://github.com/sponsors/jerryan999)。你可以自定义金额，选择按月赞助或一次性打赏。赞助完全自愿。手机端也可从 **Menu → About → Support the author** 打开赞助页面。
 
 ## 许可
 
