@@ -4,6 +4,8 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-08
+
 ### Changed
 
 - Load conversation history in pages of 20 user messages, retaining their replies and work records without counting those records toward the page size.
