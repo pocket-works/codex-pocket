@@ -43,9 +43,10 @@ typecheck: ## Type-check all packages
 # --- menu bar app ------------------------------------------------------------
 
 app: ## Build the unsigned development app with a timestamped version
-	VITE_APP_VERSION="$(DEV_VERSION)" $(WEB) build
-	$(DESKTOP) bundle
-	$(DESKTOP) exec electron-builder --mac --arm64 --dir -c.extraMetadata.version="$(DEV_VERSION)"
+	@dev_version="$(DEV_VERSION)"; \
+	VITE_APP_VERSION="$$dev_version" $(WEB) build && \
+	$(DESKTOP) bundle && \
+	$(DESKTOP) exec electron-builder --mac --arm64 --dir -c.extraMetadata.version="$$dev_version"
 
 release-dmg: web ## Sign, notarize, and verify an Apple silicon DMG locally
 	$(DESKTOP) release:dmg
