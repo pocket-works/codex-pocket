@@ -23,7 +23,7 @@ pnpm --filter @codex-pocket/host build
 pnpm --filter @codex-pocket/web build
 ```
 
-On macOS, `pnpm build` also bundles the desktop app using macOS icon tools. `make app` builds the unsigned menu bar application. See [README.md](./README.md#quick-start) for pairing and local use.
+On macOS, `pnpm build` also bundles the desktop app using macOS icon tools. `make app` builds the unsigned menu bar application with a timestamped development version. See [README.md](./README.md#quick-start) for pairing and local use.
 
 ## Local development loop
 

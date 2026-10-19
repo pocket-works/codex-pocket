@@ -14,6 +14,7 @@ APP       := packages/desktop/release/mac-arm64/Codex Pocket.app
 PORT      ?= 7333
 POCKET    := $(HOME)/.codex-pocket
 LOG       := $(POCKET)/host.log
+DEV_VERSION = $(shell node --input-type=module -e 'import { readFileSync } from "node:fs"; import { developmentVersion, developmentVersionAt } from "./packages/desktop/src/development-version.ts"; const version = JSON.parse(readFileSync("package.json", "utf8")).version; console.log(process.env.DEV_BUILD_STAMP ? developmentVersionAt(version, process.env.DEV_BUILD_STAMP) : developmentVersion(version))')
 # pid of whatever is listening on $(PORT)
 LISTENER   = $$(lsof -nP -t -iTCP:$(PORT) -sTCP:LISTEN 2>/dev/null | head -1)
 
@@ -41,8 +42,10 @@ typecheck: ## Type-check all packages
 
 # --- menu bar app ------------------------------------------------------------
 
-app: web ## Build the Codex Pocket menu bar app into packages/desktop/release
-	$(DESKTOP) app
+app: ## Build the unsigned development app with a timestamped version
+	VITE_APP_VERSION="$(DEV_VERSION)" $(WEB) build
+	$(DESKTOP) bundle
+	$(DESKTOP) exec electron-builder --mac --arm64 --dir -c.extraMetadata.version="$(DEV_VERSION)"
 
 release-dmg: web ## Sign, notarize, and verify an Apple silicon DMG locally
 	$(DESKTOP) release:dmg

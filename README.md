@@ -106,7 +106,7 @@ make app
 make open-app
 ```
 
-Pair the phone from the menu as above. `make app` produces an unsigned development build; use the release DMG for normal installation. See [compatibility and current limits](#compatibility-and-current-limits) for Codex and browser requirements.
+Pair the phone from the menu as above. `make app` produces an unsigned development build with a UTC build timestamp in both the macOS app and phone **About** versions; use the release DMG for normal installation. See [compatibility and current limits](#compatibility-and-current-limits) for Codex and browser requirements.
 
 ## Multiple computers
 
