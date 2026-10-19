@@ -211,7 +211,15 @@ button.computer-setting {
 .computer-unpair { margin-top: 32px; border-top: 1px solid var(--line); }
 .computer-unpair .danger-row { min-height: 52px; border-radius: 0; }
 .computer-add { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; border: none; background: none; text-align: left; padding: 10px 4px; }
-.computer-info.icon-btn { border: none; background: none; color: var(--muted); flex-shrink: 0; }
+.computer-info.icon-btn, .computer-remove.icon-btn { border: none; background: none; color: var(--muted); flex-shrink: 0; }
+.computer-remove.icon-btn { color: var(--danger); }
+.computer-pending { margin: 8px 0 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.computer-pending h2 { margin: 0 0 4px; font-size: calc(13rem / 17); font-weight: 500; color: var(--muted); }
+.computer-pending p { margin: 0 0 8px; }
+.computer-pending-row { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.computer-pending-row > svg { flex-shrink: 0; color: var(--danger); }
+.computer-pending-row .computer-details { flex: 1; }
+.computer-pending-row .icon-btn { border: none; background: none; color: var(--muted); flex-shrink: 0; }
 .computer-use { width: 100%; min-height: 44px; border-radius: 8px; margin-bottom: 24px; }
 .computer-recovery { display: flex; align-items: center; gap: 12px; font-size: calc(14rem / 17); margin-bottom: 16px; }
 .computer-recovery > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }

@@ -11,9 +11,21 @@ export interface Computer {
   notifications: boolean;
 }
 
+/** Credentials retained after local removal so server-side access can still be revoked. */
+export interface PendingRevocation {
+  id: string;
+  instanceId: string | null;
+  name: string;
+  origin: string;
+  token: string;
+  deviceId: string | null;
+  createdAt: number;
+}
+
 export interface ComputersState {
   computers: Computer[];
   activeId: string | null;
+  pendingRevocations: PendingRevocation[];
 }
 
 export interface PairResult {
@@ -43,16 +55,22 @@ export class ComputerRegistry {
   readonly store: Store<ComputersState>;
 
   constructor(private readonly storage: Storage, private readonly entryOrigin: string) {
-    let state: ComputersState = { computers: [], activeId: null };
+    let state: ComputersState = { computers: [], activeId: null, pendingRevocations: [] };
     const raw = storage.getItem(KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as ComputersState;
+      const parsed = JSON.parse(raw) as Partial<ComputersState>;
       if (!Array.isArray(parsed.computers) || parsed.computers.some((c) =>
         !c || !/^[\w-]+$/.test(c.id) || typeof c.token !== "string" || typeof c.name !== "string" ||
         normalizeOrigin(c.origin) !== c.origin || typeof c.lastRoute !== "string")) {
         throw new Error("Saved computer settings are invalid.");
       }
-      state = parsed;
+      const pendingRevocations = parsed.pendingRevocations ?? [];
+      if (!Array.isArray(pendingRevocations) || pendingRevocations.some((p) =>
+        !p || !/^[\w-]+$/.test(p.id) || typeof p.token !== "string" || typeof p.name !== "string" ||
+        normalizeOrigin(p.origin) !== p.origin || typeof p.createdAt !== "number")) {
+        throw new Error("Saved computer settings are invalid.");
+      }
+      state = { computers: parsed.computers, activeId: parsed.activeId ?? null, pendingRevocations };
       if (!state.computers.some((c) => c.id === state.activeId)) state.activeId = state.computers[0]?.id ?? null;
     } else {
       const token = storage.getItem("codex-pocket.token");
@@ -62,7 +80,7 @@ export class ComputerRegistry {
         const keys = Array.from({ length: storage.length }, (_, i) => storage.key(i)).filter((key): key is string => Boolean(key));
         const migratedKeys = keys.filter((key) => SCOPED_KEYS.includes(key) || key.startsWith("codex-pocket.draft."));
         for (const key of migratedKeys) storage.setItem(scopedKey(key, id), storage.getItem(key)!);
-        state = { computers: [computer], activeId: id };
+        state = { computers: [computer], activeId: id, pendingRevocations: [] };
         storage.setItem(KEY, JSON.stringify(state));
         storage.removeItem("codex-pocket.token");
         for (const key of migratedKeys) storage.removeItem(key);
@@ -96,7 +114,11 @@ export class ComputerRegistry {
       origin, token: pair.token, deviceId: pair.deviceId,
       lastRoute: existing?.lastRoute ?? "#/", notifications: existing?.notifications ?? false,
     };
-    this.save({ computers: [...state.computers.filter((c) => c.id !== computer.id), computer], activeId: computer.id });
+    // A freshly issued token supersedes any pending revocation for this
+    // computer, so a late retry can never revoke the new pairing.
+    const pendingRevocations = state.pendingRevocations.filter((p) =>
+      p.id !== computer.id && !(computer.instanceId && p.instanceId === computer.instanceId));
+    this.save({ ...state, computers: [...state.computers.filter((c) => c.id !== computer.id), computer], activeId: computer.id, pendingRevocations });
     return computer;
   }
 
@@ -111,12 +133,34 @@ export class ComputerRegistry {
     this.save({ ...state, computers: state.computers.map((c) => c.id === id ? { ...c, ...patch } : c) });
   }
 
-  remove(id: string): void {
+  remove(id: string, revokeLater = false): void {
     const state = this.store.get();
+    const removed = state.computers.find((c) => c.id === id);
     const computers = state.computers.filter((c) => c.id !== id);
-    this.save({ computers, activeId: state.activeId === id ? computers[0]?.id ?? null : state.activeId });
+    let pendingRevocations = state.pendingRevocations;
+    if (removed) {
+      if (revokeLater) {
+        const entry: PendingRevocation = {
+          id: removed.id, instanceId: removed.instanceId, name: removed.name, origin: removed.origin,
+          token: removed.token, deviceId: removed.deviceId, createdAt: Date.now(),
+        };
+        pendingRevocations = [
+          ...pendingRevocations.filter((p) => p.id !== entry.id || p.token !== entry.token),
+          entry,
+        ];
+      } else {
+        pendingRevocations = pendingRevocations.filter((p) => p.id !== removed.id || p.token !== removed.token);
+      }
+    }
+    this.save({ computers, activeId: state.activeId === id ? computers[0]?.id ?? null : state.activeId, pendingRevocations });
     const keys = Array.from({ length: this.storage.length }, (_, i) => this.storage.key(i));
     for (const key of keys) if (key?.startsWith("codex-pocket.") && key.endsWith(`.${id}`)) this.storage.removeItem(key);
+  }
+
+  clearPendingRevocation(id: string, token: string): void {
+    const state = this.store.get();
+    const pendingRevocations = state.pendingRevocations.filter((p) => p.id !== id || p.token !== token);
+    if (pendingRevocations.length !== state.pendingRevocations.length) this.save({ ...state, pendingRevocations });
   }
 }
 
