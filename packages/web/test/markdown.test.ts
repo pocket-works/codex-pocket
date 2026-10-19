@@ -22,7 +22,6 @@ describe("Markdown local images", () => {
     expect(html).not.toContain("data-local-image-path");
   });
 });
-
 describe("Markdown PDF links", () => {
   beforeEach(() => happyWindow.happyDOM.setURL("https://pocket.example/"));
 
@@ -41,5 +40,14 @@ describe("Markdown PDF links", () => {
     expect(html).not.toContain("file-citation-download");
     expect(html).toContain('href="/manual.pdf"');
     expect(html).toContain('href="https://other.example/Users/test/report.pdf"');
+  });
+});
+describe("Markdown link destinations", () => {
+  beforeEach(() => happyWindow.happyDOM.setURL("https://pocket.example/"));
+
+  it("keeps in-message fragments local", () => {
+    const html = renderMarkdown("## More details\n\n[Details](#more-details)");
+    expect(html).toContain('data-pocket-link="fragment"');
+    expect(html).not.toContain('target="_blank"');
   });
 });

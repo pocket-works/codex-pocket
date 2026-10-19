@@ -1,31 +1,66 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { localImagePath, pdfCitation } from "./file-citation.js";
+import { classifyLink, localImagePath, pdfCitation, type LinkAction } from "./file-citation.js";
 
 marked.setOptions({ gfm: true, breaks: true });
 marked.use({ extensions: [pdfCitation] });
 
-// A link in an answer opens outside: inside a Home Screen app it would
-// otherwise navigate the app itself away to that page.
-DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-  if (node.tagName === "A" && node.hasAttribute("href")) {
-    node.setAttribute("target", "_blank");
-    node.setAttribute("rel", "noopener noreferrer");
-  }
-});
-
 // Model output is untrusted HTML as far as the browser is concerned.
-export function renderMarkdown(text: string): string {
+export function renderMarkdown(text: string, cwd?: string): string {
   const safeHtml = DOMPurify.sanitize(marked.parse(text, { async: false }) as string);
-  return withCopyButtons(markLocalImages(safeHtml));
+  return withCopyButtons(markLocalImages(routeMarkdownLinks(safeHtml, cwd), cwd));
 }
 
-function markLocalImages(html: string): string {
+function routeMarkdownLinks(html: string, cwd?: string): string {
+  if (typeof document === "undefined" || typeof window === "undefined") return html;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  for (const anchor of template.content.querySelectorAll<HTMLAnchorElement>("a")) {
+    const href = anchor.getAttribute("href");
+    if (!href) {
+      anchor.setAttribute("data-pocket-link", "unsafe");
+      anchor.setAttribute("aria-disabled", "true");
+      continue;
+    }
+    applyLinkAction(anchor, classifyLink(href, window.location.href, cwd));
+  }
+  return template.innerHTML;
+}
+
+function applyLinkAction(node: HTMLAnchorElement, action: LinkAction): void {
+  if (action.kind === "unsafe") {
+    node.removeAttribute("href");
+    node.removeAttribute("target");
+    node.removeAttribute("rel");
+    node.setAttribute("data-pocket-link", "unsafe");
+    node.setAttribute("title", "This link cannot be opened safely.");
+    return;
+  }
+  if (action.kind === "internal" || action.kind === "fragment" || action.kind === "file") {
+    node.setAttribute("data-pocket-link", action.kind);
+    if (action.kind === "file") node.setAttribute("data-pocket-path", action.path);
+    node.removeAttribute("target");
+    node.removeAttribute("rel");
+    return;
+  }
+  if (action.kind === "unsupported") {
+    node.setAttribute("data-pocket-link", "unsupported");
+    node.removeAttribute("href");
+    node.removeAttribute("target");
+    node.removeAttribute("rel");
+    node.setAttribute("title", "This link uses an unsupported protocol.");
+    return;
+  }
+  node.setAttribute("target", "_blank");
+  node.setAttribute("rel", "noopener noreferrer");
+}
+
+function markLocalImages(html: string, cwd?: string): string {
   if (typeof document === "undefined" || typeof window === "undefined") return html;
   const template = document.createElement("template");
   template.innerHTML = html;
   for (const image of template.content.querySelectorAll<HTMLImageElement>("img[src]")) {
-    const path = localImagePath(image.getAttribute("src") ?? "", window.location.href);
+    const path = localImagePath(image.getAttribute("src") ?? "", window.location.href, cwd);
     if (!path) continue;
     image.setAttribute("data-local-image-path", path);
     image.removeAttribute("src");

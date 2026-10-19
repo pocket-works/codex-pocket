@@ -8,8 +8,8 @@ import { FileDiff } from "./DiffView.js";
 import { ChevronIcon, DownloadIcon, XIcon } from "./icons.js";
 import { handleCodeCopy, renderMarkdown } from "./markdown.js";
 import { friendlyError } from "../state/errors.js";
-import { navigate } from "./route.js";
-import { localPdfPath } from "./file-citation.js";
+import { navigate, parseRoute } from "./route.js";
+import { classifyLink, fileKind } from "./file-citation.js";
 import { useLocalImage } from "./uploaded-image.js";
 import { useDialog } from "./dialog.js";
 import { PdfPages } from "./PdfPages.js";
@@ -152,7 +152,7 @@ function WorkSection({ items, session, cwd, progress, live }: { items: ThreadIte
     }
     flush();
     if (item.type === "agentMessage" || item.type === "plan") {
-      rows.push(<Markdown key={item.id} className="work-note" text={item.text} session={session} />);
+      rows.push(<Markdown key={item.id} className="work-note" text={item.text} session={session} cwd={cwd} />);
     } else if (item.type === "imageGeneration" && item.savedPath) {
       // Codex saves what it generated; the picture says more than its metadata.
       rows.push(<LocalImage key={item.id} session={session} path={item.savedPath} />);
@@ -275,11 +275,12 @@ function LocalImage({ session, path }: { session: Session; path: string }) {
 }
 
 // Parsing + sanitising is the expensive part of a re-render; do it once per text.
-function Markdown({ text, className, strip, session }: { text: string; className: string; strip?: boolean; session: Session }) {
-  const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text), [text, strip]);
+function Markdown({ text, className, strip, session, cwd }: { text: string; className: string; strip?: boolean; session: Session; cwd?: string }) {
+  const html = useMemo(() => renderMarkdown(strip ? stripDirectives(text) : text, cwd ?? session.store?.get?.().open?.cwd), [text, strip, session, cwd]);
   const container = useRef<HTMLDivElement>(null);
   const [pdfPreview, setPdfPreview] = useState<{ name: string; url: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ name: string; url: string } | null>(null);
+  const [filePreview, setFilePreview] = useState<{ path: string; text: string } | null>(null);
   useEffect(() => {
     const images = Array.from(container.current?.querySelectorAll<HTMLImageElement>("img[data-local-image-path]") ?? []);
     let live = true;
@@ -301,6 +302,14 @@ function Markdown({ text, className, strip, session }: { text: string; className
     if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
   }, [pdfPreview]);
   function onClick(e: React.MouseEvent<HTMLDivElement>) {
+    const unsupported = (e.target as Element).closest<HTMLAnchorElement>("a[data-pocket-link='unsupported'], a[data-pocket-link='unsafe']");
+    if (unsupported) {
+      e.preventDefault();
+      session.notify(unsupported.dataset.pocketLink === "unsafe"
+        ? "This link cannot be opened safely."
+        : "This link uses a protocol this phone cannot open.");
+      return;
+    }
     const image = (e.target as Element).closest<HTMLImageElement>("img");
     if (image?.src) {
       setImagePreview({ name: image.alt || "Image", url: image.src });
@@ -308,25 +317,79 @@ function Markdown({ text, className, strip, session }: { text: string; className
     }
     const button = (e.target as Element).closest<HTMLButtonElement>(".file-citation");
     const anchor = (e.target as Element).closest<HTMLAnchorElement>("a[href]");
-    const path = button?.dataset.pdfPath ?? (anchor ? localPdfPath(anchor.getAttribute("href") ?? "", window.location.href) : null);
-    if (!path || button?.disabled) {
+    if (!button && !anchor) {
       void handleCodeCopy(e);
       return;
     }
-    if (anchor && !button) e.preventDefault();
+    const href = anchor?.getAttribute("href") ?? "";
+    const action = anchor ? classifyLink(href, window.location.href, cwd ?? session.store?.get?.().open?.cwd) : null;
+    if (action?.kind === "internal") {
+      e.preventDefault();
+      if (/^#\/(?:t|new|archived)(?:\/|\?|$)/.test(action.hash)) navigate(parseRoute(action.hash));
+      else location.hash = action.hash;
+      return;
+    }
+    if (action?.kind === "fragment") {
+      e.preventDefault();
+      const id = action.hash.replace(/^#/, "");
+      const target = id ? container.current?.querySelector<HTMLElement>(`[id="${id.replace(/"/g, '\\"')}"]`) : null;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    const path = button?.dataset.pdfPath ?? (action?.kind === "file" ? action.path : null);
+    if (!path) return;
+    e.preventDefault();
+    if (button?.disabled) return;
     if (button) button.disabled = true;
-    void session.readPdfFile(path).then((pdf) => {
-      const url = URL.createObjectURL(pdf);
-      setPdfPreview({ name: path.slice(path.lastIndexOf("/") + 1), url });
-    }).catch((err) => {
+    void openFile(path).finally(() => { if (button) button.disabled = false; });
+  }
+
+  async function openFile(path: string) {
+    const kind = fileKind(path);
+    try {
+      if (kind === "pdf") {
+        const pdf = await session.readPdfFile(path);
+        const url = URL.createObjectURL(pdf);
+        setPdfPreview({ name: path.slice(path.lastIndexOf("/") + 1), url });
+      } else if (kind === "image") {
+        const src = await session.readImageFile(path);
+        if (!src) throw new Error("This image could not be opened.");
+        setImagePreview({ name: path.slice(path.lastIndexOf("/") + 1), url: src });
+      } else if (kind === "text") {
+        const text = await session.readTextFile(path);
+        if (text === null) throw new Error("This file is not text.");
+        setFilePreview({ path, text });
+      } else {
+        const text = await session.readTextFile(path);
+        if (text !== null) setFilePreview({ path, text });
+        else throw new Error("This file type cannot be previewed on this phone. Open it on the computer instead.");
+      }
+    } catch (err) {
       session.notify(friendlyError(err));
-    }).finally(() => { if (button) button.disabled = false; });
+    }
   }
   return <>
     <div ref={container} className={className} onClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
     {pdfPreview && <PdfViewer preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
     {imagePreview && <ImageViewer src={imagePreview.url} alt={imagePreview.name} onClose={() => setImagePreview(null)} />}
+    {filePreview && <LinkedFileViewer preview={filePreview} onClose={() => setFilePreview(null)} />}
   </>;
+}
+
+function LinkedFileViewer({ preview, onClose }: { preview: { path: string; text: string }; onClose: () => void }) {
+  const dialog = useDialog(preview.path.split("/").pop() || preview.path, onClose);
+  const name = preview.path.split("/").pop() || preview.path;
+  const stopTouch = (event: TouchEvent) => event.stopPropagation();
+  return createPortal(<div className="pdf-viewer-backdrop" onClick={onClose}
+    onTouchStart={stopTouch} onTouchMove={stopTouch} onTouchEnd={stopTouch} onTouchCancel={stopTouch}>
+    <section ref={dialog.ref} {...dialog.props} className="pdf-viewer linked-file-viewer" onClick={(e) => e.stopPropagation()}>
+      <header className="pdf-viewer-header">
+        <strong title={preview.path}>{name}</strong>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close file preview"><XIcon /></button>
+      </header>
+      <pre className="code-view linked-file-text">{preview.text}</pre>
+    </section>
+  </div>, document.body);
 }
 
 function PdfViewer({ preview, onClose }: { preview: { name: string; url: string }; onClose: () => void }) {
@@ -459,7 +522,7 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
 
   return (
     <div className="final">
-      <Markdown className="final-text" text={text} strip session={session} />
+      <Markdown className="final-text" text={text} strip session={session} cwd={cwd} />
       {!group.inProgress && group.meta?.status !== "inProgress" && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">

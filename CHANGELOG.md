@@ -9,6 +9,7 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 - Add a direct remove action to the computer list, including local removal when the computer is unreachable.
 - Keep server-side unpair successful when local notification cleanup fails, instead of reporting a revocation error.
 - Retry server-side revocation after local removal while the computer is unavailable, then discard the retained credential on success or 401; show pending removals with a manual retry action.
+- Route Markdown links by destination: keep Pocket routes and fragments in the app, preview local PDFs, images and text files, reject unsafe URLs, and explain unsupported protocols.
 
 ## [0.3.0] - 2026-10-08
 
