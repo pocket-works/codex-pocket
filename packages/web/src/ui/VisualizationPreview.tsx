@@ -4,7 +4,7 @@ import type { Session } from "../state/session.js";
 import { friendlyError } from "../state/errors.js";
 import { useDialog } from "./dialog.js";
 import { XIcon } from "./icons.js";
-import { visualizationDocument } from "./visualization.js";
+import { prepareVisualization } from "./visualization.js";
 
 export function VisualizationPreview({ path, session, onClose }: { path: string; session: Session; onClose: () => void }) {
   const name = path.split("/").pop() || "Visualization";
@@ -16,10 +16,11 @@ export function VisualizationPreview({ path, session, onClose }: { path: string;
     let live = true;
     setSource(null);
     setError(null);
-    void session.readTextFile(path).then((text) => {
+    void session.readTextFile(path).then(async (text) => {
       if (!live) return;
       if (text === null) throw new Error("This visualization is not an HTML text file.");
-      setSource(visualizationDocument(text));
+      const document = await prepareVisualization(text, path, (imagePath) => session.readImageFile(imagePath));
+      if (live) setSource(document);
     }).catch((err: unknown) => { if (live) setError(friendlyError(err)); });
     return () => { live = false; };
   }, [path, session, attempt]);

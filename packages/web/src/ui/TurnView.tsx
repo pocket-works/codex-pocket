@@ -353,6 +353,10 @@ function Markdown({ text, className, strip, session, cwd }: { text: string; clas
   }
 
   async function openFile(path: string) {
+    if (/\.html?$/i.test(path)) {
+      setVisualizationPath(path);
+      return;
+    }
     const kind = fileKind(path);
     try {
       if (kind === "pdf") {

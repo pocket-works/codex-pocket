@@ -80,6 +80,24 @@ describe("rendered link actions", () => {
     expect(document.querySelector(".visualization-frame")).not.toBeNull();
   });
 
+  it.each([
+    "/Users/test/.codex/visualizations/gallery/index.html",
+    "https://pocket.example/Users/test/.codex/visualizations/gallery/index.html",
+  ])("renders an ordinary local HTML link and its sibling images: %s", async (href) => {
+    readTextFile.mockResolvedValue('<!doctype html><html><head><title>Gallery</title></head><body><h1>Design review</h1><a href="screen.png"><img src="screen.png" srcset="screen.png 2x" alt="Mobile design"></a><script>window.galleryReady=true;</script></body></html>');
+    await render(`[Gallery](${href})`);
+    await click(".final-text a");
+    expect(readTextFile).toHaveBeenCalledWith("/Users/test/.codex/visualizations/gallery/index.html");
+    expect(readImageFile).toHaveBeenCalledWith("/Users/test/.codex/visualizations/gallery/screen.png");
+    expect(document.querySelector(".linked-file-viewer")).toBeNull();
+    const source = document.querySelector<HTMLIFrameElement>(".visualization-frame")!.srcdoc;
+    expect(source).toContain("<h1>Design review</h1>");
+    expect(source).toContain('src="data:image/png;base64,AAAA"');
+    expect(source).toContain('data-preview-image="data:image/png;base64,AAAA"');
+    expect(source).not.toContain("srcset=");
+    expect(source).toContain("window.galleryReady=true;");
+  });
+
   it("keeps code examples and invalid visualize paths inert", async () => {
     await render('`visualize{"path":"/tmp/chart.html"}`\n\n```text\nvisualize{"path":"/tmp/chart.html"}\n```\n\nvisualize{"path":"https://example.com/chart.html"}\n\nvisualize{"path":"/tmp/secrets.json"}\n\nvisualize{bad json}');
     expect(container.querySelector(".visualization-card")).toBeNull();
