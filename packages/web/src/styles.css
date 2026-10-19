@@ -2814,6 +2814,24 @@ button.chat-btn {
 
 .file-citation:disabled { opacity: 0.5; }
 
+.visualization-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.visualization-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
+.visualization-note, .visualization-status { margin: 0; padding: 8px 16px; color: var(--muted); font-size: calc(13rem / 17); }
+
 .pdf-viewer-backdrop {
   position: fixed;
   inset: 0;

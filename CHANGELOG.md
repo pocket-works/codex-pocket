@@ -4,6 +4,11 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+### Added
+
+- Open visualize references from conversations in a full-screen sandbox with interactive scripts, theme styles, tabs, loading and retry states. CDN resources need internet access; Codex follow-up actions and persistent widget state are not supported.
+- Render linked local HTML pages in the same sandbox instead of showing source, including sibling images read from the paired computer and an image viewer for linked images.
+
 ### Fixed
 
 - Add a direct remove action to the computer list, including local removal when the computer is unreachable.
