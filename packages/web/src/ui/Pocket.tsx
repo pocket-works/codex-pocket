@@ -5,6 +5,7 @@ import { Session } from "../state/session.js";
 import { createStore, useStore } from "../state/store.js";
 import { RpcClient } from "../rpc/client.js";
 import { enablePush } from "../state/push.js";
+import { retryPendingRevocations } from "../state/revocations.js";
 import { App } from "./App.js";
 import { PairScreen } from "./PairScreen.js";
 import { ComputersSheet } from "./ComputersSheet.js";
@@ -27,6 +28,37 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
   const [attempt, setAttempt] = useState(0);
   const [unknown, setUnknown] = useState(false);
   const [pairError, setPairError] = useState(initialError);
+
+  useEffect(() => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const retry = async () => {
+      if (stopped || !navigator.onLine) return;
+      await retryPendingRevocations(registry);
+    };
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await retry();
+        if (!stopped) schedule();
+      }, REVOCATION_RETRY_MS);
+    };
+    const wake = () => {
+      if (document.visibilityState !== "visible") return;
+      void retry();
+      schedule();
+    };
+    void retry();
+    schedule();
+    window.addEventListener("online", wake);
+    document.addEventListener("visibilitychange", wake);
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("online", wake);
+      document.removeEventListener("visibilitychange", wake);
+    };
+  }, [registry]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -129,9 +161,11 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
     window.dispatchEvent(new Event("hashchange"));
   }
 
-  function removeComputer(computer: Computer) {
-    registry.remove(computer.id);
+  function removeComputer(computer: Computer, revokeLater = false) {
+    registry.remove(computer.id, revokeLater);
     if (computer.id === active?.id) {
+      session?.dispose();
+      setSession(null);
       const next = registry.active;
       history.replaceState(null, "", `/${next ? computerRouteHash(next.id, workspaceRouteHash(next.lastRoute)) : "#/"}`);
       window.dispatchEvent(new Event("hashchange"));
@@ -169,11 +203,11 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
           }} />
         )}
         </div>
-        {panel?.name === "computers" && <ComputersSheet registry={registry} session={current} onChoose={useComputer} onDetails={(id) => manage(id)} onAdd={() => openPocketPanel({ name: "pair" })} onClose={closePocketPanel} />}
+        {panel?.name === "computers" && <ComputersSheet registry={registry} session={current} onChoose={useComputer} onDetails={(id) => manage(id)} onRemove={removeComputer} onAdd={() => openPocketPanel({ name: "pair" })} onClose={closePocketPanel} />}
         {(panel?.name === "computer" || panel?.name === "computer-details") && target && <ComputerScreen key={`${target.id}:${target.token}`} computer={target} registry={registry} session={current} showPairingDetails={panel.name === "computer-details"} onBack={() => {
           if (panel.name === "computer-details" && !history.state?.pocketPanel) openPocketPanel({ name: "computer", id: target.id }, true);
           else closePocketPanel();
-        }} onUse={useComputer} onDetails={() => openPocketPanel({ name: "computer-details", id: target.id })} onPair={() => openPocketPanel({ name: "pair", id: target.id })} onRemove={removeComputer} />}
+        }} onUse={useComputer} onDetails={() => openPocketPanel({ name: "computer-details", id: target.id })} onPair={() => openPocketPanel({ name: "pair", id: target.id })} onRemove={(computer, revokeLater) => removeComputer(computer, revokeLater)} />}
         {fullPage && panel && "id" in panel && panel.id && !target && <main className="screen computer-screen"><header className="topbar"><button className="icon-btn" aria-label="Back" onClick={closePocketPanel}>‹</button><h1>Computer</h1></header><p className="muted center">This computer is no longer paired.</p><button onClick={() => openPocketPanel({ name: "computers" }, true)}>Computers</button></main>}
         {panel?.name === "pair" && (!panel.id || target) && <PairingScreen key={target?.id ?? "new"} computer={target} pending={pending > 0} onBack={closePocketPanel} onPaired={paired} />}
         {panel?.name === "about" && <AboutSheet onClose={closePocketPanel} />}
@@ -181,3 +215,5 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
     </ComputerContext.Provider>
   );
 }
+
+const REVOCATION_RETRY_MS = 30_000;

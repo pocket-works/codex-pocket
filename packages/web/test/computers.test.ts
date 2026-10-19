@@ -97,4 +97,24 @@ describe("computer registry", () => {
     expect(normalizeOrigin("https://mac.ts.net/#pair=CODE")).toBe("https://mac.ts.net");
     for (const url of ["https://user:pass@mac.ts.net", "javascript:alert(1)", "https://mac.ts.net/api/me", "https://mac.ts.net/?token=secret"]) expect(() => normalizeOrigin(url)).toThrow();
   });
+
+  it("retains a pending server-side revocation across reloads until it is cleared", () => {
+    const registry = new ComputerRegistry(localStorage, "https://entry.ts.net");
+    const computer = registry.add("https://mac.ts.net", paired("mac"));
+    registry.remove(computer.id, true);
+    const restored = new ComputerRegistry(localStorage, "https://entry.ts.net");
+    expect(restored.store.get().computers).toEqual([]);
+    expect(restored.store.get().pendingRevocations[0]).toMatchObject({ id: computer.id, token: "token-mac" });
+    restored.clearPendingRevocation(computer.id, "token-mac");
+    expect(new ComputerRegistry(localStorage, "https://entry.ts.net").store.get().pendingRevocations).toEqual([]);
+  });
+
+  it("does not let a pending revocation target a newly paired computer", () => {
+    const registry = new ComputerRegistry(localStorage, "https://entry.ts.net");
+    const computer = registry.add("https://mac.ts.net", paired("mac"));
+    registry.remove(computer.id, true);
+    const fresh = registry.add("https://mac.ts.net", { ...paired("mac"), token: "fresh-token" });
+    expect(fresh.token).toBe("fresh-token");
+    expect(registry.store.get().pendingRevocations).toEqual([]);
+  });
 });

@@ -4,6 +4,12 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+### Fixed
+
+- Add a direct remove action to the computer list, including local removal when the computer is unreachable.
+- Keep server-side unpair successful when local notification cleanup fails, instead of reporting a revocation error.
+- Retry server-side revocation after local removal while the computer is unavailable, then discard the retained credential on success or 401; show pending removals with a manual retry action.
+
 ## [0.3.0] - 2026-10-08
 
 ### Added

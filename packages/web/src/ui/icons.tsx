@@ -37,4 +37,6 @@ export const PinIcon = () => <Icon d="M16 3l5 5-4 1-3 3 1 5-3 1-3-4-5 5-1-1 5-5-
 export const FileIcon = () => <Icon d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" />;
 export const ExternalIcon = () => <Icon d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />;
 export const DownloadIcon = () => <Icon d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />;
+export const TrashIcon = () => <Icon d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />;
+export const AlertIcon = () => <Icon d="M12 3 2 21h20L12 3zM12 9v5M12 18h.01" />;
 export const XIcon = () => <Icon d="M18 6 6 18M6 6l12 12" />;

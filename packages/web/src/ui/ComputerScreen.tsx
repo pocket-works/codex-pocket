@@ -21,7 +21,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
   onUse: (computer: Computer) => void;
   onDetails: () => void;
   onPair: () => void;
-  onRemove: (computer: Computer) => void;
+  onRemove: (computer: Computer, revokeLater: boolean) => void;
 }) {
   const host = useMemo(() => new HostClient(computer), [computer.id, computer.origin, computer.token]);
   const pending = useStore(session?.operations ?? idle, (s) => s);
@@ -58,11 +58,13 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
     try {
       const response = await removalHost.fetch("/api/device", { method: "DELETE" });
       if (!response.ok && response.status !== 401) throw new HostHttpError(response.status);
-      await forgetPush(removalHost);
-      onRemove(computer);
+      // The device is already revoked. Notification cleanup is best-effort and
+      // must not report that the server-side unpair failed.
+      try { await forgetPush(removalHost); } catch {}
+      onRemove(computer, false);
     } catch {
       setLocalRemoval(true);
-      setFailure(`Could not revoke access on ${computer.name}. Local removal leaves its pairing on the computer; revoke it there later.`);
+      setFailure(`Could not revoke access on ${computer.name}. Removing it from this phone will keep trying in the background.`);
     } finally { removalHost.dispose(); setBusy(false); }
   }
 
@@ -70,7 +72,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
     setBusy(true);
     const removalHost = new HostClient(computer);
     try { await forgetPush(removalHost); } catch {}
-    finally { removalHost.dispose(); onRemove(computer); setBusy(false); }
+    finally { removalHost.dispose(); onRemove(computer, true); setBusy(false); }
   }
 
   const liveStatus = current && session?.host?.id === computer.id && connection === "open" && status !== "Pair again" && status !== "Update Pocket on this computer" ? upstream ? "Connected" : "Waiting for Codex" : status;
@@ -113,7 +115,7 @@ export function ComputerScreen({ computer, registry, session, showPairingDetails
         <div className="computer-unpair">
           <button className="setting-row danger-row" disabled={Boolean(pending || busy)} onClick={() => void remove()}>{busy ? "Unpairing…" : "Unpair computer"}</button>
           {failure && <p className="error small" role="alert">{failure}</p>}
-          {localRemoval && <div className="approval-actions"><button disabled={busy} onClick={() => { setLocalRemoval(false); setFailure(null); }}>Cancel</button><button className="danger" disabled={Boolean(pending || busy)} onClick={() => void removeLocal()}>Remove locally</button></div>}
+          {localRemoval && <div className="approval-actions"><button disabled={busy} onClick={() => { setLocalRemoval(false); setFailure(null); }}>Cancel</button><button className="danger" disabled={Boolean(pending || busy)} onClick={() => void removeLocal()}>Remove from this phone</button></div>}
         </div>
       </>}
     </div>

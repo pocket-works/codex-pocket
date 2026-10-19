@@ -4,16 +4,19 @@ import { HostClient, HostHttpError } from "../state/host-client.js";
 import type { Session } from "../state/session.js";
 import { createStore, useStore } from "../state/store.js";
 import { useDialog } from "./dialog.js";
-import { CheckIcon, InfoIcon, MonitorIcon, PlusIcon } from "./icons.js";
+import { AlertIcon, CheckIcon, InfoIcon, MonitorIcon, PlusIcon, RefreshIcon, TrashIcon } from "./icons.js";
 import { computerConnection, computerConnectionError, useConnectionState } from "./computer-connection.js";
+import { forgetPush } from "../state/push.js";
+import { retryRevocation } from "../state/revocations.js";
 
 const idle = createStore(0);
 
-export function ComputersSheet({ registry, session, onChoose, onDetails, onAdd, onClose }: {
+export function ComputersSheet({ registry, session, onChoose, onDetails, onRemove, onAdd, onClose }: {
   registry: ComputerRegistry;
   session: Session | null;
   onChoose: (computer: Computer) => void;
   onDetails: (id: string) => void;
+  onRemove: (computer: Computer, revokeLater: boolean) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
@@ -22,6 +25,8 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onAdd, 
   const { connection, upstreamConnected: upstream } = useConnectionState(session);
   const dialog = useDialog("Computers", onClose);
   const [statuses, setStatuses] = useState<Record<string, string>>({});
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
   const signature = state.computers.map((c) => `${c.id}:${c.origin}:${c.token}`).join("|");
 
   useEffect(() => {
@@ -46,6 +51,39 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onAdd, 
     return snapshot ?? "Checking…";
   }
 
+  async function remove(computer: Computer) {
+    if (pending || removing || !window.confirm(`Remove ${computer.name}?\n\nThis will try to revoke this phone's access. Chats on the computer will not be deleted.`)) return;
+    setRemoving(computer.id);
+    let revokeLater = false;
+    const host = new HostClient(computer);
+    try {
+      try {
+        const response = await host.fetch("/api/device", { method: "DELETE" });
+        if (!response.ok && response.status !== 401) throw new HostHttpError(response.status);
+      } catch {
+        if (!window.confirm(`Could not revoke access on ${computer.name}.\n\nRemove it from this phone anyway? Pocket will retry revoking the old pairing when this computer is reachable.`)) return;
+        revokeLater = true;
+      }
+      try { await forgetPush(host); } catch {}
+      onRemove(computer, revokeLater);
+    } finally {
+      host.dispose();
+      setRemoving(null);
+    }
+  }
+
+  async function retry(id: string, token: string) {
+    if (retrying) return;
+    setRetrying(`${id}:${token}`);
+    const pending = registry.store.get().pendingRevocations.find((p) => p.id === id && p.token === token);
+    if (!pending) { setRetrying(null); return; }
+    try {
+      await retryRevocation(registry, pending);
+    } finally {
+      setRetrying(null);
+    }
+  }
+
   return <div className="sheet-backdrop" onClick={onClose}>
     <div className="sheet computers-sheet" ref={dialog.ref} {...dialog.props} onClick={(event) => event.stopPropagation()}>
       <div className="sheet-grip" />
@@ -57,9 +95,19 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onAdd, 
               <MonitorIcon /><span className="computer-details"><strong>{computer.name}</strong><span className="small muted">{computer.id === state.activeId ? "Current · " : ""}{status(computer)}</span></span>{computer.id === state.activeId && <CheckIcon />}
             </button>
             <button className="icon-btn computer-info" aria-label={`Details for ${computer.name}`} title="Computer details" onClick={() => onDetails(computer.id)}><InfoIcon /></button>
+            <button className="icon-btn computer-remove" aria-label={`Remove ${computer.name}`} title="Remove computer" disabled={pending > 0 || removing !== null} aria-busy={removing === computer.id} onClick={() => void remove(computer)}><TrashIcon /></button>
           </div>
         </li>)}
       </ul>
+      {state.pendingRevocations.length > 0 && <section className="computer-pending" aria-labelledby="pending-revocations-title">
+        <h2 id="pending-revocations-title">Revocation pending</h2>
+        <p className="muted small">Removed from this phone. Pocket will revoke this phone's old access when the computer is reachable.</p>
+        {state.pendingRevocations.map((pending) => <div className="computer-pending-row" key={`${pending.id}:${pending.token}`}>
+          <AlertIcon />
+          <span className="computer-details"><strong>{pending.name}</strong><span className="small muted">{pending.origin}</span></span>
+          <button className="icon-btn" aria-label={`Retry revoking ${pending.name}`} title="Retry revocation" disabled={retrying !== null} onClick={() => void retry(pending.id, pending.token)}><RefreshIcon /></button>
+        </div>)}
+      </section>}
       {pending > 0 && <p className="muted small" role="status">Finishing a send or upload…</p>}
       <button className="computer-add" disabled={pending > 0} onClick={onAdd}><PlusIcon /><span>Add computer</span></button>
     </div>

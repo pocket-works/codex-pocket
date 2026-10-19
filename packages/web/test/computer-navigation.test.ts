@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ComputerRegistry } from "../src/state/computers.js";
-import { disablePush, enablePush, pushStatus, type PushStatus } from "../src/state/push.js";
+import { disablePush, enablePush, forgetPush, pushStatus, type PushStatus } from "../src/state/push.js";
 import { Pocket } from "../src/ui/Pocket.js";
 import { computerRouteHash, readPocketPanel } from "../src/ui/route.js";
 
@@ -141,6 +141,28 @@ describe("Computer navigation", () => {
     expect(named("Use this computer", screen())).toBeDefined();
   });
 
+  it("removes a computer directly from the computer list", async () => {
+    await mount(); await click(named("Computers"));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    await click(named("Remove Home Mac"));
+    await act(async () => {});
+    expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.active!.id).toBe(workId);
+  });
+
+  it("lets an unreachable computer be removed from this phone from the list", async () => {
+    await mount(); await click(named("Computers"));
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
+    await click(named("Remove Home Mac"));
+    await act(async () => {});
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    expect(registry.active!.id).toBe(workId);
+  });
+
   it("ignores a late notification read after opening another computer's details", async () => {
     let finish!: (status: PushStatus) => void;
     vi.mocked(pushStatus).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
@@ -251,12 +273,46 @@ describe("Computer navigation", () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
     vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
     await click(named("Unpair computer"));
-    expect(screen().querySelector('[role="alert"]')!.textContent).toContain("Local removal leaves its pairing");
+    expect(screen().querySelector('[role="alert"]')!.textContent).toContain("will keep trying in the background");
     expect(registry.store.get().computers).toHaveLength(2);
-    await click(named("Remove locally"));
+    await click(named("Remove from this phone"));
     expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
     expect(registry.active!.id).toBe(homeId);
     expect(readPocketPanel(currentLocation.hash)).toBeNull();
+  });
+
+  it("retries a pending removal when the app comes back online", async () => {
+    await mount(); await click(named("Computers"));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
+    await click(named("Remove Home Mac"));
+    await act(async () => {});
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    await act(async () => window.dispatchEvent(new Event("online")));
+    expect(registry.store.get().pendingRevocations).toHaveLength(0);
+  });
+
+  it("removes the current computer and switches away without waiting for retry polling", async () => {
+    await mount(); await details();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
+    await click(named("Unpair computer"));
+    await click(named("Remove from this phone"));
+    expect(registry.active!.id).toBe(homeId);
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    expect(readPocketPanel(currentLocation.hash)).toBeNull();
+    expect(lifecycle.unmounted).toHaveBeenCalled();
+  });
+
+  it("removes the computer even when notification cleanup fails after revoking access", async () => {
+    await mount(); await details();
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(forgetPush).mockRejectedValueOnce(new Error("Notification cleanup failed"));
+    await click(named("Unpair computer"));
+    expect(container.textContent).not.toContain("Could not revoke access");
+    expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.active!.id).toBe(homeId);
   });
 
   it("keeps About independent of the selected computer", async () => {
