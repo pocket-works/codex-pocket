@@ -31,7 +31,7 @@ Pocket is a community project built on the official Codex app-server. You provid
 - **Task control:** approve commands, switch approval policies, interrupt a task, steer it with follow-up instructions, or queue messages shared with the desktop. Choose the model, reasoning effort and Fast tier.
 - **Development workflow:** start project or project-less chats, work locally or in a new worktree, choose a branch, inspect diffs, and request code reviews. View subagent status and read-only child conversations.
 - **Input and context:** attach images and CSV files, mention files with `@file`, invoke `/skills`, and dictate instructions through the computer. Answer Codex's questions and view plans and usage.
-- **Output previews:** view images created on the computer and local multi-page PDFs from the conversation.
+- **Output previews:** view images created on the computer, local multi-page PDFs, and interactive visualize references in a full-screen sandbox. Visualization CDN assets require internet access; Codex follow-up actions and persistent widget state are not supported.
 - **Desktop continuity (macOS):** enable desktop sharing to use the same Codex threads and running tasks from the phone and ChatGPT desktop app.
 - **Notifications:** Web Push for completed turns, approvals, questions and errors. On iOS, install the PWA on the Home Screen first.
 - **Multiple computers:** one installed PWA, with separate credentials, drafts, pins and notification subscriptions for each computer.
