@@ -65,7 +65,7 @@ describe("rendered link actions", () => {
     expect(frame.getAttribute("sandbox")).toBe("allow-scripts");
     expect(frame.srcdoc).toContain('onclick="this.textContent=42"');
     expect(frame.srcdoc).toContain("connect-src 'none'");
-    expect(frame.srcdoc).toContain("base-uri 'none'");
+    expect(frame.srcdoc).toContain("base-uri https://pocket.invalid");
     await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Close visualization"]')!.click());
     expect(document.querySelector(".visualization-viewer")).toBeNull();
   });
@@ -80,6 +80,28 @@ describe("rendered link actions", () => {
     expect(document.querySelector(".visualization-frame")).not.toBeNull();
   });
 
+  it("loads dynamic images only for messages from the preview's opaque frame", async () => {
+    readTextFile.mockResolvedValue("<div id='gallery'></div>");
+    await render('[Gallery](/Users/test/gallery/index.html)');
+    await click('.final-text a');
+    const frame = document.querySelector<HTMLIFrameElement>('.visualization-frame')!;
+    const reply = vi.spyOn(frame.contentWindow!, 'postMessage');
+    const data = { type: 'pocket/visualization/image', id: 'one', url: 'https://pocket.invalid/Users/test/gallery/partner/step.png' };
+    const send = async (source: Window | null, origin = 'null') => act(async () => {
+      window.dispatchEvent(new MessageEvent('message', { source, origin, data }));
+    });
+    await send(window);
+    await send(frame.contentWindow, 'https://untrusted.example');
+    expect(readImageFile).not.toHaveBeenCalled();
+    await send(frame.contentWindow);
+    expect(readImageFile).toHaveBeenCalledWith('/Users/test/gallery/partner/step.png');
+    expect(reply).toHaveBeenCalledWith({ type: 'pocket/visualization/image-result', id: 'one', data: 'data:image/png;base64,AAAA' }, '*');
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Close visualization"]')!.click());
+    readImageFile.mockClear();
+    await send(frame.contentWindow);
+    expect(readImageFile).not.toHaveBeenCalled();
+  });
+
   it.each([
     "/Users/test/.codex/visualizations/gallery/index.html",
     "https://pocket.example/Users/test/.codex/visualizations/gallery/index.html",
@@ -88,12 +110,13 @@ describe("rendered link actions", () => {
     await render(`[Gallery](${href})`);
     await click(".final-text a");
     expect(readTextFile).toHaveBeenCalledWith("/Users/test/.codex/visualizations/gallery/index.html");
-    expect(readImageFile).toHaveBeenCalledWith("/Users/test/.codex/visualizations/gallery/screen.png");
+    expect(readImageFile).not.toHaveBeenCalled();
     expect(document.querySelector(".linked-file-viewer")).toBeNull();
     const source = document.querySelector<HTMLIFrameElement>(".visualization-frame")!.srcdoc;
     expect(source).toContain("<h1>Design review</h1>");
-    expect(source).toContain('src="data:image/png;base64,AAAA"');
-    expect(source).toContain('data-preview-image="data:image/png;base64,AAAA"');
+    expect(source).toContain('src="https://pocket.invalid/Users/test/.codex/visualizations/gallery/screen.png"');
+    expect(source).toContain('loading="lazy"');
+    expect(source).not.toContain("data:image/png;base64,AAAA");
     expect(source).not.toContain("srcset=");
     expect(source).toContain("window.galleryReady=true;");
   });
