@@ -82,3 +82,104 @@ describe("Session.loadProjects", () => {
     expect(session.store.get().projects).toEqual([]);
   });
 });
+
+describe("Session.ensureProject", () => {
+  beforeEach(() => memory.clear());
+
+  it("creates a shared project rooted at the existing folder and adds it immediately", async () => {
+    const { rpc, calls } = stubRpc((method) => method === "project/list"
+      ? { data: [], nextCursor: null }
+      : { project: p("p1", "existing-folder", "/p/existing-folder").data[0] });
+    const session = new Session(rpc);
+    const project = await session.ensureProject("/p/existing-folder/");
+    expect(project).toEqual({ id: "p1", name: "existing-folder", roots: ["/p/existing-folder"], position: 0 });
+    expect(session.store.get().projects).toEqual([project]);
+    expect(calls).toEqual([
+      { method: "project/list", params: { sortKey: "position", limit: 200, cursor: null } },
+      { method: "project/create", params: { name: "existing-folder", roots: [{ path: "/p/existing-folder" }], idempotencyKey: expect.any(String) } },
+    ]);
+  });
+
+  it("reuses a secondary root from a freshly loaded later page", async () => {
+    const existing = p("p2", "Shared project", "/p/primary").data[0];
+    existing.roots.push({ path: "/p/secondary/" });
+    const { rpc, calls } = stubRpc((_method, params) => (params as { cursor: string | null }).cursor
+      ? { data: [existing], nextCursor: null }
+      : p("p1", "one", "/p/one", "next"));
+    const session = new Session(rpc);
+    expect((await session.ensureProject("/p/secondary")).id).toBe("p2");
+    expect(calls.map((call) => call.method)).toEqual(["project/list", "project/list"]);
+  });
+
+  it("does not reuse a stale project deleted on the desktop", async () => {
+    const { rpc, calls } = stubRpc((method) => method === "project/list"
+      ? { data: [], nextCursor: null }
+      : { project: p("new", "one", "/p/one").data[0] });
+    const session = new Session(rpc);
+    session.store.set((s) => ({ ...s, projects: [{ id: "deleted", name: "one", roots: ["/p/one"], position: 0 }] }));
+    expect((await session.ensureProject("/p/one")).id).toBe("new");
+    expect(calls.map((call) => call.method)).toEqual(["project/list", "project/create"]);
+  });
+
+  it("shares concurrent selection requests for the same folder", async () => {
+    const { rpc, calls } = stubRpc((method) => method === "project/list"
+      ? { data: [], nextCursor: null }
+      : { project: p("p1", "one", "/p/one").data[0] });
+    const session = new Session(rpc);
+    const [first, second] = await Promise.all([session.ensureProject("/p/one"), session.ensureProject("/p/one/")]);
+    expect(first).toEqual(second);
+    expect(calls.filter((call) => call.method === "project/create")).toHaveLength(1);
+  });
+
+  it("keeps the idempotency key when retrying an uncertain creation", async () => {
+    let fail = true;
+    const { rpc, calls } = stubRpc((method) => method === "project/list"
+      ? { data: [], nextCursor: null }
+      : fail ? new Error("Connection lost") : { project: p("p1", "one", "/p/one").data[0] });
+    const session = new Session(rpc);
+    await expect(session.ensureProject("/p/one")).rejects.toThrow("Connection lost");
+    expect(session.store.get().projects).toEqual([]);
+    fail = false;
+    await session.ensureProject("/p/one");
+    const creations = calls.filter((call) => call.method === "project/create");
+    expect(creations).toHaveLength(2);
+    expect(creations[0].params).toEqual(creations[1].params);
+  });
+
+  it("does not create a duplicate when the project list cannot be read", async () => {
+    const { rpc, calls } = stubRpc(() => new Error("Project API unavailable"));
+    const session = new Session(rpc);
+    await expect(session.ensureProject("/p/one")).rejects.toThrow("Project API unavailable");
+    expect(calls.map((call) => call.method)).toEqual(["project/list"]);
+  });
+
+  it("adds a started thread to its project without waiting for a notification", async () => {
+    const { rpc, calls } = stubRpc(() => ({
+      thread: { id: "t1", cwd: "/p/one", projectId: "p1", preview: "", updatedAt: 1, status: { type: "idle" } },
+      cwd: "/p/one", model: "m", reasoningEffort: null, sandbox: { type: "workspaceWrite" },
+    }));
+    const session = new Session(rpc);
+    await session.startThread("/p/one", "m", null, null, "p1");
+    expect(calls).toEqual([{ method: "thread/start", params: { cwd: "/p/one", model: "m", serviceTier: null, projectId: "p1" } }]);
+    expect(session.store.get().threads).toMatchObject([{ id: "t1", cwd: "/p/one", projectId: "p1" }]);
+  });
+
+  it("does not let an older list response erase a newly created project", async () => {
+    let finishCreation!: (response: unknown) => void;
+    let finishList!: (response: unknown) => void;
+    let reads = 0;
+    const { rpc } = stubRpc((method) => {
+      if (method === "project/create") return new Promise((resolve) => { finishCreation = resolve; });
+      return ++reads === 1 ? { data: [], nextCursor: null } : new Promise((resolve) => { finishList = resolve; });
+    });
+    const session = new Session(rpc);
+    const creation = session.ensureProject("/p/one");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const olderList = session.loadProjects();
+    finishCreation({ project: p("p1", "one", "/p/one").data[0] });
+    await creation;
+    finishList({ data: [], nextCursor: null });
+    await olderList;
+    expect(session.store.get().projects.map((project) => project.id)).toEqual(["p1"]);
+  });
+});

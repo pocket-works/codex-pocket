@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Computer, ComputerRegistry } from "../state/computers.js";
+import type { Computer, ComputerRegistry, PendingRevocation } from "../state/computers.js";
 import { HostClient, HostHttpError } from "../state/host-client.js";
 import type { Session } from "../state/session.js";
 import { createStore, useStore } from "../state/store.js";
@@ -54,20 +54,26 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onRemov
   async function remove(computer: Computer) {
     if (pending || removing || !window.confirm(`Remove ${computer.name}?\n\nThis will try to revoke this phone's access. Chats on the computer will not be deleted.`)) return;
     setRemoving(computer.id);
-    let revokeLater = false;
     const host = new HostClient(computer);
     try {
-      try {
-        const response = await host.fetch("/api/device", { method: "DELETE" });
-        if (!response.ok && response.status !== 401) throw new HostHttpError(response.status);
-      } catch {
-        if (!window.confirm(`Could not revoke access on ${computer.name}.\n\nRemove it from this phone anyway? Pocket will retry revoking the old pairing when this computer is reachable.`)) return;
-        revokeLater = true;
+      // Removing the computer from this phone is a local, synchronous action.
+      // Never leave it visible while an unreachable VM's network request times
+      // out. The retained token lets the background revocation retry later.
+      onRemove(computer, true);
+      const retained = registry.store.get().pendingRevocations.find((p) => p.id === computer.id && p.token === computer.token);
+      if (!retained) {
+        host.dispose();
+        return;
       }
-      try { await forgetPush(host); } catch {}
-      onRemove(computer, revokeLater);
+      void (async () => {
+        try {
+          await retryRevocation(registry, retained);
+          try { await forgetPush(host); } catch {}
+        } finally {
+          host.dispose();
+        }
+      })();
     } finally {
-      host.dispose();
       setRemoving(null);
     }
   }
@@ -82,6 +88,11 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onRemov
     } finally {
       setRetrying(null);
     }
+  }
+
+  function forget(pending: PendingRevocation) {
+    if (!window.confirm(`Forget ${pending.name} permanently?\n\nPocket will discard the saved credential and stop trying to revoke this phone's access. This phone's access on that computer cannot be revoked from here later.`)) return;
+    registry.clearPendingRevocation(pending.id, pending.token);
   }
 
   return <div className="sheet-backdrop" onClick={onClose}>
@@ -101,11 +112,12 @@ export function ComputersSheet({ registry, session, onChoose, onDetails, onRemov
       </ul>
       {state.pendingRevocations.length > 0 && <section className="computer-pending" aria-labelledby="pending-revocations-title">
         <h2 id="pending-revocations-title">Revocation pending</h2>
-        <p className="muted small">Removed from this phone. Pocket will revoke this phone's old access when the computer is reachable.</p>
+        <p className="muted small">Removed from this phone. Pocket will revoke this phone's old access when the computer is reachable. If it will never return, forget the saved credential permanently.</p>
         {state.pendingRevocations.map((pending) => <div className="computer-pending-row" key={`${pending.id}:${pending.token}`}>
           <AlertIcon />
           <span className="computer-details"><strong>{pending.name}</strong><span className="small muted">{pending.origin}</span></span>
           <button className="icon-btn" aria-label={`Retry revoking ${pending.name}`} title="Retry revocation" disabled={retrying !== null} onClick={() => void retry(pending.id, pending.token)}><RefreshIcon /></button>
+          <button className="icon-btn" aria-label={`Forget ${pending.name} permanently`} title="Forget permanently" disabled={retrying !== null} onClick={() => forget(pending)}><TrashIcon /></button>
         </div>)}
       </section>}
       {pending > 0 && <p className="muted small" role="status">Finishing a send or upload…</p>}
