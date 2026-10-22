@@ -199,7 +199,9 @@ export function Pocket({ registry, initialError }: { registry: ComputerRegistry;
         ) : (
           <PairScreen error={initialError} onPaired={(origin, pair) => {
             const computer = registry.add(origin, pair);
-            location.hash = computerRouteHash(computer.id, computer.lastRoute);
+            registry.select(computer.id);
+            history.replaceState(null, "", `/${computerRouteHash(computer.id, workspaceRouteHash(computer.lastRoute))}`);
+            window.dispatchEvent(new Event("hashchange"));
           }} />
         )}
         </div>
