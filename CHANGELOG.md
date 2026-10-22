@@ -11,6 +11,8 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ### Fixed
 
+- Remove a computer from this phone immediately instead of waiting for an unreachable computer's revocation request or notification cleanup. Continue revoking the retained credential in the background, and allow an unreachable computer's credential to be forgotten permanently.
+- Activate a newly paired computer after removing the last computer from this phone.
 - Prioritize visible preview images over nearby images when scrolling, pause offscreen queued images, and use any free read slot without waiting for an unrelated image.
 
 - Show HTML previews before reading static gallery images; load images near the viewport and reuse loaded images in the full-size viewer without duplicating Base64 in the preview HTML.
