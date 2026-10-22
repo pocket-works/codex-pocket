@@ -1,9 +1,10 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { classifyLink, localImagePath, pdfCitation, type LinkAction } from "./file-citation.js";
+import { visualizationReference } from "./visualization.js";
 
 marked.setOptions({ gfm: true, breaks: true });
-marked.use({ extensions: [pdfCitation] });
+marked.use({ extensions: [pdfCitation, visualizationReference] });
 
 // Model output is untrusted HTML as far as the browser is concerned.
 export function renderMarkdown(text: string, cwd?: string): string {

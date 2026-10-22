@@ -14,6 +14,7 @@ import { useLocalImage } from "./uploaded-image.js";
 import { useDialog } from "./dialog.js";
 import { PdfPages } from "./PdfPages.js";
 import { ImageViewer, PreviewImage } from "./ImagePreview.js";
+import { VisualizationPreview } from "./VisualizationPreview.js";
 import type { v2 } from "@codex-pocket/protocol";
 
 // Transcript laid out like the official app: user bubble, a collapsible
@@ -281,6 +282,7 @@ function Markdown({ text, className, strip, session, cwd }: { text: string; clas
   const [pdfPreview, setPdfPreview] = useState<{ name: string; url: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ name: string; url: string } | null>(null);
   const [filePreview, setFilePreview] = useState<{ path: string; text: string } | null>(null);
+  const [visualizationPath, setVisualizationPath] = useState<string | null>(null);
   useEffect(() => {
     const images = Array.from(container.current?.querySelectorAll<HTMLImageElement>("img[data-local-image-path]") ?? []);
     let live = true;
@@ -302,6 +304,12 @@ function Markdown({ text, className, strip, session, cwd }: { text: string; clas
     if (pdfPreview) URL.revokeObjectURL(pdfPreview.url);
   }, [pdfPreview]);
   function onClick(e: React.MouseEvent<HTMLDivElement>) {
+    const visualization = (e.target as Element).closest<HTMLButtonElement>("button[data-visualization-path]");
+    if (visualization?.dataset.visualizationPath) {
+      e.preventDefault();
+      setVisualizationPath(visualization.dataset.visualizationPath);
+      return;
+    }
     const unsupported = (e.target as Element).closest<HTMLAnchorElement>("a[data-pocket-link='unsupported'], a[data-pocket-link='unsafe']");
     if (unsupported) {
       e.preventDefault();
@@ -345,6 +353,10 @@ function Markdown({ text, className, strip, session, cwd }: { text: string; clas
   }
 
   async function openFile(path: string) {
+    if (/\.html?$/i.test(path)) {
+      setVisualizationPath(path);
+      return;
+    }
     const kind = fileKind(path);
     try {
       if (kind === "pdf") {
@@ -373,6 +385,7 @@ function Markdown({ text, className, strip, session, cwd }: { text: string; clas
     {pdfPreview && <PdfViewer preview={pdfPreview} onClose={() => setPdfPreview(null)} />}
     {imagePreview && <ImageViewer src={imagePreview.url} alt={imagePreview.name} onClose={() => setImagePreview(null)} />}
     {filePreview && <LinkedFileViewer preview={filePreview} onClose={() => setFilePreview(null)} />}
+    {visualizationPath && <VisualizationPreview path={visualizationPath} session={session} onClose={() => setVisualizationPath(null)} />}
   </>;
 }
 

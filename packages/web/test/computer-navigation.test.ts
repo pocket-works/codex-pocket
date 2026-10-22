@@ -157,10 +157,44 @@ describe("Computer navigation", () => {
     vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
     await click(named("Remove Home Mac"));
     await act(async () => {});
-    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(confirm).toHaveBeenCalledOnce();
     expect(registry.store.get().computers).toHaveLength(1);
     expect(registry.store.get().pendingRevocations).toHaveLength(1);
     expect(registry.active!.id).toBe(workId);
+  });
+
+  it("removes an unreachable computer when notification cleanup hangs", async () => {
+    await mount(); await click(named("Computers"));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Offline"));
+    vi.mocked(forgetPush).mockImplementationOnce(() => new Promise(() => {}));
+    await click(named("Remove Home Mac"));
+    expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    expect(registry.active!.id).toBe(workId);
+  });
+
+  it("removes a computer without waiting for its revocation request", async () => {
+    await mount(); await click(named("Computers"));
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
+    await click(named("Remove Home Mac"));
+    expect(registry.store.get().computers).toHaveLength(1);
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    expect(container.textContent).toContain("Revocation pending");
+  });
+
+  it("permanently forgets an unreachable computer's saved credential", async () => {
+    await mount(); await click(named("Computers"));
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
+    await click(named("Remove Home Mac"));
+    expect(registry.store.get().pendingRevocations).toHaveLength(1);
+    await click(named("Forget Home Mac permanently"));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(registry.store.get().pendingRevocations).toHaveLength(0);
+    expect(container.textContent).not.toContain("Revocation pending");
   });
 
   it("ignores a late notification read after opening another computer's details", async () => {
@@ -303,6 +337,37 @@ describe("Computer navigation", () => {
     expect(registry.store.get().pendingRevocations).toHaveLength(1);
     expect(readPocketPanel(currentLocation.hash)).toBeNull();
     expect(lifecycle.unmounted).toHaveBeenCalled();
+  });
+
+  it("activates a newly paired computer after removing the only one", async () => {
+    registry.remove(workId);
+    registry.remove(homeId);
+    await act(async () => {
+      currentLocation.hash = "#/";
+      history.replaceState(null, "", "/#/");
+    });
+    await mount();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
+      token: "new-token", deviceId: "new-phone", instanceId: "new", host: "New Mac", apiVersion: 2,
+    }))).mockResolvedValueOnce(new Response(JSON.stringify({
+      host: "New Mac", upstream: true, apiVersion: 2, instanceId: "new",
+      device: { id: "new-phone", name: "Test phone", createdAt: 1_700_000_000_000, push: false },
+    })));
+    const form = container.querySelector("form")!;
+    const code = form.querySelector<HTMLInputElement>(".pair-code")!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      setter.call(code, "ABCD-EFGH");
+      code.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => form.dispatchEvent(new SubmitEvent("submit", { bubbles: true, cancelable: true })));
+    await act(async () => {});
+
+    expect(registry.active!.instanceId).toBe("new");
+    expect(registry.active!.token).toBe("new-token");
+    expect(currentLocation.hash).toBe(computerRouteHash(registry.active!.id, "#/"));
+    expect(container.querySelector("h1")!.textContent).toBe("Test chat");
+    expect(lifecycle.mounted).toHaveBeenCalledOnce();
   });
 
   it("removes the computer even when notification cleanup fails after revoking access", async () => {

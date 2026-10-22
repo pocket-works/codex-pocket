@@ -5,7 +5,7 @@ import { useEffect, useRef, type KeyboardEvent, type RefObject } from "react";
 // closes on Escape when it is dismissable, and hands focus back to
 // whatever opened it when it goes away.
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
 export interface DialogProps {
   role: "dialog";
