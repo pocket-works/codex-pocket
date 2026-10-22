@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { hostClientFor } from "../state/host-client.js";
 import type { Draft } from "../state/compose.js";
 import { branchLabel, type Session } from "../state/session.js";
-import { projectForCwd } from "../state/projects.js";
 import { useStore } from "../state/store.js";
 import { Composer } from "./Composer.js";
 import { BranchIcon, ChatIcon, CheckIcon, ChevronsIcon, FolderIcon, LaptopIcon, MonitorIcon, WorktreeIcon } from "./icons.js";
@@ -55,7 +54,7 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
     for (const p of projects) for (const root of p.roots) if (!out.includes(root)) out.push(root);
     for (const c of session.knownCwds()) if (!out.includes(c)) out.push(c);
     return out;
-  }, [projects, session]);
+  }, [projects, threads, session]);
   const [me, setMe] = useState<{ host?: string; home?: string } | null>(null);
   const [target, setTarget] = useState<Target>(presetCwd ? { kind: "project", cwd: presetCwd } : { kind: "chat" });
   const [mode, setMode] = useState<Mode>("local");
@@ -101,6 +100,8 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
   const ready = target.kind === "project" ? mode === "local" || Boolean(me?.home) : Boolean(me?.home);
 
   async function start(draft: Draft) {
+    // Only a selected project gets an assignment; scratch chats stay unassigned.
+    const projectId = target.kind === "project" ? (await session.ensureProject(cwd)).id : null;
     let dir = cwd;
     if (target.kind === "chat") {
       if (!me?.home) throw new Error("Still finding your home folder; try again");
@@ -116,9 +117,6 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
     const model = picked?.override ?? null;
     const perms = picked?.permissionOverride ?? null;
     const tier = picked?.serviceTierOverride ?? null;
-    // A project-less chat must stay project-less even when its scratch folder
-    // happens to sit under a project root, so only pass an id when picked.
-    const projectId = target.kind === "project" ? (projectForCwd(cwd, projects, null)?.id ?? null) : null;
     const id = await session.startThread(dir, model?.model ?? null, model?.effort ?? null, tier === "default" ? null : tier, projectId);
     if (perms) session.setPermissions(perms.approval, perms.sandbox, perms.reviewer);
     await session.sendMessage(draft);
@@ -189,7 +187,8 @@ export function NewThread({ session, presetCwd }: { session: Session; presetCwd?
         <FolderBrowser
           session={session}
           start={cwd || cwds[0] || "/"}
-          onPick={(path) => {
+          onPick={async (path) => {
+            await session.ensureProject(path);
             setTarget({ kind: "project", cwd: path });
             setBrowsing(false);
           }}
@@ -248,9 +247,11 @@ function parentOf(path: string): string {
 
 // Walks directories on the Mac via fs/readDirectory. Starts next to the
 // most recent project so sibling repos are one tap away.
-function FolderBrowser({ session, start, onPick, onClose }: { session: Session; start: string; onPick: (path: string) => void; onClose: () => void }) {
-  const drag = useSheetDrag(onClose);
-  const dialog = useDialog("Choose a folder", onClose);
+function FolderBrowser({ session, start, onPick, onClose }: { session: Session; start: string; onPick: (path: string) => Promise<void>; onClose: () => void }) {
+  const [selecting, setSelecting] = useState(false);
+  const close = () => { if (!selecting) onClose(); };
+  const drag = useSheetDrag(close);
+  const dialog = useDialog("Choose a folder", selecting ? undefined : onClose);
   const [path, setPath] = useState(parentOf(start));
   const [dirs, setDirs] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -268,17 +269,29 @@ function FolderBrowser({ session, start, onPick, onClose }: { session: Session; 
     };
   }, [path, session]);
 
+  async function select() {
+    setSelecting(true);
+    setError(null);
+    try {
+      await onPick(path);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setSelecting(false);
+    }
+  }
+
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
+    <div className="sheet-backdrop" onClick={close}>
       <div ref={dialog.ref} {...dialog.props} className={`sheet folder-browser ${drag.dragging ? "dragging" : ""}`} style={drag.style} onClick={(e) => e.stopPropagation()} {...drag.handlers}>
         <div className="sheet-grip" />
         <div className="folder-path">
-          <button type="button" className="icon-btn" aria-label="Up" disabled={path === "/"} onClick={() => setPath(parentOf(path))}>
+          <button type="button" className="icon-btn" aria-label="Up" disabled={selecting || path === "/"} onClick={() => setPath(parentOf(path))}>
             ‹
           </button>
           <span className="mono small">{path}</span>
-          <button type="button" className="primary" onClick={() => onPick(path)}>
-            Use
+          <button type="button" className="primary" disabled={selecting || dirs === null} aria-busy={selecting} onClick={() => void select()}>
+            {selecting ? "Adding…" : "Use"}
           </button>
         </div>
         {error && <p className="error">{error}</p>}
@@ -287,7 +300,7 @@ function FolderBrowser({ session, start, onPick, onClose }: { session: Session; 
         <ul className="folder-list">
           {dirs?.map((d) => (
             <li key={d}>
-              <button type="button" onClick={() => setPath(path === "/" ? `/${d}` : `${path}/${d}`)}>
+              <button type="button" disabled={selecting} onClick={() => setPath(path === "/" ? `/${d}` : `${path}/${d}`)}>
                 {d}/
               </button>
             </li>

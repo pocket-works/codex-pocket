@@ -18,7 +18,7 @@ import {
   type ThreadViewState,
 } from "./thread-reducer.js";
 import { applyThreadListNotification, canAcceptInput, isSubagent, markRead, mergeThreadList, threadAgentInfo, upsertThreadList, withFirstMessage, type ThreadAgentInfo, type ThreadSummary } from "./thread-list.js";
-import { summarizeProjects, type ProjectSummary } from "./projects.js";
+import { projectForCwd, summarizeProject, summarizeProjects, type ProjectSummary } from "./projects.js";
 import { isPendingTurnFinished, loadThreadReadiness, saveThreadReadiness } from "./thread-readiness.js";
 import { clearUploadedImages, imageMimeType } from "../ui/uploaded-image.js";
 import { buildUserInput, type Draft } from "./compose.js";
@@ -444,22 +444,57 @@ export class Session {
    */
   async loadProjects(): Promise<void> {
     try {
-      // The server pages this list (25 by default), and the phone wants them
-      // all: an empty project still has to show up so it can be opened.
-      const all: v2.Project[] = [];
-      let cursor: string | null = null;
-      for (;;) {
-        const res: v2.ProjectListResponse = await this.rpc.request<v2.ProjectListResponse>("project/list", { sortKey: "position", limit: 200, cursor });
-        all.push(...res.data);
-        cursor = res.nextCursor;
-        if (!cursor) break;
-      }
-      this.store.set((s) => ({ ...s, projects: summarizeProjects(all) }));
+      await this.refreshProjects();
     } catch {
       // Older app-server without the project API, or a transient failure: keep
       // whatever list we already had. Threads without a project simply show up
       // as chats, which beats inventing projects from folder names again.
     }
+  }
+
+  private projectListGeneration = 0;
+
+  private async refreshProjects(): Promise<ProjectSummary[]> {
+    const generation = ++this.projectListGeneration;
+    // Empty projects and roots beyond the first page must also be reusable.
+    const all: v2.Project[] = [];
+    let cursor: string | null = null;
+    do {
+      const res: v2.ProjectListResponse = await this.rpc.request("project/list", { sortKey: "position", limit: 200, cursor });
+      all.push(...res.data);
+      cursor = res.nextCursor;
+    } while (cursor);
+    const projects = summarizeProjects(all);
+    if (generation === this.projectListGeneration) this.store.set((s) => ({ ...s, projects }));
+    return projects;
+  }
+
+  private projectCreations = new Map<string, Promise<ProjectSummary>>();
+  private projectCreationKeys = new Map<string, string>();
+
+  /** Add an existing folder to the shared project list, or reuse its project. */
+  ensureProject(cwd: string): Promise<ProjectSummary> {
+    const path = cwd.replace(/\/+$/, "") || "/";
+    const pending = this.projectCreations.get(path);
+    if (pending) return pending;
+    const creation = (async () => {
+      // Do not create from a stale list or mistake a failed read for absence.
+      const projects = await this.refreshProjects();
+      const existing = projectForCwd(path, projects);
+      if (existing) return existing;
+      const idempotencyKey = this.projectCreationKeys.get(path) ?? crypto.randomUUID();
+      this.projectCreationKeys.set(path, idempotencyKey);
+      const params: v2.ProjectCreateParams = { name: path.split("/").pop() || path, roots: [{ path }], idempotencyKey };
+      const res = await this.rpc.request<v2.ProjectCreateResponse>("project/create", params);
+      const project = summarizeProject(res.project);
+      // An older list response must not erase a project we just created.
+      this.projectListGeneration++;
+      this.store.set((s) => ({ ...s, projects: [...s.projects.filter((p) => p.id !== project.id), project] }));
+      this.projectCreationKeys.delete(path);
+      return project;
+    })().finally(() => this.projectCreations.delete(path));
+    this.projectCreations.set(path, creation);
+    return creation;
   }
 
   // --- thread list --------------------------------------------------------
@@ -1258,6 +1293,7 @@ export class Session {
     const threadId = res.thread.id;
     this.store.set((s) => ({
       ...s,
+      threads: upsertThreadList(s.threads, [res.thread]),
       open: {
         ...threadAgentInfo(res.thread),
         view: initialThreadState(threadId),
