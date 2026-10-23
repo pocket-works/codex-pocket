@@ -14,6 +14,7 @@ import { pairingUrl, renderQrTerminal } from "./pairing/qr.js";
 import { DictationService } from "./dictation/dictation-service.js";
 import { CodexProxy } from "./proxy/codex-proxy.js";
 import { createLanServer } from "./server/lan-server.js";
+import type { v2 } from "@codex-pocket/protocol";
 
 export interface ServeOptions {
   port: number;
@@ -58,9 +59,14 @@ export async function serve(opts: ServeOptions): Promise<void> {
       webpush
         .sendNotification(subscription, payload, { vapidDetails: { subject: VAPID_SUBJECT, ...vapid }, TTL: 60 * 60 })
         .then(() => undefined),
-    threadTitle: async (threadId) => {
-      const { thread } = await proxy.call<{ thread: { name: string | null; preview: string } }>("thread/read", { threadId });
-      return (thread.name ?? thread.preview).replace(/\s+/g, " ").trim() || null;
+    threadInfo: async (threadId) => {
+      const { thread } = await proxy.call<v2.ThreadReadResponse>("thread/read", { threadId });
+      const source = thread.source;
+      const spawned = typeof source === "object" && source !== null && "subAgent" in source;
+      return {
+        title: (thread.name ?? thread.preview).replace(/\s+/g, " ").trim() || null,
+        isSubagent: spawned || thread.parentThreadId !== null,
+      };
     },
     log,
   });

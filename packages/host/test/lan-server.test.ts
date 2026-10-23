@@ -50,7 +50,7 @@ describe("LanServer", () => {
       adminToken: ADMIN,
       publicUrl: "http://example.test",
       pairingUrl: (code) => `http://example.test/#pair=${code}`,
-      push: { vapidPublicKey: "PUBKEY", notifier: new PushNotifier({ store, send: async () => {}, threadTitle: async () => null }) },
+      push: { vapidPublicKey: "PUBKEY", notifier: new PushNotifier({ store, send: async () => {}, threadInfo: async () => ({ title: null, isSubagent: false }) }) },
       // Dictation with a scripted upstream: echoes every audio chunk back as a final transcript.
       dictation: new DictationService({
         readAuth: () => ({ accessToken: "tok", accountId: null }),

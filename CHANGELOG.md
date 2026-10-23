@@ -11,6 +11,8 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ### Fixed
 
+- Update DOMPurify, Vite, Vitest, Electron, and source-map-js to their patched security releases; use the current Node.js 22 security release for builds.
+- Stay quiet when a subagent finishes successfully; still notify for its failures and requests that need your attention.
 - Give `make app` development builds a single UTC timestamp in both the macOS app and phone versions, so they can be distinguished from a release with the same numeric version.
 - Register folders selected through Browse folders in the shared Codex project list, reuse existing projects, and associate new local and worktree conversations with the selected project. Show new conversations immediately and allow failed project additions to be retried safely.
 - Remove a computer from this phone immediately instead of waiting for an unreachable computer's revocation request or notification cleanup. Continue revoking the retained credential in the background, and allow an unreachable computer's credential to be forgotten permanently.

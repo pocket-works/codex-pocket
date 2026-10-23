@@ -12,8 +12,8 @@ export interface PushNotifierOptions {
   store: DeviceStore;
   /** Delivers one payload; throws with `statusCode` 404/410 when the subscription is dead. */
   send: (subscription: PushSubscription, payload: string) => Promise<void>;
-  /** Thread title for the notification heading; null falls back to a generic one. */
-  threadTitle: (threadId: string) => Promise<string | null>;
+  /** Thread metadata used for the heading and to suppress subagent completion pushes. */
+  threadInfo: (threadId: string) => Promise<{ title: string | null; isSubagent: boolean }>;
   log?: (msg: string) => void;
 }
 
@@ -53,8 +53,11 @@ export class PushNotifier {
     if (this.ephemeralThreads.has(event.threadId)) return;
     const subs = await this.opts.store.listPushSubscriptions();
     if (subs.length === 0) return;
-    const title = (await this.opts.threadTitle(event.threadId).catch(() => null)) ?? "Codex";
-    const payload = JSON.stringify({ title, body: event.body, threadId: event.threadId, tag: event.threadId });
+    const info = await this.opts.threadInfo(event.threadId).catch(() => null);
+    // A subagent finishing is internal work for its parent. Its failures and
+    // approval requests still need attention, but success should stay quiet.
+    if (event.kind === "turn-completed" && info?.isSubagent) return;
+    const payload = JSON.stringify({ title: info?.title ?? "Codex", body: event.body, threadId: event.threadId, tag: event.threadId });
     await Promise.all(
       subs.filter((s) => !this.isWatching(s.deviceId, event.threadId)).map((s) => this.deliver(s.deviceId, s.subscription, payload)),
     );
