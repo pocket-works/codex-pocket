@@ -21,8 +21,8 @@ describe("pushEventFor", () => {
   const n = (method: string, params: unknown): JsonRpcMessage => ({ jsonrpc: "2.0", method, params });
 
   it("turns a finished turn into a notification, ignoring interrupted ones", () => {
-    expect(pushEventFor(n("turn/completed", { threadId: "t1", turn: { id: "u", status: "completed" } }))).toMatchObject({ threadId: "t1", body: "Codex finished" });
-    expect(pushEventFor(n("turn/completed", { threadId: "t1", turn: { id: "u", status: "failed" } }))).toMatchObject({ body: "Turn failed" });
+    expect(pushEventFor(n("turn/completed", { threadId: "t1", turn: { id: "u", status: "completed" } }))).toMatchObject({ threadId: "t1", body: "Codex finished", kind: "turn-completed" });
+    expect(pushEventFor(n("turn/completed", { threadId: "t1", turn: { id: "u", status: "failed" } }))).toMatchObject({ body: "Turn failed", kind: "turn-failed" });
     expect(pushEventFor(n("turn/completed", { threadId: "t1", turn: { id: "u", status: "interrupted" } }))).toBeNull();
   });
 
@@ -64,7 +64,7 @@ describe("PushNotifier", () => {
         if (s.endpoint.endsWith("/dead")) throw Object.assign(new Error("gone"), { statusCode: 410 });
         sent.push({ endpoint: s.endpoint, payload });
       },
-      threadTitle: async (id) => (id === "t1" ? "Fix login" : null),
+      threadInfo: async (id) => ({ title: id === "t1" ? "Fix login" : null, isSubagent: id === "child" }),
     });
     return { store, a, b, sent, notifier };
   }
@@ -114,5 +114,14 @@ describe("PushNotifier", () => {
     await notifier.handle({ jsonrpc: "2.0", method: "thread/closed", params: { threadId: "eph" } });
     await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "eph", turn: { id: "u", status: "completed" } } });
     expect(sent.map((s) => s.endpoint).sort()).toEqual(["https://push/a", "https://push/b"]);
+  });
+
+  it("does not push a subagent's successful completion but still reports its failure", async () => {
+    const { sent, notifier } = await setup();
+    await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "child", turn: { id: "u", status: "completed" } } });
+    expect(sent).toEqual([]);
+    await notifier.handle({ jsonrpc: "2.0", method: "turn/completed", params: { threadId: "child", turn: { id: "u", status: "failed" } } });
+    expect(sent).toHaveLength(2);
+    expect(sent.every(({ payload }) => JSON.parse(payload).body === "Turn failed")).toBe(true);
   });
 });

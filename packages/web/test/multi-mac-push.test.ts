@@ -93,7 +93,7 @@ describe("multi-Mac push simulation", () => {
       const worker = pwa.worker(computer.id, computer.name);
       const notifier = new PushNotifier({
         store,
-        threadTitle: async () => title,
+        threadInfo: async () => ({ title, isSubagent: false }),
         send: async (subscription, payload) => {
           expect(subscription.endpoint).toBe(endpoint);
           deliveries.push({ endpoint: subscription.endpoint, payload });
