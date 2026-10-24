@@ -16,6 +16,8 @@ import { PdfPages } from "./PdfPages.js";
 import { ImageViewer, PreviewImage } from "./ImagePreview.js";
 import { VisualizationPreview } from "./VisualizationPreview.js";
 import type { v2 } from "@codex-pocket/protocol";
+import { AsyncQuestionCard } from "./AsyncQuestionCard.js";
+import { isAsyncQuestionReply, parseAsyncQuestionReplies, type QuestionAnswers } from "../state/questions.js";
 
 // Transcript laid out like the official app: user bubble, a collapsible
 // "Worked for …" section (reasoning, tools, interim notes), then the final
@@ -23,14 +25,18 @@ import type { v2 } from "@codex-pocket/protocol";
 
 export function Transcript({ session, view, cwd, readOnly = false }: { session: Session; view: ThreadViewState; cwd: string; readOnly?: boolean }) {
   const groups = groupTurns(view);
+  const answers = useMemo(() => parseAsyncQuestionReplies([
+    ...view.items,
+    ...view.pending.map((message): ThreadItem => ({ type: "userMessage", id: message.id, clientId: null, content: message.input })),
+  ]), [view.items, view.pending]);
   return (
     <>
       {groups.map((g, i) => (
         // Editing reverts the whole turn, so a steered message (a later part
         // of its turn) is not offered as the one to edit.
-        <TurnBlock key={g.key} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={!readOnly && i === groups.length - 1 && view.activeTurnId === null && g.meta !== null && g.key === g.turnId} progress={view.toolProgress} />
+        <TurnBlock key={g.key} group={g} session={session} cwd={cwd} latest={i === groups.length - 1} editable={!readOnly && i === groups.length - 1 && view.activeTurnId === null && g.meta !== null && g.key === g.turnId} progress={view.toolProgress} answers={answers} readOnly={readOnly} />
       ))}
-      {view.pending.map((m) => (
+      {view.pending.filter((message) => !isAsyncQuestionReply(message.input)).map((m) => (
         <UserBubble key={m.id} session={session} content={m.input} pending />
       ))}
     </>
@@ -40,9 +46,9 @@ export function Transcript({ session, view, cwd, readOnly = false }: { session: 
 // Every delta re-renders the transcript; turns whose items did not change
 // are skipped wholesale so a long thread stays smooth while the last one
 // streams.
-const TurnBlock = memo(TurnBlockImpl, (a, b) => a.session === b.session && a.cwd === b.cwd && a.latest === b.latest && a.editable === b.editable && a.progress === b.progress && sameGroup(a.group, b.group));
+const TurnBlock = memo(TurnBlockImpl, (a, b) => a.session === b.session && a.cwd === b.cwd && a.latest === b.latest && a.editable === b.editable && a.progress === b.progress && a.answers === b.answers && a.readOnly === b.readOnly && sameGroup(a.group, b.group));
 
-function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; editable: boolean; progress: Record<string, string> }) {
+function TurnBlockImpl({ group, session, cwd, latest, editable, progress, answers, readOnly }: { group: TurnGroup; session: Session; cwd: string; latest: boolean; editable: boolean; progress: Record<string, string>; answers: QuestionAnswers; readOnly: boolean }) {
   const [open, setOpen] = useState<boolean | null>(null);
   const expanded = open ?? (latest || group.inProgress);
   const hasWork = group.work.length > 0;
@@ -52,11 +58,11 @@ function TurnBlockImpl({ group, session, cwd, latest, editable, progress }: { gr
       {(hasWork || group.inProgress) && (
         <>
           <WorkHeader group={group} expanded={expanded} onToggle={() => setOpen(!expanded)} />
-          {expanded && <WorkSection items={group.work} session={session} cwd={cwd} progress={progress} live={group.inProgress} />}
+          {expanded && <WorkSection items={group.work} session={session} cwd={cwd} progress={progress} live={group.inProgress} answers={answers} readOnly={readOnly} />}
           {group.final && <hr className="turn-sep" />}
         </>
       )}
-      {group.final && <FinalAnswer text={group.final.text} group={group} session={session} cwd={cwd} />}
+      {group.final && <FinalAnswer text={group.final.text} questions={group.final.questions} messageId={group.final.id} group={group} session={session} cwd={cwd} answers={answers} readOnly={readOnly} />}
       {!group.final && !group.inProgress && group.meta?.status !== "inProgress" && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
     </section>
   );
@@ -126,7 +132,7 @@ function WorkHeader({ group, expanded, onToggle }: { group: TurnGroup; expanded:
 // `live` is whether the turn is still running: a command the turn was
 // interrupted in the middle of never gets a completion, so its spinner
 // would otherwise keep going forever.
-function WorkSection({ items, session, cwd, progress, live }: { items: ThreadItem[]; session: Session; cwd: string; progress: Record<string, string>; live: boolean }) {
+function WorkSection({ items, session, cwd, progress, live, answers, readOnly }: { items: ThreadItem[]; session: Session; cwd: string; progress: Record<string, string>; live: boolean; answers: QuestionAnswers; readOnly: boolean }) {
   const rows: React.ReactNode[] = [];
   let tools: ThreadItem[] = [];
   let thoughts: Extract<ThreadItem, { type: "reasoning" }>[] = [];
@@ -152,7 +158,9 @@ function WorkSection({ items, session, cwd, progress, live }: { items: ThreadIte
       continue;
     }
     flush();
-    if (item.type === "agentMessage" || item.type === "plan") {
+    if (item.type === "agentMessage" && item.questions?.length) {
+      rows.push(<AsyncQuestionCard key={item.id} session={session} messageId={item.id} questions={item.questions} answers={answers} disabled={readOnly} />);
+    } else if (item.type === "agentMessage" || item.type === "plan") {
       rows.push(<Markdown key={item.id} className="work-note" text={item.text} session={session} cwd={cwd} />);
     } else if (item.type === "imageGeneration" && item.savedPath) {
       // Codex saves what it generated; the picture says more than its metadata.
@@ -493,7 +501,7 @@ function ChangesCard({ changes, cwd }: { changes: FileChange[]; cwd: string }) {
   );
 }
 
-function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnGroup; session: Session; cwd: string }) {
+function FinalAnswer({ text, questions, messageId, group, session, cwd, answers, readOnly }: { text: string; questions: v2.AsyncUserInputQuestion[] | null; messageId: string; group: TurnGroup; session: Session; cwd: string; answers: QuestionAnswers; readOnly: boolean }) {
   const id = group.final?.id ?? group.turnId;
   const [rating, setRating] = useState<"up" | "down" | null>(ratings.get(id) ?? null);
   const [copied, setCopied] = useState(false);
@@ -535,7 +543,9 @@ function FinalAnswer({ text, group, session, cwd }: { text: string; group: TurnG
 
   return (
     <div className="final">
-      <Markdown className="final-text" text={text} strip session={session} cwd={cwd} />
+      {questions?.length
+        ? <AsyncQuestionCard session={session} messageId={messageId} questions={questions} answers={answers} disabled={readOnly} />
+        : <Markdown className="final-text" text={text} strip session={session} cwd={cwd} />}
       {!group.inProgress && group.meta?.status !== "inProgress" && group.fileChanges.length > 0 && <ChangesCard changes={group.fileChanges} cwd={cwd} />}
       {!group.inProgress && (
         <div className="final-actions">

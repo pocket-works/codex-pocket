@@ -31,6 +31,10 @@ describe("pushEventFor", () => {
     expect(pushEventFor(req("item/commandExecution/requestApproval", { threadId: "t1", command: "rm -rf build" }))).toMatchObject({ threadId: "t1", body: "Approve: rm -rf build" });
     expect(pushEventFor(req("item/fileChange/requestApproval", { threadId: "t1" }))).toMatchObject({ body: "Approve file changes" });
     expect(pushEventFor(req("item/tool/requestUserInput", { threadId: "t1" }))).toMatchObject({ body: "Codex has a question" });
+    expect(pushEventFor(n("item/completed", {
+      threadId: "t1",
+      item: { type: "agentMessage", questions: [{ title: "Which route?", options: ["Fast", "Scenic"] }] },
+    }))).toMatchObject({ threadId: "t1", body: "Codex has a question", kind: "input" });
     expect(pushEventFor(n("error", { threadId: "t1", turnId: "u", willRetry: false, error: { message: "boom" } }))).toMatchObject({ body: "boom" });
     expect(pushEventFor(n("error", { threadId: "t1", turnId: "u", willRetry: true, error: { message: "boom" } }))).toBeNull();
     expect(pushEventFor(n("item/agentMessage/delta", { threadId: "t1" }))).toBeNull();

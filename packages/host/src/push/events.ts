@@ -30,6 +30,13 @@ export function pushEventFor(msg: JsonRpcMessage): PushEvent | null {
       return { threadId, body: "Approve extra permissions", kind: "approval" };
     case "item/tool/requestUserInput":
       return { threadId, body: "Codex has a question", kind: "input" };
+    case "item/completed": {
+      const item = p.item as { type?: unknown; questions?: unknown } | undefined;
+      if (item?.type === "agentMessage" && Array.isArray(item.questions) && item.questions.length > 0) {
+        return { threadId, body: "Codex has a question", kind: "input" };
+      }
+      return null;
+    }
     case "error": {
       if (p.willRetry) return null;
       const message = (p.error as { message?: string } | undefined)?.message;

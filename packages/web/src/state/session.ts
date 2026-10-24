@@ -21,7 +21,7 @@ import { applyThreadListNotification, canAcceptInput, isSubagent, markRead, merg
 import { projectForCwd, summarizeProject, summarizeProjects, type ProjectSummary } from "./projects.js";
 import { isPendingTurnFinished, loadThreadReadiness, saveThreadReadiness } from "./thread-readiness.js";
 import { clearUploadedImages, imageMimeType } from "../ui/uploaded-image.js";
-import { buildUserInput, type Draft } from "./compose.js";
+import { buildUserInput, emptyDraft, type Draft } from "./compose.js";
 import { getLastModel, setLastModel } from "./model-prefs.js";
 import type { HostClient } from "./host-client.js";
 import {
@@ -35,6 +35,7 @@ import {
   type ThreadQueueListResponse,
   type ThreadQueueStartResponse,
 } from "./queue.js";
+import { formatAsyncQuestionReply } from "./questions.js";
 
 export type { ThreadStatus, ThreadSummary, WaitingFor } from "./thread-list.js";
 export { groupByProject, isScratchThread, isWorktree, projectForCwd, summarizeProject, summarizeProjects } from "./projects.js";
@@ -988,7 +989,7 @@ export class Session {
     });
   }
 
-  async sendMessage(draft: Draft): Promise<void> {
+  async sendMessage(draft: Draft, options: { followUp?: FollowUpMode } = {}): Promise<void> {
     let open = this.store.get().open;
     if (!open || open.state !== "ready") throw new Error("thread not ready");
     if (!canAcceptInput(open)) throw new Error("This thread does not accept direct input. Continue in the parent thread.");
@@ -1028,13 +1029,24 @@ export class Session {
         else retire();
       }, PENDING_ECHO_TIMEOUT_MS);
     try {
-      const echoed = await this.sendInput(open, input);
+      const echoed = await this.sendInput(open, input, options.followUp);
       if (!echoed) retire();
       else retireLater();
     } catch (err) {
       retire();
       throw err;
     }
+  }
+
+  /** Answer an inline async question as the desktop app does. */
+  async answerAsyncQuestion(messageId: string, questions: v2.AsyncUserInputQuestion[], answers: string[]): Promise<void> {
+    if (questions.length === 0 || answers.length !== questions.length || answers.some((answer) => answer.trim() === "")) {
+      throw new Error("Answer every question before sending.");
+    }
+    await this.sendMessage(
+      { ...emptyDraft, text: formatAsyncQuestionReply(messageId, questions, answers) },
+      { followUp: "steer" },
+    );
   }
 
   // --- naming --------------------------------------------------------------
@@ -1097,7 +1109,7 @@ export class Session {
   }
 
   /** Starts, steers or queues; true when Codex will echo the input as a thread item. */
-  private async sendInput(open: OpenThread, input: v2.UserInput[]): Promise<boolean> {
+  private async sendInput(open: OpenThread, input: v2.UserInput[], followUp = this.store.get().followUp): Promise<boolean> {
     const threadId = open.view.threadId;
     // While a turn runs, either steer it (Codex folds the input into the
     // current turn) or queue it for the next one, per the user's preference.
@@ -1105,7 +1117,7 @@ export class Session {
     // queue.
     const activeTurnId = open.view.activeTurnId;
     if (activeTurnId) {
-      if (this.store.get().followUp === "steer") {
+      if (followUp === "steer") {
         try {
           await this.rpc.request<v2.TurnSteerResponse>("turn/steer", { threadId, input, expectedTurnId: activeTurnId });
           return true;
