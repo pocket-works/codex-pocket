@@ -1,5 +1,6 @@
 import type { v2 } from "@codex-pocket/protocol";
 import type { ThreadItem, ThreadViewState, TurnMeta } from "./thread-reducer.js";
+import { isAsyncQuestionReply } from "./questions.js";
 
 // Groups a flat item list into turns the way the official app shows them:
 // the user's message, a collapsible "Worked for …" section holding
@@ -34,6 +35,7 @@ export function groupTurns(view: ThreadViewState): TurnGroup[] {
   let orphan = 0;
   for (const item of view.items) {
     if (NOISE.has(item.type)) continue;
+    if (item.type === "userMessage" && isAsyncQuestionReply(item.content)) continue;
     // Items without a known turn are shown in their own group rather than dropped.
     const turnId = view.itemTurns[item.id] ?? `orphan-${item.type === "userMessage" ? ++orphan : orphan}`;
     let g = byId.get(turnId);

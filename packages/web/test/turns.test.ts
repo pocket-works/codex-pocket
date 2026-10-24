@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyNotification, initialThreadState, mergeTurns, prependHistory, type ThreadItem } from "../src/state/thread-reducer.js";
 import { formatDuration, groupTurns, sameGroup, splitMcpContent, stripShellWrapper, summarizeTools, tailLines, toolLabel, transcriptMarkdown, turnDurationMs } from "../src/state/turns.js";
+import { asyncQuestionItemId, formatAsyncQuestionReply, parseAsyncQuestionReplies } from "../src/state/questions.js";
 
 const T = "thread-1";
 const user = (id: string, text: string): ThreadItem => ({ type: "userMessage", id, clientId: null, content: [{ type: "text", text, text_elements: [] }] });
@@ -194,6 +195,38 @@ describe("transcriptMarkdown", () => {
     s = applyNotification(s, { method: "item/started", params: { threadId: T, turnId: "t1", item: agent("m1", "It is noon.", "final_answer") } });
     expect(transcriptMarkdown(s, "Clock")).toBe("# Clock\n\n### You\n\nWhat time is it?\n\n### Codex\n\nIt is noon.\n");
   });
+});
+
+describe("async questions", () => {
+  const question = (title: string, options: string[] | null = null) => ({ title, options });
+
+  it("encodes an answer the way the desktop app sends it back", () => {
+    const questions = [question("Pick one", ["A", "B"]), question("Explain")];
+    const text = formatAsyncQuestionReply("call-1", questions, ["B", "Because"]);
+    expect(text).toBe(
+      '<send_user_message_question_reply>\n' +
+      `${JSON.stringify([
+        { questionItemId: asyncQuestionItemId("call-1", 0), question: "Pick one", answer: "B" },
+        { questionItemId: asyncQuestionItemId("call-1", 1), question: "Explain", answer: "Because" },
+      ])}\n` +
+      "</send_user_message_question_reply>\n",
+    );
+  });
+
+  it("restores answers from a reloaded transcript and hides the wrapper bubble", () => {
+    const reply = user("u2", formatAsyncQuestionReply("call-1", [question("Pick one", ["A", "B"])], ["B"]));
+    let s = prependHistory(initialThreadState(T), [
+      { turnId: "t1", item: agent("call-1", "Pick one", "final_answer") },
+      { turnId: "t1", item: reply },
+      { turnId: "t2", item: agent("a2", "Thanks", "final_answer") },
+    ]);
+    const answers = parseAsyncQuestionReplies(s.items);
+    expect(answers.get(asyncQuestionItemId("call-1", 0))).toBe("B");
+    expect(groupTurns(s).flatMap((g) => g.userMessages.map((m) => m.id))).toEqual([]);
+    s = { ...s, items: [{ ...s.items[0], questions: [question("Pick one", ["A", "B"])] } as ThreadItem, ...s.items.slice(1)] };
+    expect(groupTurns(s).flatMap((g) => g.userMessages.map((m) => m.id))).toEqual([]);
+  });
+
 });
 
 describe("splitMcpContent", () => {

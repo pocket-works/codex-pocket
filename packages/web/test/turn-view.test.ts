@@ -143,3 +143,54 @@ describe("File Changes in the transcript", () => {
     expect(groupTurns(view)[1].fileChanges).toEqual([]);
   });
 });
+
+describe("Async questions in the transcript", () => {
+  const ask = (id = "call-1"): ThreadItem => ({
+    type: "agentMessage", id, text: "Which route?", phase: "final_answer",
+    memoryCitation: null, delivery: "async",
+    questions: [{ title: "Which route?", options: ["Fast", "Scenic"] }],
+  });
+
+  it("shows choices instead of the duplicated question text", () => {
+    const view = finish(running([ask()]));
+    const html = render(view);
+    expect(html).toContain('class="async-question-card"');
+    expect(html).toContain("Which route?");
+    expect(html).toContain("Fast");
+    expect(html).toContain("Scenic");
+    expect(html).not.toContain('class="final-text"');
+  });
+
+  it("shows only the saved answer after the desktop answered elsewhere", () => {
+    const reply: ThreadItem = {
+      type: "userMessage", id: "reply", clientId: null,
+      content: [{
+        type: "text",
+        text: '<send_user_message_question_reply>\n[{"questionItemId":"[\\"request_user_input_async\\",\\"call-1\\",0]","question":"Which route?","answer":"Scenic"}]\n</send_user_message_question_reply>\n',
+        text_elements: [],
+      }],
+    };
+    const html = render(finish(running([ask(), reply])));
+    expect(html).toContain("Your answer");
+    expect(html).toContain("Scenic");
+    expect(html).not.toContain("async-question-options");
+    expect(html).not.toContain("send_user_message_question_reply");
+  });
+
+  it("becomes answered as soon as the phone sends an answer", () => {
+    const view = finish(running([ask()]));
+    view.pending.push({
+      id: "pending-reply",
+      input: [{
+        type: "text",
+        text: '<send_user_message_question_reply>\n[{"questionItemId":"[\\"request_user_input_async\\",\\"call-1\\",0]","question":"Which route?","answer":"Fast"}]\n</send_user_message_question_reply>\n',
+        text_elements: [],
+      }],
+    });
+    const html = render(view);
+    expect(html).toContain("Your answer");
+    expect(html).toContain("Fast");
+    expect(html).not.toContain("async-question-options");
+    expect(html).not.toContain("pending");
+  });
+});

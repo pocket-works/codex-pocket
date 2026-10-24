@@ -215,6 +215,39 @@ describe("pending bubbles", () => {
   });
 });
 
+describe("async questions", () => {
+  it("steers the desktop-formatted answer into the question's running turn", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turnId: "active" }));
+    const session = readySession(rpc, "active");
+    session.setFollowUpMode("queue");
+    await session.answerAsyncQuestion(
+      "call-1",
+      [{ title: "Which route?", options: ["Fast", "Scenic"] }],
+      ["Scenic"],
+    );
+    expect(calls.map((call) => call.method)).toEqual(["turn/steer"]);
+    expect(calls[0].params).toMatchObject({
+      threadId: "t1",
+      expectedTurnId: "active",
+      input: [{
+        type: "text",
+        text: expect.stringContaining('"questionItemId":"[\\"request_user_input_async\\",\\"call-1\\",0]"'),
+      }],
+    });
+    expect(session.store.get().open?.view.pending).toHaveLength(1);
+  });
+
+  it("starts a new turn when the question arrived after the original turn finished", async () => {
+    const { rpc, calls } = stubRpc(() => ({ turn: { id: "next" } }));
+    const session = readySession(rpc, null);
+    await session.answerAsyncQuestion("call-1", [{ title: "Explain", options: null }], ["Because"]);
+    expect(calls[0]).toMatchObject({
+      method: "turn/start",
+      params: { threadId: "t1", input: [{ type: "text", text: expect.stringContaining('"answer":"Because"') }] },
+    });
+  });
+});
+
 describe("Session.retryLastTurn", () => {
   it("resends the failed turn's user message", async () => {
     const { rpc, calls } = stubRpc(() => ({ turn: { id: "again" } }));
