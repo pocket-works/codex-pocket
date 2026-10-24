@@ -12,6 +12,7 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 ### Fixed
 
 - Recover the notification's computer and conversation when opening or waking the PWA, including browsers that ignore the requested navigation URL.
+- Load all pages of active and archived conversations across model providers, and include subagent conversations from every provider.
 - Keep the phone screen awake during dictation when the browser allows it, restore the screen wake lock when returning to the page, and release it when dictation stops.
 - Update DOMPurify, Vite, Vitest, Electron, and source-map-js to their patched security releases; use the current Node.js 22 security release for builds.
 - Stay quiet when a subagent finishes successfully; still notify for its failures and requests that need your attention.
