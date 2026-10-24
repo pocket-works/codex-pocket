@@ -2,6 +2,7 @@ import type { JsonRpcNotification } from "@codex-pocket/protocol";
 import type { RpcClient } from "../rpc/client.js";
 import workletUrl from "../audio/pcm-worklet.ts?worker&url";
 import { applyTranscript, transcriptText, type TranscriptState } from "./transcript.js";
+import { keepScreenAwake } from "./screen-wake-lock.js";
 
 // Speech-to-text through the host: the microphone is captured here as raw
 // PCM and streamed over the JSON-RPC socket (`pocket/dictation/*`); the host
@@ -38,6 +39,7 @@ export interface DictationHandlers {
  */
 export function startDictation(rpc: RpcClient, handlers: DictationHandlers): Dictation {
   const ctx = new AudioContext();
+  const releaseScreen = keepScreenAwake();
   let transcript: TranscriptState = new Map();
   let sessionId: string | null = null;
   let stream: MediaStream | null = null;
@@ -50,6 +52,7 @@ export function startDictation(rpc: RpcClient, handlers: DictationHandlers): Dic
   const finish = (error?: string) => {
     if (ended) return;
     ended = true;
+    releaseScreen();
     unsubscribe?.();
     node?.port.postMessage("stop");
     node?.disconnect();
@@ -109,6 +112,7 @@ export function startDictation(rpc: RpcClient, handlers: DictationHandlers): Dic
     stop() {
       if (stopping || ended) return;
       stopping = true;
+      releaseScreen();
       if (!sessionId) return; // `run` notices the flag at its next step
       // Drain the worklet first; its "stopped" ack sends the stop request, and the
       // host then delivers the final transcript before `ended` tears everything down.
