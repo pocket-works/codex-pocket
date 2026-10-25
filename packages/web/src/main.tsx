@@ -3,12 +3,16 @@ import { pairComputer, pairingCodeFromUrl } from "./state/auth.js";
 import { getComputerRegistry } from "./state/computers.js";
 import { Pocket } from "./ui/Pocket.js";
 import { installKeyboardFix } from "./ui/keyboard-fix.js";
+import { listenForNotificationNavigation, restoreNotificationRoute } from "./state/notification-navigation.js";
 import "./styles.css";
 
 const root = createRoot(document.getElementById("root")!);
 
 async function boot(): Promise<void> {
   installKeyboardFix();
+  const code = pairingCodeFromUrl();
+  listenForNotificationNavigation();
+  if (!code) await restoreNotificationRoute();
   const registry = getComputerRegistry();
   if ("serviceWorker" in navigator && import.meta.env.PROD) {
     void navigator.serviceWorker.register("/sw.js").then(async (reg) => {
@@ -17,7 +21,6 @@ async function boot(): Promise<void> {
       if (entry) worker?.postMessage({ type: "legacy-computer", id: entry.id, name: entry.name });
     }).catch(() => {});
   }
-  const code = pairingCodeFromUrl();
   let initialError: string | undefined;
   if (code) {
     root.render(

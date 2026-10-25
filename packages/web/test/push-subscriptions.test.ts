@@ -12,6 +12,7 @@ describe("computer push subscriptions", () => {
       let sub: any = null;
       const reg = {
         scope: url, active: {},
+        update: vi.fn().mockResolvedValue(undefined),
         pushManager: {
           getSubscription: vi.fn(async () => sub),
           subscribe: vi.fn(async ({ applicationServerKey }: { applicationServerKey: Uint8Array }) => {
@@ -43,6 +44,9 @@ describe("computer push subscriptions", () => {
       ["https://a.ts.net/api/push/subscription", "Bearer a-token", "https://push.example/push/a/"],
       ["https://b.ts.net/api/push/subscription", "Bearer b-token", "https://push.example/push/b/"],
     ]);
+    expect(await enablePush(a, false)).toBe("on");
+    expect(aReg.update).toHaveBeenCalledOnce();
+    expect(aReg.pushManager.subscribe).toHaveBeenCalledOnce();
     expect(await disablePush(a)).toBe("off");
     expect(aReg.unregister).toHaveBeenCalledOnce();
     expect(bReg.unregister).not.toHaveBeenCalled();

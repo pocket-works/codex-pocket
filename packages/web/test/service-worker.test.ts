@@ -69,7 +69,24 @@ describe("offline app shell", () => {
   it("opens notification threads on the correct computer", async () => {
     const h = harness();
     await h.lifecycle("notificationclick", { notification: { close: vi.fn(), data: { threadId: "thread/one", computerId: "mac one" } } });
-    expect(h.self.clients.openWindow).toHaveBeenCalledWith("/#/h/mac%20one/t/thread%2Fone");
+    expect(h.self.clients.openWindow).toHaveBeenCalledWith("https://mac.test/#/h/mac%20one/t/thread%2Fone");
+    expect(await (h.cache.put.mock.calls[0][1] as Response).json()).toEqual({ url: "https://mac.test/#/h/mac%20one/t/thread%2Fone", clickedAt: expect.any(Number) });
+  });
+
+  it("waits for legacy notification navigation and recovers when it rejects", async () => {
+    const h = harness();
+    const client = {
+      url: "https://mac.test/#/t/previous",
+      navigate: vi.fn().mockRejectedValue(new Error("Navigation failed")),
+      postMessage: vi.fn(),
+      focus: vi.fn().mockResolvedValue(undefined),
+    };
+    h.self.clients.matchAll.mockResolvedValue([client]);
+    await h.lifecycle("notificationclick", { notification: { close: vi.fn(), data: { threadId: "thread/one", computerId: "mac one" } } });
+    expect(client.navigate).toHaveBeenCalledWith("https://mac.test/#/h/mac%20one/t/thread%2Fone");
+    expect(client.postMessage).toHaveBeenCalledWith({ type: "notification-open" });
+    expect(client.focus).toHaveBeenCalledOnce();
+    expect(h.self.clients.openWindow).not.toHaveBeenCalled();
   });
 
   it("preloads HTML, CSS, entry and lazy bundles before taking control", async () => {

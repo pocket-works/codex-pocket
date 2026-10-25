@@ -6,6 +6,7 @@ import { ComputerRegistry } from "../src/state/computers.js";
 import { disablePush, enablePush, forgetPush, pushStatus, type PushStatus } from "../src/state/push.js";
 import { Pocket } from "../src/ui/Pocket.js";
 import { computerRouteHash, readPocketPanel } from "../src/ui/route.js";
+import { restoreNotificationRoute } from "../src/state/notification-navigation.js";
 
 const lifecycle = vi.hoisted(() => ({ mounted: vi.fn(), unmounted: vi.fn() }));
 vi.mock("../src/ui/App.js", async () => {
@@ -99,6 +100,25 @@ const detailSwitch = () => screen().querySelector('[role="switch"]')!;
 async function details(name = "Work Mac") { await click(named("Computers")); await click(named(`Details for ${name}`)); }
 
 describe("Computer navigation", () => {
+  it("switches to a notification's computer and thread when browser navigation was ignored", async () => {
+    await mount();
+    await details();
+    let pending: string | null = JSON.stringify({
+      url: `${currentLocation.origin}/${computerRouteHash(homeId, "#/t/notification-thread")}`,
+      clickedAt: Date.now(),
+    });
+    vi.stubGlobal("caches", { open: async () => ({
+      match: async () => pending ? new Response(pending) : undefined,
+      delete: async () => { pending = null; return true; },
+    }) });
+    await act(async () => restoreNotificationRoute());
+    expect(registry.active!.id).toBe(homeId);
+    expect(registry.active!.lastRoute).toBe("#/t/notification-thread");
+    expect(currentLocation.hash).toBe(computerRouteHash(homeId, "#/t/notification-thread"));
+    expect(readPocketPanel(currentLocation.hash)).toBeNull();
+    expect(container.querySelector(".pocket-workspace")!.hasAttribute("hidden")).toBe(false);
+  });
+
   it("returns from details to the original chat without remounting it or remembering management pages", async () => {
     await mount();
     const textarea = container.querySelector("textarea")!;

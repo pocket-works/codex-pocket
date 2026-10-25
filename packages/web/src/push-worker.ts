@@ -23,11 +23,15 @@ worker.addEventListener("notificationclick", (event) => {
   const threadId = event.notification.data?.threadId;
   const route = `/#/h/${encodeURIComponent(computerId)}${threadId ? `/t/${encodeURIComponent(threadId)}` : "/"}`;
   const url = new URL(route, worker.location.origin).href;
-  event.waitUntil(worker.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+  event.waitUntil((async () => {
+    // iOS may wake the installed app without applying the requested fragment.
+    await caches.open("codex-pocket-metadata").then((cache) => cache.put("/__pocket-notification-route", new Response(JSON.stringify({ url, clickedAt: Date.now() })))).catch(() => {});
+    const clients = await worker.clients.matchAll({ type: "window", includeUncontrolled: true });
     const client = clients.find((c) => new URL(c.url).origin === worker.location.origin);
     if (client) {
-      await client.navigate(url);
-      await client.focus();
+      const target = await client.navigate(url).catch(() => null) ?? client;
+      target.postMessage({ type: "notification-open" });
+      await target.focus().catch(() => worker.clients.openWindow(url));
     } else await worker.clients.openWindow(url);
-  }));
+  })());
 });
