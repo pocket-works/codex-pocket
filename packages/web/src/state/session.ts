@@ -500,14 +500,34 @@ export class Session {
 
   // --- thread list --------------------------------------------------------
 
+  private async loadThreadPages(archived = false): Promise<v2.Thread[]> {
+    const threads: v2.Thread[] = [];
+    let cursor: string | null = null;
+    const cursors = new Set<string>();
+    do {
+      // Omission restricts results to the server's default model provider.
+      const page: v2.ThreadListResponse = await this.rpc.request("thread/list", {
+        limit: 200, sortKey: "recency_at", modelProviders: [], cursor,
+        ...(archived ? { archived: true } : {}),
+      });
+      threads.push(...page.data);
+      cursor = page.nextCursor;
+      if (cursor) {
+        if (cursors.has(cursor)) throw new Error("Thread pagination cursor did not advance");
+        cursors.add(cursor);
+      }
+    } while (cursor);
+    return threads;
+  }
+
   async loadThreads(): Promise<void> {
     if (this.store.get().threadsLoading) return;
     this.store.set((s) => ({ ...s, threadsLoading: true, threadsError: null }));
     try {
-      const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 60, sortKey: "recency_at" });
+      const threads = await this.loadThreadPages();
       this.store.set((s) => ({
         ...s,
-        threads: [...mergeThreadList(s.threads, res.data), ...s.threads.filter((thread) => isSubagent(thread) && !res.data.some((fresh) => fresh.id === thread.id))].map((thread) => {
+        threads: [...mergeThreadList(s.threads, threads), ...s.threads.filter((thread) => isSubagent(thread) && !threads.some((fresh) => fresh.id === thread.id))].map((thread) => {
           const saved = this.readiness.get(thread.id);
           return saved?.unread && !thread.unread ? { ...thread, unread: true } : thread;
         }),
@@ -539,7 +559,7 @@ export class Session {
       let cursor: string | null = null;
       do {
         const page: v2.ThreadListResponse = await this.rpc.request("thread/list", {
-          ancestorThreadId: parentThreadId, sourceKinds: ["subAgentThreadSpawn"], sortKey: "recency_at", limit: 100, cursor,
+          ancestorThreadId: parentThreadId, sourceKinds: ["subAgentThreadSpawn"], modelProviders: [], sortKey: "recency_at", limit: 100, cursor,
         });
         threads.push(...page.data);
         cursor = page.nextCursor;
@@ -1339,8 +1359,7 @@ export class Session {
 
   /** Archived threads, newest first (not kept in the store: rarely viewed). */
   async loadArchivedThreads(): Promise<ThreadSummary[]> {
-    const res = await this.rpc.request<v2.ThreadListResponse>("thread/list", { limit: 100, sortKey: "recency_at", archived: true });
-    return mergeThreadList([], res.data).filter((thread) => !isSubagent(thread));
+    return mergeThreadList([], await this.loadThreadPages(true)).filter((thread) => !isSubagent(thread));
   }
 
   async unarchiveThread(threadId: string): Promise<void> {

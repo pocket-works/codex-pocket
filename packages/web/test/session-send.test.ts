@@ -88,8 +88,8 @@ describe("subagent threads", () => {
     session.store.set((s) => ({ ...s, threads: [summarize(child("t1", { parentThreadId: null, source: "cli" })), summarize(child("other", { parentThreadId: null, source: "cli" }))] }));
     await Promise.all([session.loadSubagents("t1"), session.loadSubagents("t1")]);
     expect(calls).toHaveLength(2);
-    expect(calls[0]).toMatchObject({ method: "thread/list", params: { ancestorThreadId: "t1", sourceKinds: ["subAgentThreadSpawn"], cursor: null } });
-    expect(calls[1].params).toMatchObject({ cursor: "next" });
+    expect(calls[0]).toMatchObject({ method: "thread/list", params: { ancestorThreadId: "t1", sourceKinds: ["subAgentThreadSpawn"], modelProviders: [], cursor: null } });
+    expect(calls[1].params).toMatchObject({ modelProviders: [], cursor: "next" });
     expect(session.store.get().threads.map((thread) => thread.id).sort()).toEqual(["child", "nested", "other", "t1"]);
   });
 
