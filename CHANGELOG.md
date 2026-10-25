@@ -4,8 +4,11 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
 ### Added
 
+- Show Codex async questions as conversation cards, with selectable answers and free-text replies that remain available while work continues.
 - Open visualize references from conversations in a full-screen sandbox with interactive scripts, theme styles, tabs, loading and retry states. CDN resources need internet access; Codex follow-up actions and persistent widget state are not supported.
 - Render linked local HTML pages in the same sandbox instead of showing source, including sibling images read from the paired computer and an image viewer for linked images.
 
@@ -21,11 +24,8 @@ All notable user-facing changes are recorded here. Versions follow [Semantic Ver
 - Remove a computer from this phone immediately instead of waiting for an unreachable computer's revocation request or notification cleanup. Continue revoking the retained credential in the background, and allow an unreachable computer's credential to be forgotten permanently.
 - Activate a newly paired computer after removing the last computer from this phone.
 - Prioritize visible preview images over nearby images when scrolling, pause offscreen queued images, and use any free read slot without waiting for an unrelated image.
-
 - Show HTML previews before reading static gallery images; load images near the viewport and reuse loaded images in the full-size viewer without duplicating Base64 in the preview HTML.
-
 - Load local images created dynamically by HTML preview scripts, including lazy gallery images and image links, through a directory-scoped sandbox bridge.
-
 - Add a direct remove action to the computer list, including local removal when the computer is unreachable.
 - Keep server-side unpair successful when local notification cleanup fails, instead of reporting a revocation error.
 - Retry server-side revocation after local removal while the computer is unavailable, then discard the retained credential on success or 401; show pending removals with a manual retry action.
