@@ -97,13 +97,15 @@ worker.addEventListener("notificationclick", (event) => {
   const threadId = event.notification.data && event.notification.data.threadId;
   const computerId = event.notification.data && event.notification.data.computerId;
   const base = computerId ? `/#/h/${encodeURIComponent(computerId)}` : "/#";
-  const url = threadId ? `${base}/t/${encodeURIComponent(threadId)}` : `${base}/`;
-  event.waitUntil(worker.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-    const client = list[0];
+  const url = new URL(threadId ? `${base}/t/${encodeURIComponent(threadId)}` : `${base}/`, worker.location.origin).href;
+  event.waitUntil((async () => {
+    await caches.open(METADATA).then((cache) => cache.put("/__pocket-notification-route", new Response(JSON.stringify({ url, clickedAt: Date.now() })))).catch(() => {});
+    const list = await worker.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const client = list.find((c) => new URL(c.url).origin === worker.location.origin);
     if (client) {
-      void client.navigate(url).catch(() => {});
-      return client.focus();
-    }
-    return worker.clients.openWindow(url);
-  }));
+      const target = await client.navigate(url).catch(() => null) ?? client;
+      target.postMessage({ type: "notification-open" });
+      await target.focus().catch(() => worker.clients.openWindow(url));
+    } else await worker.clients.openWindow(url);
+  })());
 });

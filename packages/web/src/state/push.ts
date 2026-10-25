@@ -38,6 +38,8 @@ async function activeRegistration(host: HostClient): Promise<ServiceWorkerRegist
     `/push-worker.js?computer=${encodeURIComponent(host.id)}&name=${encodeURIComponent(host.computer.name)}`,
     { scope: pushScope(host.id) },
   );
+  // Pages never navigate into push scopes, so check these workers explicitly.
+  if (existing) void reg.update().catch(() => {});
   if (!reg.active) {
     await new Promise<void>((resolve, reject) => {
       const install = reg.installing ?? reg.waiting;

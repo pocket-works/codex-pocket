@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 type Alert = { title: string; options: NotificationOptions; close: ReturnType<typeof vi.fn> };
-type WindowClient = { url: string; navigate: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn> };
+type WindowClient = { url: string; navigate: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; postMessage: ReturnType<typeof vi.fn> };
 
 function phone() {
   const alerts = new Map<string, Alert>();
@@ -35,6 +35,7 @@ function phone() {
       url,
       navigate: vi.fn(async (next: string) => { client.url = next; return client; }),
       focus: vi.fn(async () => client),
+      postMessage: vi.fn(),
     };
     windows.push(client);
     return client;
@@ -46,6 +47,8 @@ function phone() {
     // Each registration has a separate global scope, as on the installed PWA.
     runInNewContext(workerCode, {
       URL,
+      Response,
+      caches: { open: async () => ({ put: vi.fn() }) },
       location: { origin, href: `${origin}/push-worker.js?computer=${encodeURIComponent(computerId)}&name=${encodeURIComponent(name)}` },
       clients,
       addEventListener: (type: string, handler: (event: unknown) => void) => listeners.set(type, handler),
